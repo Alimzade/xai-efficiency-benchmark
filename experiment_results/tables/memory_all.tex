@@ -1,0 +1,25 @@
+\begin{table}[ht]
+\centering
+\begin{tabular}{lcc}
+\hline
+Method & Peak Memory (MiB) & Std. Dev. (MiB) \\
+\hline
+Morris_Sensitivity_Analysis & 37 & 50 \\
+AblationStudies & 37 & 50 \\
+PermutationImportance & 38 & 50 \\
+LIME & 38 & 50 \\
+CAM & 133 & 50 \\
+Grad_CAM & 133 & 50 \\
+InputXGradient & 136 & 49 \\
+GuidedBackprop & 136 & 50 \\
+Saliency & 136 & 50 \\
+Grad_CAM_plus_plus & 141 & 49 \\
+GradientShap & 576 & 103 \\
+DeepLiftShap & 1130 & 206 \\
+RISE & 1599 & 46 \\
+IntegratedGradients & 5311 & 1043 \\
+\hline
+\end{tabular}
+\caption{Average peak memory usage and standard deviation for all XAI methods.}
+\label{tab:memory_all}
+\end{table}

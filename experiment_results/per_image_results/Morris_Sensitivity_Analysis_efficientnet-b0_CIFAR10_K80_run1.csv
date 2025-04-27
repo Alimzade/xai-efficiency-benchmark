@@ -1,0 +1,11 @@
+image_index,time,peak_memory,net_memory_change,method,model,dataset,run_number
+0,25.203214216977358,10.83349609375,0.19140625,Morris_Sensitivity_Analysis,efficientnet-b0,CIFAR10,1
+1,25.196445886045694,10.83349609375,0.19140625,Morris_Sensitivity_Analysis,efficientnet-b0,CIFAR10,1
+2,24.810178574174643,10.83349609375,0.19140625,Morris_Sensitivity_Analysis,efficientnet-b0,CIFAR10,1
+3,24.814765110611916,10.83349609375,0.19140625,Morris_Sensitivity_Analysis,efficientnet-b0,CIFAR10,1
+4,26.22273727506399,10.83349609375,0.19140625,Morris_Sensitivity_Analysis,efficientnet-b0,CIFAR10,1
+5,26.334683898836374,10.83349609375,0.19140625,Morris_Sensitivity_Analysis,efficientnet-b0,CIFAR10,1
+6,25.87468796595931,10.83349609375,0.19140625,Morris_Sensitivity_Analysis,efficientnet-b0,CIFAR10,1
+7,25.820656336843967,10.83349609375,0.19140625,Morris_Sensitivity_Analysis,efficientnet-b0,CIFAR10,1
+8,24.91070894151926,10.83349609375,0.19140625,Morris_Sensitivity_Analysis,efficientnet-b0,CIFAR10,1
+9,24.85648225620389,10.83349609375,0.19140625,Morris_Sensitivity_Analysis,efficientnet-b0,CIFAR10,1

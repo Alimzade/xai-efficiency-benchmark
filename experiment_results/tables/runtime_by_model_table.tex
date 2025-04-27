@@ -1,0 +1,28 @@
+\begin{table}[ht]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lrrrrr}
+\toprule
+model & convnext-t & densenet121 & efficientnet-b0 & resnet50 & vit-b-16 \\
+method_readable &  &  &  &  &  \\
+\midrule
+Grad-CAM & 0.016 & 0.028 & 0.015 & 0.014 & 0.037 \\
+CAM & 0.022 & 0.030 & 0.014 & 0.018 & 0.061 \\
+Saliency & 0.102 & 0.065 & 0.034 & 0.027 & 0.057 \\
+Input X Gradient & 0.110 & 0.065 & 0.033 & 0.027 & 0.058 \\
+Guided Backprop & 0.098 & 0.082 & 0.032 & 0.032 & 0.058 \\
+Grad-CAM++ & 0.118 & 0.075 & 0.037 & 0.033 & 0.079 \\
+Gradient Shap & 0.172 & 0.077 & 0.044 & 0.038 & 0.067 \\
+DeepLift Shap & 0.233 & 0.085 & 0.049 & 0.037 & 0.071 \\
+Integrated Gradients & 1.394 & 0.582 & 0.295 & 0.525 & 3.046 \\
+LIME & 1.710 & 2.379 & 1.180 & 1.403 & 3.793 \\
+Permutation Importance & 3.142 & 4.506 & 2.070 & 2.784 & 7.938 \\
+Ablation Studies & 3.161 & 4.591 & 2.112 & 2.812 & 7.981 \\
+Morris Sensitivity Analysis & 28.000 & 40.865 & 18.336 & 25.033 & 64.140 \\
+RISE & 56.267 & 86.406 & 36.121 & 53.137 & 130.672 \\
+\bottomrule
+\end{tabular}
+}
+\caption{Average runtime (in seconds) for each XAI method across different model architectures.}
+\label{tab:runtime_by_model}
+\end{table}

@@ -1,0 +1,25 @@
+\begin{table}[ht]
+\centering
+\begin{tabular}{lccc}
+\toprule
+Method & RTX 2080 Ti & P100 & K80 \\
+\midrule
+CAM & 0.01 & 0.04 & 0.04 \\
+Grad-CAM & 0.01 & 0.03 & 0.03 \\
+Deep Lift Shap & 0.02 & 0.12 & 0.14 \\
+Grad-CAM++ & 0.02 & 0.08 & 0.11 \\
+Gradient Shap & 0.02 & 0.09 & 0.12 \\
+Guided Backprop & 0.02 & 0.06 & 0.10 \\
+Input X Gradient & 0.02 & 0.07 & 0.09 \\
+Saliency & 0.02 & 0.06 & 0.09 \\
+Integrated Gradients & 0.19 & 1.99 & 1.33 \\
+LIME & 0.80 & 2.65 & 2.84 \\
+Ablation Studies & 1.39 & 5.63 & 5.38 \\
+Permutation Importance & 1.40 & 5.57 & 5.29 \\
+Morris Sensitivity Analysis & 13.81 & 42.08 & 49.93 \\
+RISE & 24.58 & 84.56 & 106.32 \\
+\bottomrule
+\end{tabular}
+\caption{Average runtime (in seconds) per GPU for each XAI method.}
+\label{tab:runtime_by_gpu}
+\end{table}

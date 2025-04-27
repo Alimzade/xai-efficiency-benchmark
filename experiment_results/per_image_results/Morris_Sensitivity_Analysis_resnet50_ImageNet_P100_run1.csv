@@ -1,0 +1,11 @@
+image_index,time,peak_memory,net_memory_change,method,model,dataset,run_number
+0,41.460308857262135,27.93115234375,0.19140625,Morris_Sensitivity_Analysis,resnet50,ImageNet,1
+1,41.625151976943016,27.93115234375,0.19140625,Morris_Sensitivity_Analysis,resnet50,ImageNet,1
+2,41.633909214287996,27.93115234375,0.19140625,Morris_Sensitivity_Analysis,resnet50,ImageNet,1
+3,41.5954526104033,27.93115234375,0.19140625,Morris_Sensitivity_Analysis,resnet50,ImageNet,1
+4,41.60466331616044,27.93115234375,0.19140625,Morris_Sensitivity_Analysis,resnet50,ImageNet,1
+5,33.18607147037983,27.93115234375,0.19140625,Morris_Sensitivity_Analysis,resnet50,ImageNet,1
+6,41.5936773866415,27.93115234375,0.19140625,Morris_Sensitivity_Analysis,resnet50,ImageNet,1
+7,41.59311682730913,27.93115234375,0.19140625,Morris_Sensitivity_Analysis,resnet50,ImageNet,1
+8,41.60141380131245,27.93115234375,0.19140625,Morris_Sensitivity_Analysis,resnet50,ImageNet,1
+9,41.599255327135324,27.93115234375,0.19140625,Morris_Sensitivity_Analysis,resnet50,ImageNet,1
