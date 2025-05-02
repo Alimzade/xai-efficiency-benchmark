@@ -1,7 +1,9 @@
-@misc{alimzade2025xai,
-  author       = {Anar Alimzade},
-  title        = {Efficiency Benchmark for XAI},
-  year         = {2025},
-  url          = {https://github.com/Alimzade/xai-efficiency-benchmark},
-  note         = {Accessed: 2025-05-02}
-}
+cff-version: 1.2.0
+message: "If you use this benchmark in your work, please cite it as below."
+title: "Efficiency Benchmark for XAI"
+version: "1.0.0"
+authors:
+  - family-names: Alimzade
+    given-names: Anar
+date-released: 2025-05-02
+url: "https://github.com/Alimzade/xai-efficiency-benchmark"
