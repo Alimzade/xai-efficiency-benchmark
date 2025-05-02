@@ -6,12 +6,12 @@ A toolkit to measure and compare the runtime, memory, and energy overhead of pop
 
 Explainable AI is crucial for trust and transparency in model decisions. However, many explanation techniques introduce significant computational overhead. For example, perturbation-based methods may require *hundreds or thousands of forward passes* to generate a single explanation ([OpenVINO™ Explainable AI Toolkit User Guide — OpenVINO™ XAI 1.1.0 documentation](https://openvinotoolkit.github.io/openvino_xai/stable/user-guide.html#:~:text=%2A%20Flexible%20,Cons)), and model-agnostic methods like SHAP can be *prohibitively slow* on large models ([Explainable artificial intelligence (XAI): from inherent explainability to large language models](https://arxiv.org/html/2501.09967v1#:~:text=Also%2C%20the%20computational%20overhead%20when,In%20addition%2C%20model)). This efficiency gap means some XAI methods are impractical for real-time or resource-constrained deployment. Balancing interpretability with computational efficiency is a known trade-off ([Do All AI Systems Need to Be Explainable?](https://ssir.org/articles/entry/do_ai_systems_need_to_be_explainable#:~:text=5.%20The%20trade,When)). This toolkit benchmarks a variety of XAI methods across models and datasets, quantifying their runtime, memory, and energy costs.
 
-## Prerequisites
+## Prerequisites 
 
 - **Python:** 3.9 (added to `PATH`)
 - **Git:** to clone this repository
 
-## Setup Instructions (Windows 10/11)
+## Setup Instructions (Windows 10/11) 
 
 1. **Open PowerShell as Administrator.**
    
@@ -39,7 +39,7 @@ Explainable AI is crucial for trust and transparency in model decisions. However
    pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
    ```
 
-## Dataset Download
+## Dataset Download 🗃️
 
 **For ImageNet:**
 1. Obtain a Hugging Face access token at https://huggingface.co/settings/tokens
@@ -52,7 +52,7 @@ python datasets\download.py
 ```
    
 
-## Running Benchmarks
+## Running Benchmarks 
 
 Launch Jupyter and open one of the notebooks in the `benchmarks/` folder:
 
@@ -63,7 +63,7 @@ Launch Jupyter and open one of the notebooks in the `benchmarks/` folder:
 
 Results (JSON, CSV, plots) will be saved in `experiment_results/`.
 
-## Extending the Framework
+## Extending the Framework 
 
 - **Add XAI methods:** place a new Python file in `xai_methods/` following existing templates.
 - **Add models:** update scripts in `models/` folder to include loading logic for your model (architecture and weights).
