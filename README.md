@@ -72,16 +72,15 @@ Results (JSON, CSV, plots) will be saved in `experiment_results/`.
 
 ## Utilities 🛠️
 
-The `utils/` folder contains helper modules for common tasks:
+The `utils/` folder contains helper modules:
 
-- `utils/benchmark_utils.py`: Functions to measure time, memory, and energy. Add your hardware here. 
+- `utils/benchmark_utils.py`: Add your hardware information here. 
 
 
 ## Output and Results 📊
 
-- **Raw results**: After running benchmarks, raw output (e.g., runtime logs, memory usage) is saved in `experiment_results/`. Each experiment run creates timestamped subfolders.  
+- **Raw results**: After running benchmarks, raw output (e.g., runtime logs, memory usage) is saved in `experiment_results/`. All experiment results are saved in the same place; therefore, clean folders (using `clean_folders.ipynb`).
 - **Figures**: Run `evaluation.ipynb` to generate figures and tables if needed. The `figures/` folder contains generated plots (PNG/HTML) comparing methods by runtime, memory, and energy. These visuals help quickly see the efficiency differences.  
-- **Reproducing plots**: Example code for plotting is included in the `analysis/` scripts. You can modify and re-run them to customize or extend the analysis.  
 
 By inspecting these results, researchers can identify which XAI methods are most practical under resource constraints and how to optimize their use.
 
