@@ -97,5 +97,4 @@ If you use this benchmark, please cite:
   doi     = {10.5281/zenodo.15321812},
   version = {1.0.0}
 }
-
-
+```
