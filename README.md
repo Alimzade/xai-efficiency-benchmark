@@ -85,5 +85,17 @@ The `utils/` folder contains helper modules for common tasks:
 
 By inspecting these results, researchers can identify which XAI methods are most practical under resource constraints and how to optimize their use.
 
+## Citation
+If you use this benchmark, please cite:
+
+```bibtex
+@software{alimzade2025xai,
+  author  = {Anar Alimzade},
+  title   = {Efficiency Benchmark for XAI},
+  year    = {2025},
+  month   = {May},
+  doi     = {10.5281/zenodo.15321812},
+  version = {1.0.0}
+}
 
 
