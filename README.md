@@ -28,7 +28,12 @@ Explainable AI is crucial for trust and transparency in model decisions. However
    .\env39\Scripts\activate
    ```
 6. **Open** your code editor (e.g., VSCode, Cursor) and restart the integrated terminal if needed.
-7. **Install** dependencies in the terminal
+7. **Clone** this repository and `cd` into it:
+   ```powershell
+   git clone https://github.com/Alimzade/xai-efficiency-benchmark.git
+   cd xai-efficiency-benchmark
+   ```
+8. **Install** dependencies in the terminal
    ```
    pip install captum memory_profiler opencv-python requests tensorflow ipykernel pandas scikit-image scikit-learn seaborn
    pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
