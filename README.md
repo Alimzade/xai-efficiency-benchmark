@@ -40,6 +40,7 @@ Explainable AI is crucial for trust and transparency in model decisions. However
    ```
 
 ## Dataset Download 🗃️
+   *No need if using images from URLs*
 
 **For ImageNet:**
 1. Obtain a Hugging Face access token at https://huggingface.co/settings/tokens
