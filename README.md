@@ -86,7 +86,7 @@ The `utils/` folder contains helper modules:
 By inspecting these results, researchers can identify which XAI methods are most practical under resource constraints and how to optimize their use.
 
 ## Citation
-If you use this benchmark, please cite:
+If you use this tool in your work, please cite as below:
 
 ```bibtex
 @software{alimzade2025xai,
