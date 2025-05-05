@@ -55,8 +55,6 @@ python datasets\download.py
 
 ## Running Benchmarks 
 
-Launch Jupyter and open one of the notebooks in the `benchmarks/` folder:
-
 - **`benchmark.ipynb`** (recommended): select method, model, dataset, hardware, and run full suite.
 - **`local_benchmark.ipynb`**: run one configuration per cell.
 - **`LIME_benchmark.ipynb`**: tune perturbation settings (e.g., sample count).
