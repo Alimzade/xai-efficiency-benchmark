@@ -1,0 +1,2 @@
+Method,Model,Resolution,Prediction,Device,Runtime (sec),Peak Memory (MB)
+saliency,resnet50,512 x 512,volcano,NVIDIA GeForce GTX 1050,21.4333,18.38

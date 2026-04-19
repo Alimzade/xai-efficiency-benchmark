@@ -1,0 +1,10 @@
+{
+    "model_name": "resnet50",
+    "image_source": "gui/sessions\\Batch_20260419_193334\\img1_resnet50_224\\input_image.jpg",
+    "methods": [
+        "saliency"
+    ],
+    "force_device": "cuda",
+    "input_size": 224,
+    "prediction": "wool"
+}

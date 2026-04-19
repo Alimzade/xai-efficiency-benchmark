@@ -57,6 +57,7 @@ def run_benchmark_task(config, session_dir):
     else:
         img = Image.open(img_src).convert('RGB')
     
+    original_dims = f"{img.size[0]} x {img.size[1]}"
     img.save(os.path.join(session_dir, "input_image.jpg"))
     input_tensor = preprocess_image(img, model_name=model_name, target_size=target_size).unsqueeze(0).to(device)
     img_dims = f"{input_tensor.shape[2]} x {input_tensor.shape[3]}"
@@ -109,6 +110,7 @@ def run_benchmark_task(config, session_dir):
             
             results.append({
                 "Method": method_name, "Model": model_name, "Resolution": img_dims,
+                "Original Resolution": original_dims,
                 "Prediction": predicted_class,
                 "Device": device_info,
                 "Runtime (sec)": round(end_time - start_time, 4),
@@ -124,6 +126,7 @@ def run_benchmark_task(config, session_dir):
         except Exception as e:
             results.append({
                 "Method": method_name, "Model": model_name, "Resolution": img_dims,
+                "Original Resolution": original_dims,
                 "Prediction": predicted_class if 'predicted_class' in locals() else "N/A",
                 "Device": device_info,
                 "Runtime (sec)": 0.0, "Peak Memory (MB)": 0.0, "Status": f"Error: {str(e)}"

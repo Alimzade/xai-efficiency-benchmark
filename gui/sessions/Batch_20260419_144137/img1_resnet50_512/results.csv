@@ -1,2 +1,0 @@
-Method,Model,Resolution,Prediction,Device,Runtime (sec),Peak Memory (MB)
-guided_backprop,resnet50,512 x 512,CRT screen,NVIDIA GeForce GTX 1050,27.2553,0.48

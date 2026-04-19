@@ -1,2 +1,0 @@
-Method,Model,Resolution,Prediction,Device,Runtime (sec),Peak Memory (MB)
-guided_backprop,mobilenet-v3-large,512 x 512,home theater,NVIDIA GeForce GTX 1050,26.8156,0.22

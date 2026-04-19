@@ -77,7 +77,9 @@ def render_result_group(group, selected_methods):
             sample_m = arch_models[0]
             img_path = os.path.join(sample_m["session_dir"], "input_image.jpg")
             if os.path.exists(img_path):
-                col_left.image(img_path, caption="Input Image", use_container_width=True)
+                # Pull original resolution from the first result entry
+                orig_res = sample_m["results"][0].get("Original Resolution", "Unknown") if sample_m["results"] else "Unknown"
+                col_left.image(img_path, caption=f"Input Image ({orig_res})", use_container_width=True)
             
             # 2. Show Heatmap Rows (One row per Method, sizes side-by-side)
             with col_right:
@@ -250,7 +252,9 @@ with tab1:
                 st.divider(); st.header("🔬 Batch Summary"); cs1, cs2 = st.columns(2)
                 with cs1:
                     st.subheader("Configuration Averages")
-                    summary_df = fdf.groupby(["Model", "Resolution"]).agg({"Runtime (sec)": "mean", "Peak Memory (MB)": "mean"}).reset_index()
+                    group_cols = ["Model", "Resolution"]
+                    if "Original Resolution" in fdf.columns: group_cols.append("Original Resolution")
+                    summary_df = fdf.groupby(group_cols).agg({"Runtime (sec)": "mean", "Peak Memory (MB)": "mean"}).reset_index()
                     st.table(style_dataframe(summary_df))
                     fig1, ax1 = plt.subplots(figsize=(12, 7))
                     sns.barplot(data=fdf, x="Method", y="Runtime (sec)", hue="Model_Size", palette="colorblind", ax=ax1, edgecolor="black")
@@ -340,7 +344,10 @@ with tab2:
                     hc1, hc2 = st.columns(2)
                     with hc1:
                         st.subheader("Configuration Averages")
-                        h_summ = hdf.groupby(["Model", "Resolution"]).agg({"Runtime (sec)": "mean", "Peak Memory (MB)": "mean"}).reset_index()
+                        # Include Original Resolution in group by if it exists
+                        group_cols = ["Model", "Resolution"]
+                        if "Original Resolution" in hdf.columns: group_cols.append("Original Resolution")
+                        h_summ = hdf.groupby(group_cols).agg({"Runtime (sec)": "mean", "Peak Memory (MB)": "mean"}).reset_index()
                         st.table(style_dataframe(h_summ))
                         fig_h, ax_h = plt.subplots(figsize=(12, 7))
                         sns.barplot(data=hdf, x="Method", y="Runtime (sec)", hue="Model_Size", palette="colorblind", ax=ax_h, edgecolor="black")

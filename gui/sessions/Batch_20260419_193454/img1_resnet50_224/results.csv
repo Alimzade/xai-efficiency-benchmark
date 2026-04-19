@@ -1,0 +1,2 @@
+Method,Model,Resolution,Original Resolution,Prediction,Device,Runtime (sec),Peak Memory (MB)
+saliency,resnet50,224 x 224,1024 x 1024,wool,NVIDIA GeForce GTX 1050,33.6375,61.48
