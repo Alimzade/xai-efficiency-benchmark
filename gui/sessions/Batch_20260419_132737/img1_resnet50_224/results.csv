@@ -1,2 +1,0 @@
-Method,Model,Resolution,Prediction,Runtime (sec),Peak Memory (MB)
-integrated_gradients,resnet50,224 x 224,sink,21.7887,1.95

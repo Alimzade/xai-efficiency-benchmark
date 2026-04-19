@@ -1,2 +1,0 @@
-Method,Model,Prediction,Runtime (sec),Peak Memory (MB),Status
-integrated_gradients,resnet50,wall clock,0.0,0.0,Error

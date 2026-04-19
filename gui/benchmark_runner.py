@@ -11,6 +11,7 @@ from memory_profiler import memory_usage
 import gc
 import numpy as np
 import matplotlib.pyplot as plt
+import platform
 
 # Add the parent directory to sys.path so we can import models and xai_methods
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -26,14 +27,22 @@ def run_benchmark_task(config, session_dir):
     Includes memory optimization for high-resolution XAI.
     """
     # 1. Environment Setup for Memory Stability
+    # 1. Setup Device & Environment
+    force_dev = config.get('force_device')
+    device = torch.device(force_dev if force_dev else ("cuda" if torch.cuda.is_available() else "cpu"))
+
+    # Get specific device name for logging
+    if device.type == 'cuda':
+        device_info = torch.cuda.get_device_name(device)
+    else:
+        # Use platform info for CPU name
+        device_info = platform.processor() or "Generic CPU"
+
     if torch.cuda.is_available():
         os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
         torch.cuda.empty_cache()
         gc.collect()
 
-    force_dev = config.get('force_device')
-    device = torch.device(force_dev if force_dev else ("cuda" if torch.cuda.is_available() else "cpu"))
-    
     # 2. Load Model
     model_name = config.get('model_name', 'resnet50')
     model = load_model(model_name=model_name, device=device)
@@ -101,6 +110,7 @@ def run_benchmark_task(config, session_dir):
             results.append({
                 "Method": method_name, "Model": model_name, "Resolution": img_dims,
                 "Prediction": predicted_class,
+                "Device": device_info,
                 "Runtime (sec)": round(end_time - start_time, 4),
                 "Peak Memory (MB)": round(max(mem_usage) - min(mem_usage), 2)
             })
@@ -115,6 +125,7 @@ def run_benchmark_task(config, session_dir):
             results.append({
                 "Method": method_name, "Model": model_name, "Resolution": img_dims,
                 "Prediction": predicted_class if 'predicted_class' in locals() else "N/A",
+                "Device": device_info,
                 "Runtime (sec)": 0.0, "Peak Memory (MB)": 0.0, "Status": f"Error: {str(e)}"
             })
 

@@ -1,2 +1,0 @@
-Method,Model,Resolution,Prediction,Runtime (sec),Peak Memory (MB)
-saliency,efficientnet-b0,448 x 448,sunglass,27.9792,0.38

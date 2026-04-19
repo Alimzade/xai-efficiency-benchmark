@@ -1,2 +1,0 @@
-Method,Model,Resolution,Prediction,Runtime (sec),Peak Memory (MB)
-integrated_gradients,resnet50,1024 x 1024,comic book,23.9366,3.66

@@ -1,2 +1,0 @@
-Method,Model,Resolution,Prediction,Runtime (sec),Peak Memory (MB)
-saliency,resnet50,448 x 448,eggnog,20.2876,0.21

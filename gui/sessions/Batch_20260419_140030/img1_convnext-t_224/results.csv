@@ -1,2 +1,0 @@
-Method,Model,Resolution,Prediction,Runtime (sec),Peak Memory (MB)
-saliency,convnext-t,224 x 224,match,9.9531,11.12

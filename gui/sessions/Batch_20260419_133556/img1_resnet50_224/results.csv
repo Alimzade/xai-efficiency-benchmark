@@ -1,2 +1,0 @@
-Method,Model,Resolution,Prediction,Runtime (sec),Peak Memory (MB)
-integrated_gradients,resnet50,224 x 224,bakery,17.4864,1453.88
