@@ -1,0 +1,2 @@
+Method,Model,Resolution,Prediction,Runtime (sec),Peak Memory (MB)
+integrated_gradients,resnet50,1792 x 1024,rapeseed,12.6033,1.07

@@ -1,0 +1,2 @@
+Method,Model,Resolution,Prediction,Runtime (sec),Peak Memory (MB)
+saliency,resnet50,784 x 716,airliner,19.7068,135.75

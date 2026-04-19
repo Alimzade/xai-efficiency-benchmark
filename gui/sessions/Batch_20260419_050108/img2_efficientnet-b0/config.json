@@ -1,0 +1,9 @@
+{
+    "model_name": "efficientnet-b0",
+    "image_source": "gui/sessions\\Batch_20260419_050108\\img2_efficientnet-b0\\input_image.jpg",
+    "methods": [
+        "integrated_gradients"
+    ],
+    "force_device": "cuda",
+    "prediction": "ocean liner"
+}

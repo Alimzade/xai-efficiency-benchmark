@@ -1,0 +1,9 @@
+{
+    "model_name": "regnet-y-8gf",
+    "image_source": "gui/sessions\\Batch_20260419_050108\\img1_regnet-y-8gf\\input_image.jpg",
+    "methods": [
+        "integrated_gradients"
+    ],
+    "force_device": "cuda",
+    "prediction": "airliner"
+}

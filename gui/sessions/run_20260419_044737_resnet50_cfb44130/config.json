@@ -1,0 +1,9 @@
+{
+    "model_name": "resnet50",
+    "image_source": "gui/sessions\\run_20260419_044737_resnet50_cfb44130\\input_image.jpg",
+    "methods": [
+        "integrated_gradients"
+    ],
+    "force_device": "cuda",
+    "prediction": "container ship"
+}

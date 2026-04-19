@@ -1,0 +1,61 @@
+{
+    "results": [
+        {
+            "img_idx": 1,
+            "models": [
+                {
+                    "model": "resnet50",
+                    "results": [
+                        {
+                            "Method": "saliency",
+                            "Model": "resnet50",
+                            "Resolution": "784 x 716",
+                            "Prediction": "airliner",
+                            "Runtime (sec)": 20.32,
+                            "Peak Memory (MB)": 128.0
+                        },
+                        {
+                            "Method": "integrated_gradients",
+                            "Model": "resnet50",
+                            "Resolution": "784 x 716",
+                            "Prediction": "airliner",
+                            "Runtime (sec)": 33.2238,
+                            "Peak Memory (MB)": 1194.45
+                        },
+                        {
+                            "Method": "integrated_gradients",
+                            "Model": "resnet50",
+                            "Resolution": "784 x 716",
+                            "Prediction": "airliner",
+                            "Runtime (sec)": 42.7198,
+                            "Peak Memory (MB)": 5708.25
+                        }
+                    ],
+                    "session_dir": "gui/sessions\\Batch_20260419_051106\\img1_resnet50",
+                    "src_path": "gui/sessions\\Batch_20260419_051106\\img1_resnet50\\input_image.jpg"
+                },
+                {
+                    "model": "efficientnet-b0",
+                    "results": [
+                        {
+                            "Method": "saliency",
+                            "Model": "efficientnet-b0",
+                            "Resolution": "784 x 716",
+                            "Prediction": "container ship",
+                            "Runtime (sec)": 14.7017,
+                            "Peak Memory (MB)": 0.71
+                        },
+                        {
+                            "Method": "integrated_gradients",
+                            "Model": "efficientnet-b0",
+                            "Resolution": "784 x 716",
+                            "Prediction": "container ship",
+                            "Runtime (sec)": 43.0417,
+                            "Peak Memory (MB)": 99.96
+                        }
+                    ],
+                    "session_dir": "gui/sessions\\Batch_20260419_051106\\img1_efficientnet-b0",
+                    "src_path": "gui/sessions\\Batch_20260419_051106\\img1_efficientnet-b0\\input_image.jpg"
+                }
+            ],
+            "source": 

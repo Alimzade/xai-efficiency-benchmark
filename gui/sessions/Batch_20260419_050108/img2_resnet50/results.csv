@@ -1,0 +1,2 @@
+Method,Model,Resolution,Prediction,Runtime (sec),Peak Memory (MB)
+integrated_gradients,resnet50,1024 x 1024,container ship,27.982,445.23
