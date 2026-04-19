@@ -25,12 +25,14 @@ class SessionManager:
         return path
 
     def list_batches(self):
-        """Lists all benchmark batches."""
+        """Lists only COMPLETED benchmark batches that have metadata."""
         if not os.path.exists(self.base_dir): return []
         batches = []
         for d in os.listdir(self.base_dir):
             if d.startswith("Batch_"):
-                batches.append({"id": d, "created": d.split("_")[1] + " " + d.split("_")[2]})
+                # Only include if the batch results file exists (proves completion)
+                if os.path.exists(os.path.join(self.base_dir, d, "batch_results.json")):
+                    batches.append({"id": d, "created": d.split("_")[1] + " " + d.split("_")[2]})
         return sorted(batches, key=lambda x: x["id"], reverse=True)
 
     def delete_batch(self, batch_id):

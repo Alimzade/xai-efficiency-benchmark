@@ -1,2 +1,0 @@
-Method,Model,Resolution,Prediction,Runtime (sec),Peak Memory (MB)
-integrated_gradients,efficientnet-b0,784 x 716,container ship,43.0417,99.96

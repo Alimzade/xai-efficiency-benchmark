@@ -1,9 +1,0 @@
-{
-    "model_name": "efficientnet-b0",
-    "image_source": "gui/sessions\\Batch_20260419_051106\\img1_efficientnet-b0\\input_image.jpg",
-    "methods": [
-        "integrated_gradients"
-    ],
-    "force_device": "cuda",
-    "prediction": "container ship"
-}

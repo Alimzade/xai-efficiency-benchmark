@@ -1,0 +1,37 @@
+{
+    "results": [
+        {
+            "img_idx": 1,
+            "models": [
+                {
+                    "model": "resnet50",
+                    "results": [
+                        {
+                            "Method": "saliency",
+                            "Model": "resnet50",
+                            "Resolution": "1024 x 1024",
+                            "Prediction": "comic book",
+                            "Runtime (sec)": 13.0245,
+                            "Peak Memory (MB)": 7.2
+                        },
+                        {
+                            "Method": "integrated_gradients",
+                            "Model": "resnet50",
+                            "Resolution": "1024 x 1024",
+                            "Prediction": "comic book",
+                            "Runtime (sec)": 23.9366,
+                            "Peak Memory (MB)": 3.66
+                        }
+                    ],
+                    "session_dir": "gui/sessions\\Batch_20260419_052709\\img1_resnet50",
+                    "src_path": "gui/sessions\\Batch_20260419_052709\\img1_resnet50\\input_image.jpg"
+                }
+            ],
+            "source": "lnnksqiw8cdiw6t63ykk.png"
+        }
+    ],
+    "methods": [
+        "Saliency",
+        "Integrated_Gradients"
+    ]
+}

@@ -13,8 +13,10 @@ from io import BytesIO
 from session_manager import SessionManager
 from benchmark_runner import run_benchmark_task
 
-# --- SILENCE NOISY STREAMLIT WARNINGS ---
+# --- SILENCE NOISY WARNINGS ---
 logging.getLogger("streamlit.runtime.scriptrunner_utils.script_run_context").setLevel(logging.ERROR)
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning, module="captum.attr._utils.visualization")
 
 # --- Page Config ---
 st.set_page_config(page_title="XAI Efficiency Benchmark", page_icon="🔍", layout="wide")
@@ -34,6 +36,7 @@ st.markdown("""
 sm = SessionManager()
 
 # --- HELPER FUNCTIONS ---
+
 def get_cpu_info(): return platform.processor() or "Generic CPU"
 def get_base64(img):
     buffered = BytesIO(); img.save(buffered, format="PNG")
@@ -58,20 +61,21 @@ def plot_model_comparison_grouped(df, title="Architecture Efficiency Comparison"
 
 def render_result_group(group, selected_methods):
     with st.expander(f"🖼️ Results for Image {group['img_idx']}", expanded=True):
-        if not group["models"]:
-            st.info("⏳ Processing initial model..."); st.image(group["source"], width=200)
-        else:
-            for m_data in group["models"]:
-                st.markdown(f"#### Architecture: `{m_data['model']}`")
-                cols = st.columns(len(selected_methods) + 1)
-                cols[0].image(os.path.join(m_data["session_dir"], "input_image.jpg"), caption="Input", width='stretch')
-                for i, method in enumerate(selected_methods):
-                    res = next((r for r in m_data["results"] if r["Method"].lower() == method.lower()), None)
-                    if res:
-                        h_p = os.path.join(m_data["session_dir"], "heatmaps", f"{res['Method']}.png")
-                        if os.path.exists(h_p): cols[i+1].image(h_p, caption=f"{res['Method']} ({res['Prediction']})", width='stretch')
-                    else: cols[i+1].markdown("<div style='height: 150px; border: 1px dashed gray; text-align: center; padding-top: 60px; color: gray;'>Running...</div>", unsafe_allow_html=True)
-                if m_data["results"]: st.table(style_dataframe(pd.DataFrame(m_data["results"])))
+        for m_data in group["models"]:
+            st.markdown(f"#### Architecture: `{m_data['model']}`")
+            cols = st.columns(len(selected_methods) + 1)
+            # Reconstruct image path for history compatibility
+            img_path = os.path.join(m_data["session_dir"], "input_image.jpg")
+            if os.path.exists(img_path):
+                cols[0].image(img_path, caption="Input", width='stretch')
+            
+            for i, method in enumerate(selected_methods):
+                res = next((r for r in m_data["results"] if r["Method"].lower() == method.lower()), None)
+                if res:
+                    h_p = os.path.join(m_data["session_dir"], "heatmaps", f"{res['Method']}.png")
+                    if os.path.exists(h_p): cols[i+1].image(h_p, caption=f"{res['Method']} ({res['Prediction']})", width='stretch')
+                else: cols[i+1].markdown("<div style='height: 150px; border: 1px dashed gray; text-align: center; padding-top: 60px; color: gray;'>Running...</div>", unsafe_allow_html=True)
+            if m_data["results"]: st.table(style_dataframe(pd.DataFrame(m_data["results"])))
 
 @st.dialog("Image Viewer", width="large")
 def show_lightbox(img):
@@ -89,22 +93,16 @@ if 'run_progress_idx' not in st.session_state: st.session_state.run_progress_idx
 if 'current_batch_id' not in st.session_state: st.session_state.current_batch_id = ""
 if 'current_img_base64' not in st.session_state: st.session_state.current_img_base64 = ""
 
-# --- SIDEBAR (PERMANENT LOCK) ---
+# --- SIDEBAR ---
 st.sidebar.title("Benchmark Settings ⚙️")
 model_opts = ['resnet50', 'convnext-t', 'efficientnet-b0', 'swin-t', 'regnet-y-8gf', 'mobilenet-v3-large', 'densenet121', 'vit-b-16']
 selected_models = st.sidebar.multiselect("Model Architectures", model_opts, default=["resnet50"])
 xai_opts = ["Saliency", "Integrated_Gradients", "Guided_Backprop", "Input_X_Gradient"]
 selected_methods = st.sidebar.multiselect("XAI Methods", xai_opts, default=["Saliency", "Integrated_Gradients"])
-
-st.sidebar.divider(); st.sidebar.subheader("Compute Device")
-selected_device_mode = st.sidebar.radio("Force execution on:", ["GPU (CUDA)" if torch.cuda.is_available() else "CPU", "CPU"] if torch.cuda.is_available() else ["CPU"], label_visibility="collapsed")
-
 st.sidebar.divider(); st.sidebar.subheader("System Status")
-if "GPU" in selected_device_mode:
-    st.sidebar.success(f"**GPU:** {torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'Active'}")
-else:
-    st.sidebar.warning(f"**CPU:** {get_cpu_info()}")
-
+selected_device_mode = st.sidebar.radio("Force execution on:", ["GPU (CUDA)" if torch.cuda.is_available() else "CPU", "CPU"] if torch.cuda.is_available() else ["CPU"], label_visibility="collapsed")
+if "GPU" in selected_device_mode: st.sidebar.success(f"**GPU:** {torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'Active'}")
+else: st.sidebar.warning(f"**CPU:** {get_cpu_info()}")
 st.sidebar.divider(); st.sidebar.info("### How to Cite")
 st.sidebar.code("""@software{alimzade2025xai,
   author  = {Anar Alimzade},
@@ -153,34 +151,18 @@ with tab1:
     
     # --- ACTION BUTTONS ---
     if not st.session_state.benchmark_running:
-        if st.button("Start Benchmark ⚡", width='stretch'):
-            # 1. CLEAR IMMEDIATELY
+        if st.button("Start Multi-Model Benchmark ⚡", width='stretch'):
             st.session_state.last_run_results = []
             st.session_state.is_finished = False
-            
-            # 2. MULTI-CHECK VALIDATION
-            is_valid = True
-            if not img_sources:
-                st.error("Please add at least one **Image** (Upload or URL).")
-                is_valid = False
-            if not selected_models:
-                st.error("Please select at least one **Model Architecture** in the sidebar.")
-                is_valid = False
-            if not selected_methods:
-                st.error("Please select at least one **XAI Method** in the sidebar.")
-                is_valid = False
-            
-            if is_valid:
+            if not img_sources or not selected_models or not selected_methods: st.error("Select Settings.")
+            else:
                 st.session_state.current_batch_id = sm.start_batch()
-                st.session_state.stop_requested = False
-                st.session_state.balloons_triggered = False
+                st.session_state.stop_requested = False; st.session_state.balloons_triggered = False
                 st.session_state.run_progress_idx = 0; st.session_state.benchmark_running = True; st.rerun()
     else:
         if st.button("🛑 Stop Benchmark", width='stretch'):
-            st.session_state.stop_requested = True
-            st.session_state.benchmark_running = False
-            st.session_state.last_run_results = [] # CLEAR ON STOP
-            st.rerun()
+            st.session_state.stop_requested = True; st.session_state.benchmark_running = False
+            st.session_state.last_run_results = []; st.rerun()
 
     # --- RESULTS AREA ---
     if st.session_state.benchmark_running and not st.session_state.is_finished:
@@ -191,7 +173,7 @@ with tab1:
         mod_i = rem // len(selected_methods); met_i = rem % len(selected_methods)
         cur_mod = selected_models[mod_i] if mod_i < len(selected_models) else "?"
         cur_met = selected_methods[met_i] if met_i < len(selected_methods) else "?"
-        st.markdown(f"<div class='status-pulse'>🚀 TASK {st.session_state.run_progress_idx + 1}/{total_steps}: Running {cur_met} on {cur_mod} (Image {img_i + 1})</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='status-pulse'>🚀 STEP {st.session_state.run_progress_idx + 1}/{total_steps}: Running {cur_met} on {cur_mod} (Image {img_i + 1})</div>", unsafe_allow_html=True)
         st.progress(st.session_state.run_progress_idx / total_steps); st.divider()
 
     if st.session_state.last_run_results:
@@ -234,8 +216,14 @@ with tab1:
             model_entry["results"].extend(results); st.session_state.run_progress_idx += 1
             if st.session_state.run_progress_idx >= (len(img_sources) * steps_per_img):
                 st.session_state.is_finished = True; st.session_state.benchmark_running = False
+                # JSON CLEANUP: Convert UploadedFile objects to strings for saving
+                clean_results = []
+                for g in st.session_state.last_run_results:
+                    cg = g.copy()
+                    if hasattr(cg["source"], 'name'): cg["source"] = cg["source"].name
+                    clean_results.append(cg)
                 with open(os.path.join(sm.base_dir, st.session_state.current_batch_id, "batch_results.json"), 'w') as f:
-                    json.dump({"results": st.session_state.last_run_results, "methods": selected_methods}, f, indent=4)
+                    json.dump({"results": clean_results, "methods": selected_methods}, f, indent=4)
             st.rerun()
 
 with tab2:
@@ -244,21 +232,25 @@ with tab2:
         bid = st.selectbox("Select Benchmark Batch", [b["id"] for b in batches])
         batch_meta_p = os.path.join(sm.base_dir, bid, "batch_results.json")
         if os.path.exists(batch_meta_p):
-            with open(batch_meta_p, 'r') as f: meta = json.load(f)
-            for group in meta["results"]: render_result_group(group, meta["methods"])
-            all_h_r = []
-            for g in meta["results"]:
-                for m in g["models"]: all_h_r.extend(m["results"])
-            if all_h_r:
-                hdf = pd.DataFrame(all_h_r); st.divider(); st.header("🔬 Batch Summary (Historical)")
-                hc1, hc2 = st.columns(2)
-                with hc1:
-                    st.subheader("Model Averages"); st.table(style_dataframe(hdf.groupby("Model").agg({"Runtime (sec)": "mean", "Peak Memory (MB)": "mean"}).reset_index()))
-                    st.pyplot(plot_model_comparison_grouped(hdf))
-                with hc2:
-                    st.subheader("Method Averages"); st.table(style_dataframe(hdf.groupby("Method").agg({"Runtime (sec)": "mean", "Peak Memory (MB)": "mean"}).reset_index()))
-                    st.pyplot(plot_method_runtime_log(hdf))
-            if st.button("🗑️ Delete Entire Batch"): sm.delete_batch(bid); st.rerun()
-        else: st.warning("Metadata missing for this batch.")
+            try:
+                with open(batch_meta_p, 'r') as f: meta = json.load(f)
+                for group in meta["results"]: render_result_group(group, meta["methods"])
+                all_h_r = []
+                for g in meta["results"]:
+                    for m in g["models"]: all_h_r.extend(m["results"])
+                if all_h_r:
+                    hdf = pd.DataFrame(all_h_r); st.divider(); st.header("🔬 Batch Summary (Historical)")
+                    hc1, hc2 = st.columns(2)
+                    with hc1:
+                        st.subheader("Model Averages"); st.table(style_dataframe(hdf.groupby("Model").agg({"Runtime (sec)": "mean", "Peak Memory (MB)": "mean"}).reset_index()))
+                        st.pyplot(plot_model_comparison_grouped(hdf))
+                    with hc2:
+                        st.subheader("Method Averages"); st.table(style_dataframe(hdf.groupby("Method").agg({"Runtime (sec)": "mean", "Peak Memory (MB)": "mean"}).reset_index()))
+                        st.pyplot(plot_method_runtime_log(hdf))
+                if st.button("🗑️ Delete Entire Batch"): sm.delete_batch(bid); st.rerun()
+            except Exception as e:
+                st.error(f"Error: The data file for {bid} is corrupted or incomplete.")
+                if st.button("🗑️ Delete Corrupted Batch"): sm.delete_batch(bid); st.rerun()
+        else: st.info("Loading metadata for this batch...")
     else:
         st.info("No benchmark history found. Start a new run in the 'Run Benchmark' tab!")
