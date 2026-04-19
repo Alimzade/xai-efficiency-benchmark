@@ -12,6 +12,7 @@ import requests
 from io import BytesIO
 from session_manager import SessionManager
 from benchmark_runner import run_benchmark_task
+from exporter import generate_pdf_report, generate_csv_report
 
 # --- SILENCE NOISY WARNINGS ---
 logging.getLogger("streamlit.runtime.scriptrunner_utils.script_run_context").setLevel(logging.ERROR)
@@ -249,7 +250,26 @@ with tab1:
             if all_r:
                 fdf = pd.DataFrame(all_r)
                 fdf["Model_Size"] = fdf["Model"] + " (" + fdf["Resolution"] + ")"
-                st.divider(); st.header("🔬 Batch Summary"); cs1, cs2 = st.columns(2)
+                
+                st.divider()
+                st.header("🔬 Batch Summary")
+                
+                # --- EXPORT BUTTONS ---
+                ex1, ex2, ex3 = st.columns([1, 1, 3])
+                with ex1:
+                    csv_path = os.path.join(sm.base_dir, st.session_state.current_batch_id, f"{st.session_state.current_batch_id}.csv")
+                    if generate_csv_report(st.session_state.last_run_results, csv_path):
+                        with open(csv_path, "rb") as f:
+                            st.download_button("📥 Export CSV", data=f, file_name=f"{st.session_state.current_batch_id}.csv", mime="text/csv", use_container_width=True)
+                with ex2:
+                    pdf_path = os.path.join(sm.base_dir, st.session_state.current_batch_id, f"{st.session_state.current_batch_id}.pdf")
+                    # Use a spinner while generating PDF
+                    with st.spinner("Generating PDF..."):
+                        generate_pdf_report(st.session_state.current_batch_id, st.session_state.last_run_results, selected_methods, pdf_path)
+                    with open(pdf_path, "rb") as f:
+                        st.download_button("📄 Export PDF", data=f, file_name=f"{st.session_state.current_batch_id}.pdf", mime="application/pdf", use_container_width=True)
+
+                cs1, cs2 = st.columns(2)
                 with cs1:
                     st.subheader("Configuration Averages")
                     group_cols = ["Model", "Resolution"]
@@ -340,7 +360,24 @@ with tab2:
                     hdf["Model_Size"] = hdf["Model"] + " (" + hdf.get("Resolution", "224x224") + ")"
                     # Ensure consistent row ordering: Method -> Resolution
                     hdf = hdf.sort_values(by=["Method", "Resolution"])
-                    st.divider(); st.header("🔬 Batch Summary (Historical)")
+                    
+                    st.divider()
+                    st.header("🔬 Batch Summary (Historical)")
+
+                    # --- EXPORT BUTTONS (History) ---
+                    hx1, hx2, hx3 = st.columns([1, 1, 3])
+                    with hx1:
+                        h_csv = os.path.join(sm.base_dir, bid, f"{bid}.csv")
+                        if generate_csv_report(meta["results"], h_csv):
+                            with open(h_csv, "rb") as f:
+                                st.download_button("📥 Export CSV", data=f, file_name=f"{bid}.csv", mime="text/csv", key=f"csv_{bid}", use_container_width=True)
+                    with hx2:
+                        h_pdf = os.path.join(sm.base_dir, bid, f"{bid}.pdf")
+                        with st.spinner("Generating PDF..."):
+                            generate_pdf_report(bid, meta["results"], meta["methods"], h_pdf)
+                        with open(h_pdf, "rb") as f:
+                            st.download_button("📄 Export PDF", data=f, file_name=f"{bid}.pdf", mime="application/pdf", key=f"pdf_{bid}", use_container_width=True)
+
                     hc1, hc2 = st.columns(2)
                     with hc1:
                         st.subheader("Configuration Averages")
