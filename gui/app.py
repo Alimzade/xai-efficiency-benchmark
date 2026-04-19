@@ -127,8 +127,10 @@ if 'current_img_base64' not in st.session_state: st.session_state.current_img_ba
 
 # --- SIDEBAR ---
 st.sidebar.title("Benchmark Settings ⚙️")
+is_running = st.session_state.benchmark_running
+
 model_opts = ['resnet50', 'convnext-t', 'efficientnet-b0', 'swin-t', 'regnet-y-8gf', 'mobilenet-v3-large', 'densenet121', 'vit-b-16']
-selected_models = st.sidebar.multiselect("Model Architectures", model_opts, default=["resnet50"])
+selected_models = st.sidebar.multiselect("Model Architectures", model_opts, default=["resnet50"], disabled=is_running)
 
 # Input Size Selection
 fixed_size_trigger = any(m in ["vit-b-16", "swin-t"] for m in selected_models)
@@ -137,7 +139,7 @@ if fixed_size_trigger:
     st.sidebar.text_input("Input Sizes (px)", value="224", disabled=True)
     st.sidebar.caption("⚠️ *Fixed-size architecture selected (Locked to 224px)*")
 else:
-    size_str = st.sidebar.text_input("Input Sizes (px)", value="224", help="Only applicable to CNN-based architectures.")
+    size_str = st.sidebar.text_input("Input Sizes (px)", value="224", help="Only applicable to CNN-based architectures.", disabled=is_running)
     st.sidebar.markdown('<div style="margin-top: -15px; margin-bottom: 15px; font-size: 0.85em; color: gray;">Separate by commas (e.g., 224, 448, 512).</div>', unsafe_allow_html=True)
     try:
         selected_sizes = [int(s.strip()) for s in size_str.split(",") if s.strip().isdigit()]
@@ -147,9 +149,9 @@ else:
         st.sidebar.error("Invalid size format. Using 224.")
 
 xai_opts = ["Saliency", "Integrated_Gradients", "Guided_Backprop", "Input_X_Gradient"]
-selected_methods = st.sidebar.multiselect("XAI Methods", xai_opts, default=["Saliency", "Integrated_Gradients"])
+selected_methods = st.sidebar.multiselect("XAI Methods", xai_opts, default=["Saliency", "Integrated_Gradients"], disabled=is_running)
 st.sidebar.divider(); st.sidebar.subheader("System Status")
-selected_device_mode = st.sidebar.radio("Force execution on:", ["GPU (CUDA)" if torch.cuda.is_available() else "CPU", "CPU"] if torch.cuda.is_available() else ["CPU"], label_visibility="collapsed")
+selected_device_mode = st.sidebar.radio("Force execution on:", ["GPU (CUDA)" if torch.cuda.is_available() else "CPU", "CPU"] if torch.cuda.is_available() else ["CPU"], label_visibility="collapsed", disabled=is_running)
 if "GPU" in selected_device_mode: st.sidebar.success(f"**GPU:** {torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'Active'}")
 else: st.sidebar.warning(f"**CPU:** {get_cpu_info()}")
 st.sidebar.divider(); st.sidebar.info("### How to Cite")
@@ -167,9 +169,9 @@ tab1, tab2 = st.tabs(["🚀 Run Benchmark", "📜 Results History"])
 with tab1:
     col_input, col_spacer, col_preview = st.columns([2.5, 0.2, 0.8])
     with col_input:
-        uploaded_files = st.file_uploader("Drag and drop images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
+        uploaded_files = st.file_uploader("Drag and drop images", type=["jpg", "jpeg", "png"], accept_multiple_files=True, disabled=is_running)
         with st.expander("Paste Image URLs", expanded=False):
-            urls_input = st.text_area("Input URLs here", st.session_state.persisted_urls, height=100, label_visibility="collapsed")
+            urls_input = st.text_area("Input URLs here", st.session_state.persisted_urls, height=100, label_visibility="collapsed", disabled=is_running)
             st.session_state.persisted_urls = urls_input
         url_list = [u.strip() for u in st.session_state.persisted_urls.split("\n") if u.strip()]
         img_sources = (uploaded_files if uploaded_files else []) + url_list

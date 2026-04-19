@@ -1,0 +1,10 @@
+{
+    "model_name": "mobilenet-v3-large",
+    "image_source": "gui/sessions\\Batch_20260419_144137\\img1_mobilenet-v3-large_448\\input_image.jpg",
+    "methods": [
+        "guided_backprop"
+    ],
+    "force_device": "cuda",
+    "input_size": 448,
+    "prediction": "home theater"
+}

@@ -1,0 +1,2 @@
+Method,Model,Resolution,Prediction,Device,Runtime (sec),Peak Memory (MB)
+guided_backprop,efficientnet-b0,448 x 448,website,NVIDIA GeForce GTX 1050,27.208,0.38

@@ -1,0 +1,2 @@
+Method,Model,Resolution,Prediction,Device,Runtime (sec),Peak Memory (MB)
+integrated_gradients,resnet50,224 x 224,desk,NVIDIA GeForce GTX 1050,12.3528,1.92
