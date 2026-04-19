@@ -61,21 +61,53 @@ def plot_model_comparison_grouped(df, title="Architecture Efficiency Comparison"
 
 def render_result_group(group, selected_methods):
     with st.expander(f"🖼️ Results for Image {group['img_idx']}", expanded=True):
-        for m_data in group["models"]:
-            st.markdown(f"#### Architecture: `{m_data['model']}`")
-            cols = st.columns(len(selected_methods) + 1)
-            # Reconstruct image path for history compatibility
-            img_path = os.path.join(m_data["session_dir"], "input_image.jpg")
-            if os.path.exists(img_path):
-                cols[0].image(img_path, caption="Input", width='stretch')
+        # Group entries by base model architecture
+        architectures = []
+        for m in group["models"]:
+            if m["model"] not in architectures: architectures.append(m["model"])
+        
+        for arch in architectures:
+            st.markdown(f"#### Model: `{arch}`")
+            arch_models = [m for m in group["models"] if m["model"] == arch]
             
-            for i, method in enumerate(selected_methods):
-                res = next((r for r in m_data["results"] if r["Method"].lower() == method.lower()), None)
-                if res:
-                    h_p = os.path.join(m_data["session_dir"], "heatmaps", f"{res['Method']}.png")
-                    if os.path.exists(h_p): cols[i+1].image(h_p, caption=f"{res['Method']} ({res['Prediction']})", width='stretch')
-                else: cols[i+1].markdown("<div style='height: 150px; border: 1px dashed gray; text-align: center; padding-top: 60px; color: gray;'>Running...</div>", unsafe_allow_html=True)
-            if m_data["results"]: st.table(style_dataframe(pd.DataFrame(m_data["results"])))
+            # Layout: Input Image (Left) | Method Collage (Right)
+            col_left, col_right = st.columns([1, 3])
+            
+            # 1. Show Input Image once for this Architecture
+            sample_m = arch_models[0]
+            img_path = os.path.join(sample_m["session_dir"], "input_image.jpg")
+            if os.path.exists(img_path):
+                col_left.image(img_path, caption="Input Image", use_container_width=True)
+            
+            # 2. Show Heatmap Rows (One row per Method, sizes side-by-side)
+            with col_right:
+                for method in selected_methods:
+                    st.markdown(f"**{method}**")
+                    # Create at least 4 columns to ensure thumbnails stay small and separate
+                    num_sizes = len(arch_models)
+                    cols_to_make = max(num_sizes, 4) 
+                    size_cols = st.columns(cols_to_make)
+                    
+                    for i, m_data in enumerate(arch_models):
+                        res = next((r for r in m_data["results"] if r["Method"].lower() == method.lower()), None)
+                        with size_cols[i]:
+                            if res:
+                                h_p = os.path.join(m_data["session_dir"], "heatmaps", f"{res['Method']}.png")
+                                if os.path.exists(h_p):
+                                    st.image(h_p, caption=f"{m_data['input_size']}px", use_container_width=True)
+                            else:
+                                st.markdown("<div style='height: 60px; border: 1px dashed gray; text-align: center; padding-top: 20px; color: gray; font-size: 0.7em;'>...</div>", unsafe_allow_html=True)
+            
+            # 3. Consolidated Table for all sizes of this Architecture
+            # Reorder arch_results to match the visual flow (Method first, then all sizes)
+            arch_results = []
+            for method in selected_methods:
+                for m in arch_models:
+                    res = next((r for r in m["results"] if r["Method"].lower() == method.lower()), None)
+                    if res: arch_results.append(res)
+            
+            if arch_results:
+                st.table(style_dataframe(pd.DataFrame(arch_results)))
 
 @st.dialog("Image Viewer", width="large")
 def show_lightbox(img):
@@ -97,6 +129,23 @@ if 'current_img_base64' not in st.session_state: st.session_state.current_img_ba
 st.sidebar.title("Benchmark Settings ⚙️")
 model_opts = ['resnet50', 'convnext-t', 'efficientnet-b0', 'swin-t', 'regnet-y-8gf', 'mobilenet-v3-large', 'densenet121', 'vit-b-16']
 selected_models = st.sidebar.multiselect("Model Architectures", model_opts, default=["resnet50"])
+
+# Input Size Selection
+fixed_size_trigger = any(m in ["vit-b-16", "swin-t"] for m in selected_models)
+if fixed_size_trigger:
+    selected_sizes = [224]
+    st.sidebar.text_input("Input Sizes (px)", value="224", disabled=True)
+    st.sidebar.caption("⚠️ *Fixed-size architecture selected (Locked to 224px)*")
+else:
+    size_str = st.sidebar.text_input("Input Sizes (px)", value="224", help="Only applicable to CNN-based architectures.")
+    st.sidebar.markdown('<div style="margin-top: -15px; margin-bottom: 15px; font-size: 0.85em; color: gray;">Separate by commas (e.g., 224, 448, 512).</div>', unsafe_allow_html=True)
+    try:
+        selected_sizes = [int(s.strip()) for s in size_str.split(",") if s.strip().isdigit()]
+        if not selected_sizes: selected_sizes = [224]
+    except:
+        selected_sizes = [224]
+        st.sidebar.error("Invalid size format. Using 224.")
+
 xai_opts = ["Saliency", "Integrated_Gradients", "Guided_Backprop", "Input_X_Gradient"]
 selected_methods = st.sidebar.multiselect("XAI Methods", xai_opts, default=["Saliency", "Integrated_Gradients"])
 st.sidebar.divider(); st.sidebar.subheader("System Status")
@@ -166,15 +215,24 @@ with tab1:
 
     # --- RESULTS AREA ---
     if st.session_state.benchmark_running and not st.session_state.is_finished:
-        total_steps = len(img_sources) * len(selected_models) * len(selected_methods)
-        steps_per_img = len(selected_models) * len(selected_methods)
-        img_i = st.session_state.run_progress_idx // steps_per_img
-        rem = st.session_state.run_progress_idx % steps_per_img
-        mod_i = rem // len(selected_methods); met_i = rem % len(selected_methods)
+        total_steps = len(img_sources) * len(selected_models) * len(selected_sizes) * len(selected_methods)
+        idx = st.session_state.run_progress_idx
+        img_i = idx // (len(selected_models) * len(selected_methods) * len(selected_sizes))
+        rem = idx % (len(selected_models) * len(selected_methods) * len(selected_sizes))
+
+        mod_i = rem // (len(selected_methods) * len(selected_sizes))
+        rem = rem % (len(selected_methods) * len(selected_sizes))
+
+        met_i = rem // len(selected_sizes)
+        size_i = rem % len(selected_sizes)
+
         cur_mod = selected_models[mod_i] if mod_i < len(selected_models) else "?"
         cur_met = selected_methods[met_i] if met_i < len(selected_methods) else "?"
-        st.markdown(f"<div class='status-pulse'>🚀 STEP {st.session_state.run_progress_idx + 1}/{total_steps}: Running {cur_met} on {cur_mod} (Image {img_i + 1})</div>", unsafe_allow_html=True)
-        st.progress(st.session_state.run_progress_idx / total_steps); st.divider()
+        cur_size = selected_sizes[size_i] if size_i < len(selected_sizes) else "?"
+
+        st.markdown(f"<div class='status-pulse'>🚀 STEP {idx + 1}/{total_steps}: Running {cur_met} on {cur_mod} @ {cur_size}px (Image {img_i + 1})</div>", unsafe_allow_html=True)
+        st.progress(idx / total_steps); st.divider()
+
 
     if st.session_state.last_run_results:
         for group in st.session_state.last_run_results:
@@ -185,10 +243,18 @@ with tab1:
             for g in st.session_state.last_run_results:
                 for m in g["models"]: all_r.extend(m["results"])
             if all_r:
-                fdf = pd.DataFrame(all_r); st.divider(); st.header("🔬 Batch Summary"); cs1, cs2 = st.columns(2)
+                fdf = pd.DataFrame(all_r)
+                fdf["Model_Size"] = fdf["Model"] + " (" + fdf["Resolution"] + ")"
+                st.divider(); st.header("🔬 Batch Summary"); cs1, cs2 = st.columns(2)
                 with cs1:
-                    st.subheader("Model Averages"); st.table(style_dataframe(fdf.groupby("Model").agg({"Runtime (sec)": "mean", "Peak Memory (MB)": "mean"}).reset_index()))
-                    st.pyplot(plot_model_comparison_grouped(fdf))
+                    st.subheader("Configuration Averages")
+                    summary_df = fdf.groupby(["Model", "Resolution"]).agg({"Runtime (sec)": "mean", "Peak Memory (MB)": "mean"}).reset_index()
+                    st.table(style_dataframe(summary_df))
+                    fig1, ax1 = plt.subplots(figsize=(12, 7))
+                    sns.barplot(data=fdf, x="Method", y="Runtime (sec)", hue="Model_Size", palette="colorblind", ax=ax1, edgecolor="black")
+                    ax1.set_title("Architecture & Resolution Efficiency", fontsize=14, fontweight='bold')
+                    plt.xticks(rotation=45); ax1.legend(loc='upper left', bbox_to_anchor=(1, 1)); plt.tight_layout()
+                    st.pyplot(fig1)
                 with cs2:
                     st.subheader("Method Averages"); st.table(style_dataframe(fdf.groupby("Method").agg({"Runtime (sec)": "mean", "Peak Memory (MB)": "mean"}).reset_index()))
                     st.pyplot(plot_method_runtime_log(fdf))
@@ -196,27 +262,52 @@ with tab1:
 
     # --- ENGINE ---
     if st.session_state.benchmark_running and not st.session_state.is_finished:
-        steps_per_img = len(selected_models) * len(selected_methods)
-        img_i = st.session_state.run_progress_idx // steps_per_img
-        rem = st.session_state.run_progress_idx % steps_per_img
-        mod_i = rem // len(selected_methods); met_i = rem % len(selected_methods)
+        steps_per_img = len(selected_models) * len(selected_methods) * len(selected_sizes)
+        idx = st.session_state.run_progress_idx
+        img_i = idx // steps_per_img
+        rem = idx % steps_per_img
+
+        mod_i = rem // (len(selected_methods) * len(selected_sizes))
+        rem = rem % (len(selected_methods) * len(selected_sizes))
+
+        met_i = rem // len(selected_sizes)
+        size_i = rem % len(selected_sizes)
+
         if img_i < len(img_sources):
+
             if len(st.session_state.last_run_results) <= img_i:
                 st.session_state.last_run_results.append({"img_idx": img_i + 1, "models": [], "source": img_sources[img_i]})
-            src = img_sources[img_i]; model_name = selected_models[mod_i]; method_name = selected_methods[met_i]
+            
+            src = img_sources[img_i]
+            model_name = selected_models[mod_i]
+            target_size = selected_sizes[size_i]
+            method_name = selected_methods[met_i]
+            
             target_group = st.session_state.last_run_results[img_i]
-            model_entry = next((m for m in target_group["models"] if m["model"] == model_name), None)
+            model_label = f"{model_name} ({target_size}px)"
+            model_entry = next((m for m in target_group["models"] if m.get("model_label") == model_label), None)
+            
             if not model_entry:
-                s_dir = sm.get_task_path(st.session_state.current_batch_id, img_i + 1, model_name)
+                s_dir = sm.get_task_path(st.session_state.current_batch_id, img_i + 1, f"{model_name}_{target_size}")
                 if hasattr(src, 'getbuffer'):
                     tp = os.path.join(s_dir, "input_image.jpg"); f = open(tp, "wb"); f.write(src.getbuffer()); f.close(); fs = tp
                 else: fs = src
-                model_entry = {"model": model_name, "results": [], "session_dir": s_dir, "src_path": fs}; target_group["models"].append(model_entry)
-            results = run_benchmark_task({"model_name": model_name, "image_source": model_entry["src_path"], "methods": [method_name.lower()], "force_device": "cuda" if "GPU" in selected_device_mode else "cpu"}, model_entry["session_dir"])
-            model_entry["results"].extend(results); st.session_state.run_progress_idx += 1
+                model_entry = {"model": model_name, "model_label": model_label, "input_size": target_size, "results": [], "session_dir": s_dir, "src_path": fs}
+                target_group["models"].append(model_entry)
+            
+            results = run_benchmark_task({
+                "model_name": model_name, 
+                "image_source": model_entry["src_path"], 
+                "methods": [method_name.lower()], 
+                "force_device": "cuda" if "GPU" in selected_device_mode else "cpu", 
+                "input_size": target_size
+            }, model_entry["session_dir"])
+            
+            model_entry["results"].extend(results)
+            st.session_state.run_progress_idx += 1
+            
             if st.session_state.run_progress_idx >= (len(img_sources) * steps_per_img):
                 st.session_state.is_finished = True; st.session_state.benchmark_running = False
-                # JSON CLEANUP: Convert UploadedFile objects to strings for saving
                 clean_results = []
                 for g in st.session_state.last_run_results:
                     cg = g.copy()
@@ -239,17 +330,26 @@ with tab2:
                 for g in meta["results"]:
                     for m in g["models"]: all_h_r.extend(m["results"])
                 if all_h_r:
-                    hdf = pd.DataFrame(all_h_r); st.divider(); st.header("🔬 Batch Summary (Historical)")
+                    hdf = pd.DataFrame(all_h_r)
+                    hdf["Model_Size"] = hdf["Model"] + " (" + hdf.get("Resolution", "224x224") + ")"
+                    # Ensure consistent row ordering: Method -> Resolution
+                    hdf = hdf.sort_values(by=["Method", "Resolution"])
+                    st.divider(); st.header("🔬 Batch Summary (Historical)")
                     hc1, hc2 = st.columns(2)
                     with hc1:
-                        st.subheader("Model Averages"); st.table(style_dataframe(hdf.groupby("Model").agg({"Runtime (sec)": "mean", "Peak Memory (MB)": "mean"}).reset_index()))
-                        st.pyplot(plot_model_comparison_grouped(hdf))
+                        st.subheader("Configuration Averages")
+                        h_summ = hdf.groupby(["Model", "Resolution"]).agg({"Runtime (sec)": "mean", "Peak Memory (MB)": "mean"}).reset_index()
+                        st.table(style_dataframe(h_summ))
+                        fig_h, ax_h = plt.subplots(figsize=(12, 7))
+                        sns.barplot(data=hdf, x="Method", y="Runtime (sec)", hue="Model_Size", palette="colorblind", ax=ax_h, edgecolor="black")
+                        plt.xticks(rotation=45); ax_h.legend(loc='upper left', bbox_to_anchor=(1, 1)); plt.tight_layout()
+                        st.pyplot(fig_h)
                     with hc2:
                         st.subheader("Method Averages"); st.table(style_dataframe(hdf.groupby("Method").agg({"Runtime (sec)": "mean", "Peak Memory (MB)": "mean"}).reset_index()))
                         st.pyplot(plot_method_runtime_log(hdf))
                 if st.button("🗑️ Delete Entire Batch"): sm.delete_batch(bid); st.rerun()
             except Exception as e:
-                st.error(f"Error: The data file for {bid} is corrupted or incomplete.")
+                st.error(f"Error reading historical data: {str(e)}")
                 if st.button("🗑️ Delete Corrupted Batch"): sm.delete_batch(bid); st.rerun()
         else: st.info("Loading metadata for this batch...")
     else:

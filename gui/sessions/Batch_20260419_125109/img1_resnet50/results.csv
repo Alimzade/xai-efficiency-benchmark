@@ -1,0 +1,2 @@
+Method,Model,Resolution,Prediction,Runtime (sec),Peak Memory (MB)
+integrated_gradients,resnet50,1024 x 1024,strawberry,14.4618,1364.84

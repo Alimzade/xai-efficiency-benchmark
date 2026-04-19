@@ -1,0 +1,141 @@
+{
+    "results": [
+        {
+            "img_idx": 1,
+            "models": [
+                {
+                    "model": "resnet50",
+                    "model_label": "resnet50 (224px)",
+                    "input_size": 224,
+                    "results": [
+                        {
+                            "Method": "saliency",
+                            "Model": "resnet50",
+                            "Resolution": "224 x 224",
+                            "Prediction": "bakery",
+                            "Runtime (sec)": 21.0199,
+                            "Peak Memory (MB)": 147.95
+                        },
+                        {
+                            "Method": "saliency",
+                            "Model": "resnet50",
+                            "Resolution": "224 x 224",
+                            "Prediction": "bakery",
+                            "Runtime (sec)": 26.4778,
+                            "Peak Memory (MB)": 0.72
+                        },
+                        {
+                            "Method": "saliency",
+                            "Model": "resnet50",
+                            "Resolution": "224 x 224",
+                            "Prediction": "bakery",
+                            "Runtime (sec)": 27.4376,
+                            "Peak Memory (MB)": 196.1
+                        },
+                        {
+                            "Method": "saliency",
+                            "Model": "resnet50",
+                            "Resolution": "224 x 224",
+                            "Prediction": "bakery",
+                            "Runtime (sec)": 28.1471,
+                            "Peak Memory (MB)": 227.3
+                        },
+                        {
+                            "Method": "integrated_gradients",
+                            "Model": "resnet50",
+                            "Resolution": "224 x 224",
+                            "Prediction": "bakery",
+                            "Runtime (sec)": 17.4864,
+                            "Peak Memory (MB)": 1453.88
+                        }
+                    ],
+                    "session_dir": "gui/sessions\\Batch_20260419_133556\\img1_resnet50_224",
+                    "src_path": "gui/sessions\\Batch_20260419_133556\\img1_resnet50_224\\input_image.jpg"
+                },
+                {
+                    "model": "resnet50",
+                    "model_label": "resnet50 (448px)",
+                    "input_size": 448,
+                    "results": [
+                        {
+                            "Method": "saliency",
+                            "Model": "resnet50",
+                            "Resolution": "448 x 448",
+                            "Prediction": "pot",
+                            "Runtime (sec)": 13.1384,
+                            "Peak Memory (MB)": 26.49
+                        },
+                        {
+                            "Method": "integrated_gradients",
+                            "Model": "resnet50",
+                            "Resolution": "448 x 448",
+                            "Prediction": "pot",
+                            "Runtime (sec)": 0.0,
+                            "Peak Memory (MB)": 0.0,
+                            "Status": "Error: CUDA out of memory. Tried to allocate 78.00 MiB. GPU 0 has a total capacity of 4.00 GiB of which 0 bytes is free. Of the allocated memory 10.75 GiB is allocated by PyTorch, and 105.18 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)"
+                        }
+                    ],
+                    "session_dir": "gui/sessions\\Batch_20260419_133556\\img1_resnet50_448",
+                    "src_path": "gui/sessions\\Batch_20260419_133556\\img1_resnet50_448\\input_image.jpg"
+                },
+                {
+                    "model": "resnet50",
+                    "model_label": "resnet50 (512px)",
+                    "input_size": 512,
+                    "results": [
+                        {
+                            "Method": "saliency",
+                            "Model": "resnet50",
+                            "Resolution": "512 x 512",
+                            "Prediction": "pot",
+                            "Runtime (sec)": 19.2027,
+                            "Peak Memory (MB)": 0.46
+                        },
+                        {
+                            "Method": "integrated_gradients",
+                            "Model": "resnet50",
+                            "Resolution": "512 x 512",
+                            "Prediction": "pot",
+                            "Runtime (sec)": 0.0,
+                            "Peak Memory (MB)": 0.0,
+                            "Status": "Error: CUDA out of memory. Tried to allocate 400.00 MiB. GPU 0 has a total capacity of 4.00 GiB of which 0 bytes is free. Of the allocated memory 10.74 GiB is allocated by PyTorch, and 44.85 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)"
+                        }
+                    ],
+                    "session_dir": "gui/sessions\\Batch_20260419_133556\\img1_resnet50_512",
+                    "src_path": "gui/sessions\\Batch_20260419_133556\\img1_resnet50_512\\input_image.jpg"
+                },
+                {
+                    "model": "resnet50",
+                    "model_label": "resnet50 (664px)",
+                    "input_size": 664,
+                    "results": [
+                        {
+                            "Method": "saliency",
+                            "Model": "resnet50",
+                            "Resolution": "664 x 664",
+                            "Prediction": "pot",
+                            "Runtime (sec)": 13.4726,
+                            "Peak Memory (MB)": 10.96
+                        },
+                        {
+                            "Method": "integrated_gradients",
+                            "Model": "resnet50",
+                            "Resolution": "664 x 664",
+                            "Prediction": "pot",
+                            "Runtime (sec)": 0.0,
+                            "Peak Memory (MB)": 0.0,
+                            "Status": "Error: CUDA out of memory. Tried to allocate 1.31 GiB. GPU 0 has a total capacity of 4.00 GiB of which 0 bytes is free. Of the allocated memory 10.67 GiB is allocated by PyTorch, and 54.76 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)"
+                        }
+                    ],
+                    "session_dir": "gui/sessions\\Batch_20260419_133556\\img1_resnet50_664",
+                    "src_path": "gui/sessions\\Batch_20260419_133556\\img1_resnet50_664\\input_image.jpg"
+                }
+            ],
+            "source": "download (1).jpeg"
+        }
+    ],
+    "methods": [
+        "Saliency",
+        "Integrated_Gradients"
+    ]
+}

@@ -1,0 +1,2 @@
+Method,Model,Resolution,Prediction,Runtime (sec),Peak Memory (MB)
+saliency,resnet50,224 x 224,shoe store,19.0229,0.21

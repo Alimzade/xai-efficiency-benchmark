@@ -1,0 +1,2 @@
+Method,Model,Resolution,Prediction,Runtime (sec),Peak Memory (MB)
+saliency,densenet121,224 x 224,Petri dish,21.3437,2.32

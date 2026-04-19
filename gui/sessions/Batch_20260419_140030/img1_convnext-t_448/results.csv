@@ -1,0 +1,2 @@
+Method,Model,Resolution,Prediction,Runtime (sec),Peak Memory (MB)
+saliency,convnext-t,448 x 448,match,10.144,12.09

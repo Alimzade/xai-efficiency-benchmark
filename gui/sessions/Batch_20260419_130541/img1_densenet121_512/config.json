@@ -1,0 +1,10 @@
+{
+    "model_name": "densenet121",
+    "image_source": "gui/sessions\\Batch_20260419_130541\\img1_densenet121_512\\input_image.jpg",
+    "methods": [
+        "saliency"
+    ],
+    "force_device": "cuda",
+    "input_size": 512,
+    "prediction": "wall clock"
+}

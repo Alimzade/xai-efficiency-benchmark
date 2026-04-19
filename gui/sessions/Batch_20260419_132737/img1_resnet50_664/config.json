@@ -1,0 +1,10 @@
+{
+    "model_name": "resnet50",
+    "image_source": "gui/sessions\\Batch_20260419_132737\\img1_resnet50_664\\input_image.jpg",
+    "methods": [
+        "integrated_gradients"
+    ],
+    "force_device": "cuda",
+    "input_size": 664,
+    "prediction": "wall clock"
+}

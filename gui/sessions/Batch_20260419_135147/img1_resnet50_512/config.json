@@ -1,0 +1,10 @@
+{
+    "model_name": "resnet50",
+    "image_source": "gui/sessions\\Batch_20260419_135147\\img1_resnet50_512\\input_image.jpg",
+    "methods": [
+        "integrated_gradients"
+    ],
+    "force_device": "cuda",
+    "input_size": 512,
+    "prediction": "pot"
+}

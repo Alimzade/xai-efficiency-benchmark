@@ -1,0 +1,2 @@
+Method,Model,Resolution,Prediction,Runtime (sec),Peak Memory (MB)
+saliency,efficientnet-b0,224 x 224,laptop computer,18.7646,3.14

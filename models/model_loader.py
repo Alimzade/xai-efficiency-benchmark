@@ -49,26 +49,33 @@ def load_model(model_name='resnet50', device=None):
     model.eval()
     return model
 
-def preprocess_image(pil_image, model_name='resnet50'):
+# Models that strictly require a fixed size (224x224) due to positional embeddings or window constraints
+FIXED_SIZE_MODELS = ['vit-b-16', 'swin-t']
+
+def preprocess_image(pil_image, model_name='resnet50', target_size=224):
     """
     Preprocess an input PIL image according to the model's requirements.
-    
-    For the Vision Transformer, use the dedicated transforms from its weights.
-    For other models, use a standard ImageNet preprocessing pipeline.
     
     Parameters:
     - pil_image: A PIL.Image object.
     - model_name: Name of the model to preprocess for.
+    - target_size: The desired square dimension for input (default 224).
     
     Returns:
     - A preprocessed tensor ready for inference.
     """
-    if model_name == 'vit-b-16':
-        transform = ViT_B_16_Weights.IMAGENET1K_V1.transforms()
+    if model_name in FIXED_SIZE_MODELS:
+        # Use the standard weights-defined transforms for fixed-size models
+        if model_name == 'vit-b-16':
+            transform = ViT_B_16_Weights.IMAGENET1K_V1.transforms()
+        elif model_name == 'swin-t':
+            transform = Swin_T_Weights.IMAGENET1K_V1.transforms()
     else:
+        # Calculate resize value relative to target_size (standard is 256/224 ratio ≈ 1.14)
+        resize_val = int(target_size * (256 / 224))
         transform = transforms.Compose([
-            transforms.Resize(256),
-            transforms.CenterCrop(224),
+            transforms.Resize(resize_val),
+            transforms.CenterCrop(target_size),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                  std=[0.229, 0.224, 0.225]),

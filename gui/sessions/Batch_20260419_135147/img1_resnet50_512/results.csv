@@ -1,0 +1,2 @@
+Method,Model,Resolution,Prediction,Runtime (sec),Peak Memory (MB)
+integrated_gradients,resnet50,512 x 512,pot,18.2944,2.66

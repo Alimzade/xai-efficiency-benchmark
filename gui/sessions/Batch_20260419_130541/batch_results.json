@@ -1,0 +1,72 @@
+{
+    "results": [
+        {
+            "img_idx": 1,
+            "models": [
+                {
+                    "model": "densenet121",
+                    "model_label": "densenet121 (224px)",
+                    "input_size": 224,
+                    "results": [
+                        {
+                            "Method": "saliency",
+                            "Model": "densenet121",
+                            "Resolution": "224 x 224",
+                            "Prediction": "Petri dish",
+                            "Runtime (sec)": 21.3437,
+                            "Peak Memory (MB)": 2.32
+                        }
+                    ],
+                    "session_dir": "gui/sessions\\Batch_20260419_130541\\img1_densenet121_224",
+                    "src_path": "gui/sessions\\Batch_20260419_130541\\img1_densenet121_224\\input_image.jpg"
+                },
+                {
+                    "model": "densenet121",
+                    "model_label": "densenet121 (448px)",
+                    "input_size": 448,
+                    "results": [
+                        {
+                            "Method": "saliency",
+                            "Model": "densenet121",
+                            "Resolution": "448 x 448",
+                            "Prediction": "match",
+                            "Runtime (sec)": 11.5548,
+                            "Peak Memory (MB)": 49.29
+                        },
+                        {
+                            "Method": "saliency",
+                            "Model": "densenet121",
+                            "Resolution": "448 x 448",
+                            "Prediction": "match",
+                            "Runtime (sec)": 11.3118,
+                            "Peak Memory (MB)": 43.68
+                        }
+                    ],
+                    "session_dir": "gui/sessions\\Batch_20260419_130541\\img1_densenet121_448",
+                    "src_path": "gui/sessions\\Batch_20260419_130541\\img1_densenet121_448\\input_image.jpg"
+                },
+                {
+                    "model": "densenet121",
+                    "model_label": "densenet121 (512px)",
+                    "input_size": 512,
+                    "results": [
+                        {
+                            "Method": "saliency",
+                            "Model": "densenet121",
+                            "Resolution": "512 x 512",
+                            "Prediction": "wall clock",
+                            "Runtime (sec)": 10.6041,
+                            "Peak Memory (MB)": 3.14
+                        }
+                    ],
+                    "session_dir": "gui/sessions\\Batch_20260419_130541\\img1_densenet121_512",
+                    "src_path": "gui/sessions\\Batch_20260419_130541\\img1_densenet121_512\\input_image.jpg"
+                }
+            ],
+            "source": "6536c5f4-3293-4ce4-bd95-9df84307396c.png"
+        }
+    ],
+    "methods": [
+        "Saliency"
+    ]
+}

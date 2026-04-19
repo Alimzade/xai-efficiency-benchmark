@@ -1,0 +1,2 @@
+Method,Model,Resolution,Prediction,Runtime (sec),Peak Memory (MB)
+saliency,densenet121,512 x 512,wall clock,10.6041,3.14

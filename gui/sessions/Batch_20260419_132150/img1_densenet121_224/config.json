@@ -1,0 +1,10 @@
+{
+    "model_name": "densenet121",
+    "image_source": "gui/sessions\\Batch_20260419_132150\\img1_densenet121_224\\input_image.jpg",
+    "methods": [
+        "integrated_gradients"
+    ],
+    "force_device": "cuda",
+    "input_size": 224,
+    "prediction": "Petri dish"
+}

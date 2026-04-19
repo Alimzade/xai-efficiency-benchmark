@@ -1,0 +1,114 @@
+{
+    "results": [
+        {
+            "img_idx": 1,
+            "models": [
+                {
+                    "model": "resnet50",
+                    "model_label": "resnet50 (224px)",
+                    "input_size": 224,
+                    "results": [
+                        {
+                            "Method": "saliency",
+                            "Model": "resnet50",
+                            "Resolution": "224 x 224",
+                            "Prediction": "bakery",
+                            "Runtime (sec)": 53.0174,
+                            "Peak Memory (MB)": 0.45
+                        },
+                        {
+                            "Method": "integrated_gradients",
+                            "Model": "resnet50",
+                            "Resolution": "224 x 224",
+                            "Prediction": "bakery",
+                            "Runtime (sec)": 14.5275,
+                            "Peak Memory (MB)": 6.91
+                        }
+                    ],
+                    "session_dir": "gui/sessions\\Batch_20260419_135147\\img1_resnet50_224",
+                    "src_path": "gui/sessions\\Batch_20260419_135147\\img1_resnet50_224\\input_image.jpg"
+                },
+                {
+                    "model": "resnet50",
+                    "model_label": "resnet50 (448px)",
+                    "input_size": 448,
+                    "results": [
+                        {
+                            "Method": "saliency",
+                            "Model": "resnet50",
+                            "Resolution": "448 x 448",
+                            "Prediction": "pot",
+                            "Runtime (sec)": 20.0193,
+                            "Peak Memory (MB)": 0.54
+                        },
+                        {
+                            "Method": "integrated_gradients",
+                            "Model": "resnet50",
+                            "Resolution": "448 x 448",
+                            "Prediction": "pot",
+                            "Runtime (sec)": 17.3978,
+                            "Peak Memory (MB)": 5.2
+                        }
+                    ],
+                    "session_dir": "gui/sessions\\Batch_20260419_135147\\img1_resnet50_448",
+                    "src_path": "gui/sessions\\Batch_20260419_135147\\img1_resnet50_448\\input_image.jpg"
+                },
+                {
+                    "model": "resnet50",
+                    "model_label": "resnet50 (512px)",
+                    "input_size": 512,
+                    "results": [
+                        {
+                            "Method": "saliency",
+                            "Model": "resnet50",
+                            "Resolution": "512 x 512",
+                            "Prediction": "pot",
+                            "Runtime (sec)": 18.7234,
+                            "Peak Memory (MB)": 0.6
+                        },
+                        {
+                            "Method": "integrated_gradients",
+                            "Model": "resnet50",
+                            "Resolution": "512 x 512",
+                            "Prediction": "pot",
+                            "Runtime (sec)": 18.2944,
+                            "Peak Memory (MB)": 2.66
+                        }
+                    ],
+                    "session_dir": "gui/sessions\\Batch_20260419_135147\\img1_resnet50_512",
+                    "src_path": "gui/sessions\\Batch_20260419_135147\\img1_resnet50_512\\input_image.jpg"
+                },
+                {
+                    "model": "resnet50",
+                    "model_label": "resnet50 (664px)",
+                    "input_size": 664,
+                    "results": [
+                        {
+                            "Method": "saliency",
+                            "Model": "resnet50",
+                            "Resolution": "664 x 664",
+                            "Prediction": "pot",
+                            "Runtime (sec)": 18.7873,
+                            "Peak Memory (MB)": 0.7
+                        },
+                        {
+                            "Method": "integrated_gradients",
+                            "Model": "resnet50",
+                            "Resolution": "664 x 664",
+                            "Prediction": "pot",
+                            "Runtime (sec)": 21.2129,
+                            "Peak Memory (MB)": 2.76
+                        }
+                    ],
+                    "session_dir": "gui/sessions\\Batch_20260419_135147\\img1_resnet50_664",
+                    "src_path": "gui/sessions\\Batch_20260419_135147\\img1_resnet50_664\\input_image.jpg"
+                }
+            ],
+            "source": "download (1).jpeg"
+        }
+    ],
+    "methods": [
+        "Saliency",
+        "Integrated_Gradients"
+    ]
+}

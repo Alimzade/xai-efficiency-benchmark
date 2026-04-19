@@ -1,0 +1,115 @@
+{
+    "results": [
+        {
+            "img_idx": 1,
+            "models": [
+                {
+                    "model": "resnet50",
+                    "model_label": "resnet50 (224px)",
+                    "input_size": 224,
+                    "results": [
+                        {
+                            "Method": "saliency",
+                            "Model": "resnet50",
+                            "Resolution": "224 x 224",
+                            "Prediction": "shoe store",
+                            "Runtime (sec)": 19.0229,
+                            "Peak Memory (MB)": 0.21
+                        }
+                    ],
+                    "session_dir": "gui/sessions\\Batch_20260419_140030\\img1_resnet50_224",
+                    "src_path": "gui/sessions\\Batch_20260419_140030\\img1_resnet50_224\\input_image.jpg"
+                },
+                {
+                    "model": "resnet50",
+                    "model_label": "resnet50 (448px)",
+                    "input_size": 448,
+                    "results": [
+                        {
+                            "Method": "saliency",
+                            "Model": "resnet50",
+                            "Resolution": "448 x 448",
+                            "Prediction": "eggnog",
+                            "Runtime (sec)": 20.2876,
+                            "Peak Memory (MB)": 0.21
+                        }
+                    ],
+                    "session_dir": "gui/sessions\\Batch_20260419_140030\\img1_resnet50_448",
+                    "src_path": "gui/sessions\\Batch_20260419_140030\\img1_resnet50_448\\input_image.jpg"
+                },
+                {
+                    "model": "efficientnet-b0",
+                    "model_label": "efficientnet-b0 (224px)",
+                    "input_size": 224,
+                    "results": [
+                        {
+                            "Method": "saliency",
+                            "Model": "efficientnet-b0",
+                            "Resolution": "224 x 224",
+                            "Prediction": "laptop computer",
+                            "Runtime (sec)": 18.7646,
+                            "Peak Memory (MB)": 3.14
+                        }
+                    ],
+                    "session_dir": "gui/sessions\\Batch_20260419_140030\\img1_efficientnet-b0_224",
+                    "src_path": "gui/sessions\\Batch_20260419_140030\\img1_efficientnet-b0_224\\input_image.jpg"
+                },
+                {
+                    "model": "efficientnet-b0",
+                    "model_label": "efficientnet-b0 (448px)",
+                    "input_size": 448,
+                    "results": [
+                        {
+                            "Method": "saliency",
+                            "Model": "efficientnet-b0",
+                            "Resolution": "448 x 448",
+                            "Prediction": "sunglass",
+                            "Runtime (sec)": 27.9792,
+                            "Peak Memory (MB)": 0.38
+                        }
+                    ],
+                    "session_dir": "gui/sessions\\Batch_20260419_140030\\img1_efficientnet-b0_448",
+                    "src_path": "gui/sessions\\Batch_20260419_140030\\img1_efficientnet-b0_448\\input_image.jpg"
+                },
+                {
+                    "model": "convnext-t",
+                    "model_label": "convnext-t (224px)",
+                    "input_size": 224,
+                    "results": [
+                        {
+                            "Method": "saliency",
+                            "Model": "convnext-t",
+                            "Resolution": "224 x 224",
+                            "Prediction": "match",
+                            "Runtime (sec)": 9.9531,
+                            "Peak Memory (MB)": 11.12
+                        }
+                    ],
+                    "session_dir": "gui/sessions\\Batch_20260419_140030\\img1_convnext-t_224",
+                    "src_path": "gui/sessions\\Batch_20260419_140030\\img1_convnext-t_224\\input_image.jpg"
+                },
+                {
+                    "model": "convnext-t",
+                    "model_label": "convnext-t (448px)",
+                    "input_size": 448,
+                    "results": [
+                        {
+                            "Method": "saliency",
+                            "Model": "convnext-t",
+                            "Resolution": "448 x 448",
+                            "Prediction": "match",
+                            "Runtime (sec)": 10.144,
+                            "Peak Memory (MB)": 12.09
+                        }
+                    ],
+                    "session_dir": "gui/sessions\\Batch_20260419_140030\\img1_convnext-t_448",
+                    "src_path": "gui/sessions\\Batch_20260419_140030\\img1_convnext-t_448\\input_image.jpg"
+                }
+            ],
+            "source": "download.jpeg"
+        }
+    ],
+    "methods": [
+        "Saliency"
+    ]
+}

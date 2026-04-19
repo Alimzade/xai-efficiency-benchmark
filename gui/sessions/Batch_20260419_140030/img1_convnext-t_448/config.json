@@ -1,0 +1,10 @@
+{
+    "model_name": "convnext-t",
+    "image_source": "gui/sessions\\Batch_20260419_140030\\img1_convnext-t_448\\input_image.jpg",
+    "methods": [
+        "saliency"
+    ],
+    "force_device": "cuda",
+    "input_size": 448,
+    "prediction": "match"
+}
