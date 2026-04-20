@@ -6,11 +6,12 @@ from matplotlib.backends.backend_pdf import PdfPages
 from PIL import Image
 import numpy as np
 
-def generate_pdf_report(batch_id, results_data, selected_methods, output_path):
+def generate_pdf_report(batch_id, results_data, selected_methods, output_path, total_time=0):
     """
     Generates a PDF report that exactly mirrors the GUI's compact collage style.
     """
     with PdfPages(output_path) as pdf:
+        # ... (Loop over content pages remains same)
         for group in results_data:
             img_idx = group['img_idx']
             architectures = []
@@ -98,6 +99,42 @@ def generate_pdf_report(batch_id, results_data, selected_methods, output_path):
 
                 pdf.savefig(fig)
                 plt.close()
+
+        # --- SUMMARY PAGE ---
+        all_r = []
+        for g in results_data:
+            for m in g["models"]: all_r.extend(m["results"])
+        
+        if all_r:
+            fdf = pd.DataFrame(all_r)
+            fig_sum = plt.figure(figsize=(11.69, 8.27))
+            plt.text(0.5, 0.92, "Aggregate Efficiency Summary", fontsize=20, fontweight='bold', ha='center', color='#2E86C1')
+            
+            if total_time:
+                h = int(total_time // 3600)
+                m = int((total_time % 3600) // 60)
+                s = int(total_time % 60)
+                time_str = f"{h}h {m}m {s}s" if h > 0 else f"{m}m {s}s" if m > 0 else f"{total_time:.1f}s"
+                plt.text(0.5, 0.87, f"Total Execution Time: {time_str}", fontsize=12, ha='center', fontweight='bold')
+
+            ax_sum_tbl = fig_sum.add_axes([0.1, 0.1, 0.8, 0.7])
+            ax_sum_tbl.axis('off')
+            group_cols = ["Model", "Resolution"]
+            if "Original Resolution" in fdf.columns: group_cols.append("Original Resolution")
+            
+            summary_df = fdf.groupby(group_cols).agg({"Runtime (sec)": "mean", "Peak Memory (MB)": "mean"}).reset_index()
+            tbl_sum = ax_sum_tbl.table(cellText=summary_df.values, colLabels=summary_df.columns, loc='center', cellLoc='center')
+            tbl_sum.auto_set_font_size(False)
+            tbl_sum.set_fontsize(9)
+            tbl_sum.scale(1, 1.8)
+            
+            for (row, col), cell in tbl_sum.get_celld().items():
+                if row == 0:
+                    cell.set_text_props(weight='bold', color='white')
+                    cell.set_facecolor('#2E86C1')
+
+            pdf.savefig(fig_sum)
+            plt.close()
 
 def generate_csv_report(results_data, output_path):
     all_r = []

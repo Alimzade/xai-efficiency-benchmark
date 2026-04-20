@@ -1,5 +1,6 @@
 import streamlit as st
 import os
+import time
 import pandas as pd
 import torch
 import platform
@@ -39,6 +40,11 @@ sm = SessionManager()
 # --- HELPER FUNCTIONS ---
 
 def get_cpu_info(): return platform.processor() or "Generic CPU"
+def format_time(seconds):
+    if seconds < 60: return f"{seconds:.1f}s"
+    elif seconds < 3600: return f"{int(seconds // 60)}m {int(seconds % 60)}s"
+    else: return f"{int(seconds // 3600)}h {int((seconds % 3600) // 60)}m"
+
 def get_base64(img):
     buffered = BytesIO(); img.save(buffered, format="PNG")
     import base64; return base64.b64encode(buffered.getvalue()).decode()
@@ -127,6 +133,8 @@ if 'benchmark_running' not in st.session_state: st.session_state.benchmark_runni
 if 'run_progress_idx' not in st.session_state: st.session_state.run_progress_idx = 0
 if 'current_batch_id' not in st.session_state: st.session_state.current_batch_id = ""
 if 'current_img_base64' not in st.session_state: st.session_state.current_img_base64 = ""
+if 'batch_start_time' not in st.session_state: st.session_state.batch_start_time = None
+if 'total_execution_time' not in st.session_state: st.session_state.total_execution_time = 0
 
 # --- SIDEBAR ---
 st.sidebar.title("Benchmark Settings ⚙️")
@@ -211,6 +219,8 @@ with tab1:
             if not img_sources or not selected_models or not selected_methods: st.error("Select Settings.")
             else:
                 st.session_state.current_batch_id = sm.start_batch()
+                st.session_state.batch_start_time = time.time()
+                st.session_state.total_execution_time = 0
                 st.session_state.stop_requested = False; st.session_state.balloons_triggered = False
                 st.session_state.run_progress_idx = 0; st.session_state.benchmark_running = True; st.rerun()
     else:
@@ -235,9 +245,14 @@ with tab1:
         cur_met = selected_methods[met_i] if met_i < len(selected_methods) else "?"
         cur_size = selected_sizes[size_i] if size_i < len(selected_sizes) else "?"
 
-        st.markdown(f"<div class='status-pulse'>🚀 STEP {idx + 1}/{total_steps}: Running {cur_met} on {cur_mod} @ {cur_size}px (Image {img_i + 1})</div>", unsafe_allow_html=True)
+        elapsed = time.time() - st.session_state.batch_start_time
+        st.markdown(f"""
+            <div style='display: flex; justify-content: space-between; align-items: center;'>
+                <div class='status-pulse'>🚀 STEP {idx + 1}/{total_steps}: Running {cur_met} on {cur_mod} @ {cur_size}px (Image {img_i + 1})</div>
+                <div style='font-family: monospace; font-size: 1.2em; font-weight: bold; color: gray;'>⏱️ {format_time(elapsed)}</div>
+            </div>
+        """, unsafe_allow_html=True)
         st.progress(idx / total_steps); st.divider()
-
 
     if st.session_state.last_run_results:
         for group in st.session_state.last_run_results:
@@ -253,6 +268,7 @@ with tab1:
                 
                 st.divider()
                 st.header("🔬 Batch Summary")
+                st.markdown(f"**Total Execution Time:** `{format_time(st.session_state.total_execution_time)}`")
                 
                 # --- EXPORT BUTTONS ---
                 ex1, ex2, ex3 = st.columns([1, 1, 3])
@@ -265,7 +281,7 @@ with tab1:
                     pdf_path = os.path.join(sm.base_dir, st.session_state.current_batch_id, f"{st.session_state.current_batch_id}.pdf")
                     # Use a spinner while generating PDF
                     with st.spinner("Generating PDF..."):
-                        generate_pdf_report(st.session_state.current_batch_id, st.session_state.last_run_results, selected_methods, pdf_path)
+                        generate_pdf_report(st.session_state.current_batch_id, st.session_state.last_run_results, selected_methods, pdf_path, st.session_state.total_execution_time)
                     with open(pdf_path, "rb") as f:
                         st.download_button("📄 Export PDF", data=f, file_name=f"{st.session_state.current_batch_id}.pdf", mime="application/pdf", use_container_width=True)
 
@@ -334,13 +350,19 @@ with tab1:
             
             if st.session_state.run_progress_idx >= (len(img_sources) * steps_per_img):
                 st.session_state.is_finished = True; st.session_state.benchmark_running = False
+                st.session_state.total_execution_time = time.time() - st.session_state.batch_start_time
+                
                 clean_results = []
                 for g in st.session_state.last_run_results:
                     cg = g.copy()
                     if hasattr(cg["source"], 'name'): cg["source"] = cg["source"].name
                     clean_results.append(cg)
                 with open(os.path.join(sm.base_dir, st.session_state.current_batch_id, "batch_results.json"), 'w') as f:
-                    json.dump({"results": clean_results, "methods": selected_methods}, f, indent=4)
+                    json.dump({
+                        "results": clean_results, 
+                        "methods": selected_methods,
+                        "total_execution_time": st.session_state.total_execution_time
+                    }, f, indent=4)
             st.rerun()
 
 with tab2:
@@ -362,7 +384,10 @@ with tab2:
                     hdf = hdf.sort_values(by=["Method", "Resolution"])
                     
                     st.divider()
-                    st.header("🔬 Batch Summary (Historical)")
+                    h_total_time = meta.get("total_execution_time", 0)
+                    st.header(f"🔬 Batch Summary (Historical)")
+                    if h_total_time:
+                        st.markdown(f"**Total Execution Time:** `{format_time(h_total_time)}`")
 
                     # --- EXPORT BUTTONS (History) ---
                     hx1, hx2, hx3 = st.columns([1, 1, 3])
@@ -374,7 +399,7 @@ with tab2:
                     with hx2:
                         h_pdf = os.path.join(sm.base_dir, bid, f"{bid}.pdf")
                         with st.spinner("Generating PDF..."):
-                            generate_pdf_report(bid, meta["results"], meta["methods"], h_pdf)
+                            generate_pdf_report(bid, meta["results"], meta["methods"], h_pdf, h_total_time)
                         with open(h_pdf, "rb") as f:
                             st.download_button("📄 Export PDF", data=f, file_name=f"{bid}.pdf", mime="application/pdf", key=f"pdf_{bid}", use_container_width=True)
 
