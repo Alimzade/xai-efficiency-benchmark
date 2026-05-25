@@ -19,6 +19,7 @@ Status should be one of: `Not Started`, `In Process`, `Completed`.
 | BF-010 | P1 | Not Started | Benchmark metadata is incomplete. | Save Python, Torch, CUDA availability/version, GPU name, device, input sizes, warmup/repeat counts, commit hash if available, and app version in `config.json`/batch metadata. | Metadata appears in per-task config and exported reports. |
 | BF-011 | P1 | Completed | Generated sessions and virtual environments pollute git status. | Update `.gitignore` for `venv/`, `venv-2/`, `gui/sessions/`, `__pycache__/`, `.streamlit/credentials.toml`, and generated result artifacts as appropriate. Do not delete user results without explicit request. | `.gitignore` now ignores future local environments, Streamlit credentials, caches, and GUI sessions; existing tracked session deletions still need to be committed or otherwise handled. |
 | BF-012 | P2 | Not Started | Python/Torch setup expectations are inconsistent. | Align README, launcher, and smart setup around supported Python versions and CUDA wheel expectations. | Fresh setup path is documented and reproducible. |
+| BF-013 | P2 | Completed | GUI exposes only a subset of available fast/local XAI methods. | Add compatible Captum/backprop methods to the frontend first; leave slow perturbation methods for a parameterized UI pass. | Syntax check passed; GUI now includes GradientShap, DeepLift, DeepLiftShap, and Grad-CAM for configured CNNs. |
 
 ## Image-Size Analysis Notes
 

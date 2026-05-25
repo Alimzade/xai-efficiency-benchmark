@@ -43,6 +43,25 @@ ATTR_RUNTIME_COL = "Attribution Runtime (sec)"
 ATTR_MEMORY_COL = "Peak Attribution Memory (MB)"
 LEGACY_RUNTIME_COL = "Runtime (sec)"
 LEGACY_MEMORY_COL = "Peak Memory (MB)"
+METADATA_COLS = ["Timing Scope", "Memory Scope", "Model Cache"]
+PRESENTATION_COL_ORDER = [
+    "Method",
+    "Model",
+    "Input Size (px)",
+    "Original Resolution",
+    "Prediction",
+    "Device",
+    "Warmup Runs",
+    "Measured Runs",
+    ATTR_RUNTIME_COL,
+    "Attribution Runtime Median (sec)",
+    "Attribution Runtime Mean (sec)",
+    "Attribution Runtime Std (sec)",
+    "Attribution Runtime Min (sec)",
+    "Attribution Runtime Max (sec)",
+    ATTR_MEMORY_COL,
+    "Status",
+]
 
 def metric_col(df, preferred, legacy):
     return preferred if preferred in df.columns else legacy
@@ -58,7 +77,7 @@ def normalize_metric_columns(df):
 def add_input_size_column(df):
     df = df.copy()
     if "Input Size (px)" not in df.columns and "Resolution" in df.columns:
-        df["Input Size (px)"] = df["Resolution"].astype(str).str.extract(r"(\d+)").astype(float)
+        df["Input Size (px)"] = pd.to_numeric(df["Resolution"].astype(str).str.extract(r"(\d+)")[0], errors="coerce")
     return df
 
 def presentation_df(df):
@@ -66,9 +85,12 @@ def presentation_df(df):
     duplicate_cols = [
         LEGACY_RUNTIME_COL, "Runtime Median (sec)", "Runtime Mean (sec)",
         "Runtime Std (sec)", "Runtime Min (sec)", "Runtime Max (sec)",
-        LEGACY_MEMORY_COL
-    ]
-    return df.drop(columns=[c for c in duplicate_cols if c in df.columns], errors="ignore")
+        LEGACY_MEMORY_COL, "Resolution"
+    ] + METADATA_COLS
+    df = df.drop(columns=[c for c in duplicate_cols if c in df.columns], errors="ignore")
+    ordered_cols = [c for c in PRESENTATION_COL_ORDER if c in df.columns]
+    remaining_cols = [c for c in df.columns if c not in ordered_cols]
+    return df[ordered_cols + remaining_cols]
 
 def build_task_queue(num_images, models, sizes, methods, run_order, seed=None):
     tasks = []
@@ -113,7 +135,7 @@ def get_base64(img):
     import base64; return base64.b64encode(buffered.getvalue()).decode()
 
 def style_dataframe(df):
-    df = normalize_metric_columns(df)
+    df = add_input_size_column(normalize_metric_columns(df))
     subset_cols = [c for c in [
         ATTR_RUNTIME_COL, ATTR_MEMORY_COL,
         "Attribution Runtime Median (sec)", "Attribution Runtime Mean (sec)",
@@ -121,7 +143,12 @@ def style_dataframe(df):
         "Attribution Runtime Max (sec)", "Mean Attribution Runtime (sec)",
         "Std Across Images (sec)", "Mean Peak Attribution Memory (MB)"
     ] if c in df.columns]
-    return df.style.background_gradient(cmap="coolwarm", subset=subset_cols).format({c: "{:.4f}" if "sec" in c else "{:.2f}" for c in subset_cols})
+    formatters = {c: "{:.4f}" if "sec" in c else "{:.2f}" for c in subset_cols}
+    if "Input Size (px)" in df.columns:
+        formatters["Input Size (px)"] = "{:.0f}"
+    if "Samples" in df.columns:
+        formatters["Samples"] = "{:.0f}"
+    return df.style.background_gradient(cmap="coolwarm", subset=subset_cols).format(formatters, na_rep="")
 
 def plot_method_runtime_log(df, title="Runtime Comparison (Log Scale)"):
     df = normalize_metric_columns(df)
@@ -176,6 +203,55 @@ def plot_image_size_scaling(summary_df):
     ax.set_ylabel("Mean Attribution Runtime (sec)")
     ax.set_title("Image Size Scaling", fontsize=14, fontweight='bold')
     ax.grid(True, alpha=0.25)
+    ax.legend(loc='upper left', bbox_to_anchor=(1, 1))
+    plt.tight_layout()
+    return fig
+
+def method_detail_summary(df):
+    df = add_input_size_column(normalize_metric_columns(df))
+    runtime_col = metric_col(df, ATTR_RUNTIME_COL, LEGACY_RUNTIME_COL)
+    memory_col = metric_col(df, ATTR_MEMORY_COL, LEGACY_MEMORY_COL)
+    summary = df.groupby("Method").agg(
+        **{
+            "Mean Attribution Runtime (sec)": (runtime_col, "mean"),
+            "Std Across Images (sec)": (runtime_col, "std"),
+            "Min Attribution Runtime (sec)": (runtime_col, "min"),
+            "Max Attribution Runtime (sec)": (runtime_col, "max"),
+            "Mean Peak Attribution Memory (MB)": (memory_col, "mean"),
+            "Samples": (runtime_col, "count"),
+        }
+    ).reset_index()
+    summary["Std Across Images (sec)"] = summary["Std Across Images (sec)"].fillna(0)
+    return summary.sort_values("Mean Attribution Runtime (sec)")
+
+def fastest_slowest_rows(df, count=5):
+    df = presentation_df(df)
+    runtime_col = metric_col(df, ATTR_RUNTIME_COL, LEGACY_RUNTIME_COL)
+    cols = [c for c in ["Method", "Model", "Input Size (px)", "Resolution", "Prediction", runtime_col, ATTR_MEMORY_COL] if c in df.columns]
+    fastest = df.nsmallest(count, runtime_col)[cols]
+    slowest = df.nlargest(count, runtime_col)[cols]
+    return fastest, slowest
+
+def plot_runtime_distribution(df):
+    df = normalize_metric_columns(df)
+    runtime_col = metric_col(df, ATTR_RUNTIME_COL, LEGACY_RUNTIME_COL)
+    fig, ax = plt.subplots(figsize=(10, 6))
+    sns.boxplot(data=df, x="Method", y=runtime_col, ax=ax, color="#8ecae6")
+    ax.set_title("Attribution Runtime Distribution", fontsize=14, fontweight='bold')
+    ax.set_ylabel("Attribution Runtime (sec)")
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    return fig
+
+def plot_runtime_memory_scatter(df):
+    df = normalize_metric_columns(df)
+    runtime_col = metric_col(df, ATTR_RUNTIME_COL, LEGACY_RUNTIME_COL)
+    memory_col = metric_col(df, ATTR_MEMORY_COL, LEGACY_MEMORY_COL)
+    fig, ax = plt.subplots(figsize=(9, 6))
+    sns.scatterplot(data=df, x=runtime_col, y=memory_col, hue="Method", style="Model", s=90, ax=ax)
+    ax.set_title("Runtime vs Peak Attribution Memory", fontsize=14, fontweight='bold')
+    ax.set_xlabel("Attribution Runtime (sec)")
+    ax.set_ylabel("Peak Attribution Memory (MB)")
     ax.legend(loc='upper left', bbox_to_anchor=(1, 1))
     plt.tight_layout()
     return fig
@@ -278,13 +354,36 @@ else:
         selected_sizes = [224]
         st.sidebar.error("Invalid size format. Using 224.")
 
-xai_opts = ["Saliency", "Integrated_Gradients", "Guided_Backprop", "Input_X_Gradient"]
+xai_opts = [
+    "Saliency",
+    "Integrated_Gradients",
+    "Guided_Backprop",
+    "Input_X_Gradient",
+    "Gradient_Shap",
+    "DeepLift",
+    "DeepLift_Shap",
+    "Grad_CAM",
+]
 selected_methods = st.sidebar.multiselect("XAI Methods", xai_opts, default=["Saliency", "Integrated_Gradients"], disabled=is_running)
 st.sidebar.divider(); st.sidebar.subheader("Measurement")
 selected_warmups = st.sidebar.number_input("Warmup runs", min_value=0, max_value=20, value=1, step=1, disabled=is_running)
 selected_repeats = st.sidebar.number_input("Measured repeats", min_value=1, max_value=1000, value=5, step=1, disabled=is_running)
-selected_run_order = st.sidebar.selectbox("Run order", ["Balanced", "Grouped", "Randomized"], index=0, disabled=is_running)
-st.sidebar.caption("Use higher repeat counts for image-size studies.")
+selected_run_order = st.sidebar.selectbox(
+    "Task order",
+    ["Balanced", "Grouped", "Randomized"],
+    index=0,
+    help=(
+        "Balanced rotates image-size order across tasks to reduce cache/order bias. "
+        "Grouped runs tasks in the old fixed order. Randomized shuffles tasks reproducibly per batch."
+    ),
+    disabled=is_running
+)
+run_order_notes = {
+    "Balanced": "Rotates size order across images/models/methods; recommended for size studies.",
+    "Grouped": "Runs image -> model -> method -> size in fixed order; useful for debugging.",
+    "Randomized": "Shuffles all tasks with a batch-specific seed; useful for robustness checks.",
+}
+st.sidebar.caption(f"{run_order_notes[selected_run_order]} Use higher repeat counts for image-size studies.")
 st.sidebar.divider(); st.sidebar.subheader("System Status")
 selected_device_mode = st.sidebar.radio("Force execution on:", ["GPU (CUDA)" if torch.cuda.is_available() else "CPU", "CPU"] if torch.cuda.is_available() else ["CPU"], label_visibility="collapsed", disabled=is_running)
 if "GPU" in selected_device_mode: st.sidebar.success(f"**GPU:** {torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'Active'}")
@@ -429,6 +528,21 @@ with tab1:
                 with cs2:
                     st.subheader("Method Averages"); st.table(style_dataframe(fdf.groupby("Method").agg({runtime_col: "mean", memory_col: "mean"}).reset_index()))
                     st.pyplot(plot_method_runtime_log(fdf))
+                st.subheader("Method Detail")
+                st.table(style_dataframe(method_detail_summary(fdf)))
+                fs1, fs2 = st.columns(2)
+                fastest_df, slowest_df = fastest_slowest_rows(fdf)
+                with fs1:
+                    st.subheader("Fastest Runs")
+                    st.table(style_dataframe(fastest_df))
+                with fs2:
+                    st.subheader("Slowest Runs")
+                    st.table(style_dataframe(slowest_df))
+                dist1, dist2 = st.columns(2)
+                with dist1:
+                    st.pyplot(plot_runtime_distribution(fdf))
+                with dist2:
+                    st.pyplot(plot_runtime_memory_scatter(fdf))
                 size_summary_df = image_size_summary(fdf)
                 if not size_summary_df.empty:
                     st.subheader("Image Size Scaling")
@@ -557,6 +671,21 @@ with tab2:
                     with hc2:
                         st.subheader("Method Averages"); st.table(style_dataframe(hdf.groupby("Method").agg({h_runtime_col: "mean", h_memory_col: "mean"}).reset_index()))
                         st.pyplot(plot_method_runtime_log(hdf))
+                    st.subheader("Method Detail")
+                    st.table(style_dataframe(method_detail_summary(hdf)))
+                    h_fs1, h_fs2 = st.columns(2)
+                    h_fastest_df, h_slowest_df = fastest_slowest_rows(hdf)
+                    with h_fs1:
+                        st.subheader("Fastest Runs")
+                        st.table(style_dataframe(h_fastest_df))
+                    with h_fs2:
+                        st.subheader("Slowest Runs")
+                        st.table(style_dataframe(h_slowest_df))
+                    h_dist1, h_dist2 = st.columns(2)
+                    with h_dist1:
+                        st.pyplot(plot_runtime_distribution(hdf))
+                    with h_dist2:
+                        st.pyplot(plot_runtime_memory_scatter(hdf))
                     h_size_summary_df = image_size_summary(hdf)
                     if not h_size_summary_df.empty:
                         st.subheader("Image Size Scaling")

@@ -10,6 +10,25 @@ ATTR_RUNTIME_COL = "Attribution Runtime (sec)"
 ATTR_MEMORY_COL = "Peak Attribution Memory (MB)"
 LEGACY_RUNTIME_COL = "Runtime (sec)"
 LEGACY_MEMORY_COL = "Peak Memory (MB)"
+METADATA_COLS = ["Timing Scope", "Memory Scope", "Model Cache"]
+PRESENTATION_COL_ORDER = [
+    "Method",
+    "Model",
+    "Input Size (px)",
+    "Original Resolution",
+    "Prediction",
+    "Device",
+    "Warmup Runs",
+    "Measured Runs",
+    ATTR_RUNTIME_COL,
+    "Attribution Runtime Median (sec)",
+    "Attribution Runtime Mean (sec)",
+    "Attribution Runtime Std (sec)",
+    "Attribution Runtime Min (sec)",
+    "Attribution Runtime Max (sec)",
+    ATTR_MEMORY_COL,
+    "Status",
+]
 
 def normalize_metric_columns(df):
     df = df.copy()
@@ -19,14 +38,23 @@ def normalize_metric_columns(df):
         df[ATTR_MEMORY_COL] = df[LEGACY_MEMORY_COL]
     return df
 
+def add_input_size_column(df):
+    df = df.copy()
+    if "Input Size (px)" not in df.columns and "Resolution" in df.columns:
+        df["Input Size (px)"] = pd.to_numeric(df["Resolution"].astype(str).str.extract(r"(\d+)")[0], errors="coerce")
+    return df
+
 def presentation_df(df):
-    df = normalize_metric_columns(df)
+    df = add_input_size_column(normalize_metric_columns(df))
     duplicate_cols = [
         LEGACY_RUNTIME_COL, "Runtime Median (sec)", "Runtime Mean (sec)",
         "Runtime Std (sec)", "Runtime Min (sec)", "Runtime Max (sec)",
-        LEGACY_MEMORY_COL
-    ]
-    return df.drop(columns=[c for c in duplicate_cols if c in df.columns], errors="ignore")
+        LEGACY_MEMORY_COL, "Resolution"
+    ] + METADATA_COLS
+    df = df.drop(columns=[c for c in duplicate_cols if c in df.columns], errors="ignore")
+    ordered_cols = [c for c in PRESENTATION_COL_ORDER if c in df.columns]
+    remaining_cols = [c for c in df.columns if c not in ordered_cols]
+    return df[ordered_cols + remaining_cols]
 
 def generate_pdf_report(batch_id, results_data, selected_methods, output_path, total_time=0):
     """
@@ -102,7 +130,7 @@ def generate_pdf_report(batch_id, results_data, selected_methods, output_path, t
                 
                 if arch_results:
                     df = presentation_df(pd.DataFrame(arch_results))
-                    cols = ["Method", "Resolution", "Prediction", ATTR_RUNTIME_COL, ATTR_MEMORY_COL]
+                    cols = ["Method", "Input Size (px)", "Prediction", "Warmup Runs", "Measured Runs", ATTR_RUNTIME_COL, ATTR_MEMORY_COL]
                     # Only keep columns that exist in data
                     cols = [c for c in cols if c in df.columns]
                     if "Status" in df.columns and any(df["Status"].notna()): cols.append("Status")

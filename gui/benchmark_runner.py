@@ -18,10 +18,29 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from models.model_loader import load_model, preprocess_image
 from models.label_utils import get_label_mapping
-from captum.attr import Saliency, IntegratedGradients, GuidedBackprop, InputXGradient
+from captum.attr import (
+    DeepLift,
+    DeepLiftShap,
+    GradientShap,
+    GuidedBackprop,
+    InputXGradient,
+    IntegratedGradients,
+    LayerAttribution,
+    LayerGradCam,
+    Saliency,
+)
 from captum.attr import visualization as viz
 
 MODEL_CACHE = {}
+
+GRAD_CAM_TARGET_LAYERS = {
+    "resnet50": lambda model: model.layer4[-1],
+    "convnext-t": lambda model: model.features[-1],
+    "efficientnet-b0": lambda model: model.features[-1],
+    "regnet-y-8gf": lambda model: model.trunk_output.block4,
+    "mobilenet-v3-large": lambda model: model.features[-1],
+    "densenet121": lambda model: model.features.denseblock4,
+}
 
 def sync_device(device):
     """Wait for queued CUDA work so wall-clock timing reflects actual GPU work."""
@@ -34,6 +53,14 @@ def get_cached_model(model_name, device):
     if not was_cached:
         MODEL_CACHE[cache_key] = load_model(model_name=model_name, device=device)
     return MODEL_CACHE[cache_key], was_cached
+
+def get_grad_cam_target_layer(model_name, model):
+    if model_name not in GRAD_CAM_TARGET_LAYERS:
+        raise ValueError(f"Grad_CAM is not configured for model '{model_name}'.")
+    return GRAD_CAM_TARGET_LAYERS[model_name](model)
+
+def normalize_method_name(method_name):
+    return method_name.lower().replace("-", "_")
 
 def run_benchmark_task(config, session_dir):
     """
@@ -94,21 +121,38 @@ def run_benchmark_task(config, session_dir):
 
     for method_name in methods_to_run:
         try:
+            method_key = normalize_method_name(method_name)
             # Clear cache before every method
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
                 gc.collect()
 
-            if method_name.lower() == 'saliency': xai_tool = Saliency(model)
-            elif method_name.lower() == 'integrated_gradients': xai_tool = IntegratedGradients(model)
-            elif method_name.lower() == 'guided_backprop': xai_tool = GuidedBackprop(model)
-            elif method_name.lower() == 'input_x_gradient': xai_tool = InputXGradient(model)
+            if method_key == 'saliency': xai_tool = Saliency(model)
+            elif method_key == 'integrated_gradients': xai_tool = IntegratedGradients(model)
+            elif method_key == 'guided_backprop': xai_tool = GuidedBackprop(model)
+            elif method_key == 'input_x_gradient': xai_tool = InputXGradient(model)
+            elif method_key == 'gradient_shap': xai_tool = GradientShap(model)
+            elif method_key == 'deeplift': xai_tool = DeepLift(model)
+            elif method_key == 'deeplift_shap': xai_tool = DeepLiftShap(model)
+            elif method_key == 'grad_cam': xai_tool = LayerGradCam(model, get_grad_cam_target_layer(model_name, model))
             else: continue
 
             def get_attr():
-                if method_name.lower() == 'integrated_gradients':
+                if method_key == 'integrated_gradients':
                     # INTERNAL BATCHING: This is the key to preventing OOM for IG
                     return xai_tool.attribute(input_tensor, target=pred_label_idx, n_steps=50, internal_batch_size=2)
+                if method_key == 'gradient_shap':
+                    baseline_dist = torch.cat([torch.zeros_like(input_tensor), torch.ones_like(input_tensor) * input_tensor.mean()], dim=0)
+                    return xai_tool.attribute(input_tensor, baselines=baseline_dist, target=pred_label_idx, n_samples=10, stdevs=0.0001)
+                if method_key == 'deeplift':
+                    return xai_tool.attribute(input_tensor, baselines=torch.zeros_like(input_tensor), target=pred_label_idx)
+                if method_key == 'deeplift_shap':
+                    baseline_dist = torch.cat([torch.zeros_like(input_tensor), torch.ones_like(input_tensor) * input_tensor.mean()], dim=0)
+                    return xai_tool.attribute(input_tensor, baselines=baseline_dist, target=pred_label_idx)
+                if method_key == 'grad_cam':
+                    attribution = xai_tool.attribute(input_tensor, target=pred_label_idx)
+                    attribution = LayerAttribution.interpolate(attribution, input_tensor.shape[2:])
+                    return attribution.repeat(1, 3, 1, 1)
                 return xai_tool.attribute(input_tensor, target=pred_label_idx)
 
             def timed_get_attr(measure_memory=True):
