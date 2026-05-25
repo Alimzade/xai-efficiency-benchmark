@@ -161,6 +161,10 @@ else:
 
 xai_opts = ["Saliency", "Integrated_Gradients", "Guided_Backprop", "Input_X_Gradient"]
 selected_methods = st.sidebar.multiselect("XAI Methods", xai_opts, default=["Saliency", "Integrated_Gradients"], disabled=is_running)
+st.sidebar.divider(); st.sidebar.subheader("Measurement")
+selected_warmups = st.sidebar.number_input("Warmup runs", min_value=0, max_value=20, value=1, step=1, disabled=is_running)
+selected_repeats = st.sidebar.number_input("Measured repeats", min_value=1, max_value=1000, value=5, step=1, disabled=is_running)
+st.sidebar.caption("Use higher repeat counts for image-size studies.")
 st.sidebar.divider(); st.sidebar.subheader("System Status")
 selected_device_mode = st.sidebar.radio("Force execution on:", ["GPU (CUDA)" if torch.cuda.is_available() else "CPU", "CPU"] if torch.cuda.is_available() else ["CPU"], label_visibility="collapsed", disabled=is_running)
 if "GPU" in selected_device_mode: st.sidebar.success(f"**GPU:** {torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'Active'}")
@@ -342,7 +346,9 @@ with tab1:
                 "image_source": model_entry["src_path"], 
                 "methods": [method_name.lower()], 
                 "force_device": "cuda" if "GPU" in selected_device_mode else "cpu", 
-                "input_size": target_size
+                "input_size": target_size,
+                "warmup_runs": selected_warmups,
+                "repeat_count": selected_repeats
             }, model_entry["session_dir"])
             
             model_entry["results"].extend(results)
@@ -361,6 +367,10 @@ with tab1:
                     json.dump({
                         "results": clean_results, 
                         "methods": selected_methods,
+                        "benchmark_settings": {
+                            "warmup_runs": selected_warmups,
+                            "repeat_count": selected_repeats
+                        },
                         "total_execution_time": st.session_state.total_execution_time
                     }, f, indent=4)
             st.rerun()

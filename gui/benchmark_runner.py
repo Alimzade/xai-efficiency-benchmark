@@ -21,6 +21,11 @@ from models.label_utils import get_label_mapping
 from captum.attr import Saliency, IntegratedGradients, GuidedBackprop, InputXGradient
 from captum.attr import visualization as viz
 
+def sync_device(device):
+    """Wait for queued CUDA work so wall-clock timing reflects actual GPU work."""
+    if device.type == 'cuda':
+        torch.cuda.synchronize(device)
+
 def run_benchmark_task(config, session_dir):
     """
     Executes a benchmark based on the config and saves results to session_dir.
@@ -73,6 +78,8 @@ def run_benchmark_task(config, session_dir):
     # 5. Benchmarking Loop
     results = []
     methods_to_run = config.get('methods', ['saliency'])
+    warmup_runs = max(0, int(config.get('warmup_runs', 1)))
+    repeat_count = max(1, int(config.get('repeat_count', 1)))
     heatmaps_dir = os.path.join(session_dir, "heatmaps")
     os.makedirs(heatmaps_dir, exist_ok=True)
 
@@ -95,12 +102,59 @@ def run_benchmark_task(config, session_dir):
                     return xai_tool.attribute(input_tensor, target=pred_label_idx, n_steps=50, internal_batch_size=2)
                 return xai_tool.attribute(input_tensor, target=pred_label_idx)
 
-            start_time = time.time()
-            mem_usage = memory_usage((get_attr, ()), interval=0.1)
-            end_time = time.time()
+            def timed_get_attr(measure_memory=True):
+                peak_memory_mb = None
+                if measure_memory and device.type == 'cuda':
+                    torch.cuda.empty_cache()
+                    gc.collect()
+                    torch.cuda.reset_peak_memory_stats(device)
+                    memory_before = torch.cuda.memory_allocated(device)
+
+                sync_device(device)
+                start_time = time.perf_counter()
+                attribution_result = get_attr()
+                sync_device(device)
+                runtime_sec = time.perf_counter() - start_time
+
+                if measure_memory and device.type == 'cuda':
+                    peak_memory = torch.cuda.max_memory_allocated(device)
+                    peak_memory_mb = max(peak_memory - memory_before, 0) / (1024 * 1024)
+
+                return attribution_result, runtime_sec, peak_memory_mb
+
+            for _ in range(warmup_runs):
+                warmup_attribution, _, _ = timed_get_attr(measure_memory=False)
+                del warmup_attribution
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                    gc.collect()
+
+            attribution = None
+            runtime_values = []
+            memory_values = []
+
+            for _ in range(repeat_count):
+                if device.type == 'cuda':
+                    current_attribution, current_runtime, current_memory = timed_get_attr()
+                else:
+                    mem_usage, timed_result = memory_usage((timed_get_attr, ()), interval=0.1, retval=True)
+                    current_attribution, current_runtime, _ = timed_result
+                    current_memory = max(mem_usage) - min(mem_usage) if mem_usage else 0.0
+
+                if attribution is not None:
+                    del attribution
+                attribution = current_attribution
+                runtime_values.append(current_runtime)
+                memory_values.append(current_memory if current_memory is not None else 0.0)
+
+            runtime_median = float(np.median(runtime_values))
+            runtime_mean = float(np.mean(runtime_values))
+            runtime_std = float(np.std(runtime_values))
+            runtime_min = float(np.min(runtime_values))
+            runtime_max = float(np.max(runtime_values))
+            peak_memory_mb = float(max(memory_values)) if memory_values else 0.0
             
             # Generate Overlay
-            attribution = get_attr()
             attr_np = np.transpose(attribution.squeeze().cpu().detach().numpy(), (1, 2, 0))
             img_resized = np.array(img.resize((target_size, target_size)))
             
@@ -113,8 +167,15 @@ def run_benchmark_task(config, session_dir):
                 "Original Resolution": original_dims,
                 "Prediction": predicted_class,
                 "Device": device_info,
-                "Runtime (sec)": round(end_time - start_time, 4),
-                "Peak Memory (MB)": round(max(mem_usage) - min(mem_usage), 2)
+                "Runtime (sec)": round(runtime_median, 4),
+                "Runtime Median (sec)": round(runtime_median, 4),
+                "Runtime Mean (sec)": round(runtime_mean, 4),
+                "Runtime Std (sec)": round(runtime_std, 4),
+                "Runtime Min (sec)": round(runtime_min, 4),
+                "Runtime Max (sec)": round(runtime_max, 4),
+                "Warmup Runs": warmup_runs,
+                "Measured Runs": repeat_count,
+                "Peak Memory (MB)": round(peak_memory_mb, 2)
             })
 
             # Explicitly delete objects and clear cache after each method
