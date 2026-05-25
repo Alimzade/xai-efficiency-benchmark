@@ -13,7 +13,7 @@ from PIL import Image
 import requests
 from io import BytesIO
 from session_manager import SessionManager
-from benchmark_runner import run_benchmark_task
+from benchmark_runner import collect_environment_metadata, run_benchmark_task
 from exporter import generate_pdf_report, generate_csv_report
 
 # --- SILENCE NOISY WARNINGS ---
@@ -256,6 +256,23 @@ def plot_runtime_memory_scatter(df):
     plt.tight_layout()
     return fig
 
+def render_environment_summary(environment):
+    if not environment:
+        return
+    with st.expander("Environment Metadata", expanded=False):
+        gpu_names = ", ".join([d.get("name", "Unknown GPU") for d in environment.get("cuda_devices", [])]) or "None"
+        env_df = pd.DataFrame([
+            {"Field": "Git Commit", "Value": environment.get("git_commit", "unknown")},
+            {"Field": "Python", "Value": environment.get("python_version", "unknown")},
+            {"Field": "Platform", "Value": environment.get("platform", "unknown")},
+            {"Field": "Torch", "Value": environment.get("torch_version", "unknown")},
+            {"Field": "Torch CUDA", "Value": environment.get("torch_cuda_version") or "not available"},
+            {"Field": "CUDA Available", "Value": environment.get("cuda_available", False)},
+            {"Field": "Selected Device", "Value": environment.get("selected_device", "unknown")},
+            {"Field": "GPU(s)", "Value": gpu_names},
+        ])
+        st.table(env_df)
+
 def render_result_group(group, selected_methods):
     with st.expander(f"🖼️ Results for Image {group['img_idx']}", expanded=True):
         # Group entries by base model architecture
@@ -439,6 +456,8 @@ with tab1:
         if st.button("Start Multi-Model Benchmark ⚡", width='stretch'):
             st.session_state.last_run_results = []
             st.session_state.is_finished = False
+            st.session_state.total_execution_time = 0
+            st.session_state.task_queue = []
             if not img_sources or not selected_models or not selected_methods: st.error("Select Settings.")
             else:
                 st.session_state.current_batch_id = sm.start_batch()
@@ -480,75 +499,87 @@ with tab1:
         """, unsafe_allow_html=True)
         st.progress(idx / total_steps if total_steps else 0); st.divider()
 
-    if st.session_state.last_run_results:
+    if st.session_state.last_run_results and st.session_state.benchmark_running:
+        st.subheader("Completed Results So Far")
         for group in st.session_state.last_run_results:
             render_result_group(group, selected_methods)
 
-        if st.session_state.is_finished:
-            all_r = []
-            for g in st.session_state.last_run_results:
-                for m in g["models"]: all_r.extend(m["results"])
-            if all_r:
-                fdf = normalize_metric_columns(pd.DataFrame(all_r))
-                fdf["Model_Size"] = fdf["Model"] + " (" + fdf["Resolution"] + ")"
-                runtime_col = metric_col(fdf, ATTR_RUNTIME_COL, LEGACY_RUNTIME_COL)
-                memory_col = metric_col(fdf, ATTR_MEMORY_COL, LEGACY_MEMORY_COL)
-                
-                st.divider()
-                st.header("🔬 Batch Summary")
-                st.markdown(f"**Batch Wall Time:** `{format_time(st.session_state.total_execution_time)}`")
-                
-                # --- EXPORT BUTTONS ---
-                ex1, ex2, ex3 = st.columns([1, 1, 3])
-                with ex1:
-                    csv_path = os.path.join(sm.base_dir, st.session_state.current_batch_id, f"{st.session_state.current_batch_id}.csv")
-                    if generate_csv_report(st.session_state.last_run_results, csv_path):
-                        with open(csv_path, "rb") as f:
-                            st.download_button("📥 Export CSV", data=f, file_name=f"{st.session_state.current_batch_id}.csv", mime="text/csv", use_container_width=True)
-                with ex2:
-                    pdf_path = os.path.join(sm.base_dir, st.session_state.current_batch_id, f"{st.session_state.current_batch_id}.pdf")
-                    # Use a spinner while generating PDF
-                    with st.spinner("Generating PDF..."):
-                        generate_pdf_report(st.session_state.current_batch_id, st.session_state.last_run_results, selected_methods, pdf_path, st.session_state.total_execution_time)
-                    with open(pdf_path, "rb") as f:
-                        st.download_button("📄 Export PDF", data=f, file_name=f"{st.session_state.current_batch_id}.pdf", mime="application/pdf", use_container_width=True)
+    if st.session_state.last_run_results and st.session_state.is_finished:
+        for group in st.session_state.last_run_results:
+            render_result_group(group, selected_methods)
 
-                cs1, cs2 = st.columns(2)
-                with cs1:
-                    st.subheader("Configuration Averages")
-                    group_cols = ["Model", "Resolution"]
-                    if "Original Resolution" in fdf.columns: group_cols.append("Original Resolution")
-                    summary_df = fdf.groupby(group_cols).agg({runtime_col: "mean", memory_col: "mean"}).reset_index()
-                    st.table(style_dataframe(summary_df))
-                    fig1, ax1 = plt.subplots(figsize=(12, 7))
-                    sns.barplot(data=fdf, x="Method", y=runtime_col, hue="Model_Size", palette="colorblind", ax=ax1, edgecolor="black")
-                    ax1.set_title("Architecture & Resolution Efficiency", fontsize=14, fontweight='bold')
-                    plt.xticks(rotation=45); ax1.legend(loc='upper left', bbox_to_anchor=(1, 1)); plt.tight_layout()
-                    st.pyplot(fig1)
-                with cs2:
-                    st.subheader("Method Averages"); st.table(style_dataframe(fdf.groupby("Method").agg({runtime_col: "mean", memory_col: "mean"}).reset_index()))
-                    st.pyplot(plot_method_runtime_log(fdf))
-                st.subheader("Method Detail")
-                st.table(style_dataframe(method_detail_summary(fdf)))
-                fs1, fs2 = st.columns(2)
-                fastest_df, slowest_df = fastest_slowest_rows(fdf)
-                with fs1:
-                    st.subheader("Fastest Runs")
-                    st.table(style_dataframe(fastest_df))
-                with fs2:
-                    st.subheader("Slowest Runs")
-                    st.table(style_dataframe(slowest_df))
-                dist1, dist2 = st.columns(2)
-                with dist1:
-                    st.pyplot(plot_runtime_distribution(fdf))
-                with dist2:
-                    st.pyplot(plot_runtime_memory_scatter(fdf))
-                size_summary_df = image_size_summary(fdf)
-                if not size_summary_df.empty:
-                    st.subheader("Image Size Scaling")
-                    st.table(style_dataframe(size_summary_df))
-                    st.pyplot(plot_image_size_scaling(size_summary_df))
-                if not st.session_state.balloons_triggered: st.balloons(); st.session_state.balloons_triggered = True
+        all_r = []
+        for g in st.session_state.last_run_results:
+            for m in g["models"]: all_r.extend(m["results"])
+        if all_r:
+            fdf = normalize_metric_columns(pd.DataFrame(all_r))
+            fdf["Model_Size"] = fdf["Model"] + " (" + fdf["Resolution"] + ")"
+            runtime_col = metric_col(fdf, ATTR_RUNTIME_COL, LEGACY_RUNTIME_COL)
+            memory_col = metric_col(fdf, ATTR_MEMORY_COL, LEGACY_MEMORY_COL)
+            
+            st.divider()
+            st.header("🔬 Batch Summary")
+            st.markdown(f"**Batch Wall Time:** `{format_time(st.session_state.total_execution_time)}`")
+            render_environment_summary(collect_environment_metadata("cuda" if "GPU" in selected_device_mode else "cpu"))
+            
+            # --- EXPORT BUTTONS ---
+            ex1, ex2, ex3 = st.columns([1, 1, 3])
+            with ex1:
+                csv_path = os.path.join(sm.base_dir, st.session_state.current_batch_id, f"{st.session_state.current_batch_id}.csv")
+                if generate_csv_report(st.session_state.last_run_results, csv_path):
+                    with open(csv_path, "rb") as f:
+                        st.download_button("📥 Export CSV", data=f, file_name=f"{st.session_state.current_batch_id}.csv", mime="text/csv", use_container_width=True)
+            with ex2:
+                pdf_path = os.path.join(sm.base_dir, st.session_state.current_batch_id, f"{st.session_state.current_batch_id}.pdf")
+                # Use a spinner while generating PDF
+                with st.spinner("Generating PDF..."):
+                    generate_pdf_report(
+                        st.session_state.current_batch_id,
+                        st.session_state.last_run_results,
+                        selected_methods,
+                        pdf_path,
+                        st.session_state.total_execution_time,
+                        collect_environment_metadata("cuda" if "GPU" in selected_device_mode else "cpu")
+                    )
+                with open(pdf_path, "rb") as f:
+                    st.download_button("📄 Export PDF", data=f, file_name=f"{st.session_state.current_batch_id}.pdf", mime="application/pdf", use_container_width=True)
+
+            cs1, cs2 = st.columns(2)
+            with cs1:
+                st.subheader("Configuration Averages")
+                group_cols = ["Model", "Resolution"]
+                if "Original Resolution" in fdf.columns: group_cols.append("Original Resolution")
+                summary_df = fdf.groupby(group_cols).agg({runtime_col: "mean", memory_col: "mean"}).reset_index()
+                st.table(style_dataframe(summary_df))
+                fig1, ax1 = plt.subplots(figsize=(12, 7))
+                sns.barplot(data=fdf, x="Method", y=runtime_col, hue="Model_Size", palette="colorblind", ax=ax1, edgecolor="black")
+                ax1.set_title("Architecture & Resolution Efficiency", fontsize=14, fontweight='bold')
+                plt.xticks(rotation=45); ax1.legend(loc='upper left', bbox_to_anchor=(1, 1)); plt.tight_layout()
+                st.pyplot(fig1)
+            with cs2:
+                st.subheader("Method Averages"); st.table(style_dataframe(fdf.groupby("Method").agg({runtime_col: "mean", memory_col: "mean"}).reset_index()))
+                st.pyplot(plot_method_runtime_log(fdf))
+            st.subheader("Method Detail")
+            st.table(style_dataframe(method_detail_summary(fdf)))
+            fs1, fs2 = st.columns(2)
+            fastest_df, slowest_df = fastest_slowest_rows(fdf)
+            with fs1:
+                st.subheader("Fastest Runs")
+                st.table(style_dataframe(fastest_df))
+            with fs2:
+                st.subheader("Slowest Runs")
+                st.table(style_dataframe(slowest_df))
+            dist1, dist2 = st.columns(2)
+            with dist1:
+                st.pyplot(plot_runtime_distribution(fdf))
+            with dist2:
+                st.pyplot(plot_runtime_memory_scatter(fdf))
+            size_summary_df = image_size_summary(fdf)
+            if not size_summary_df.empty:
+                st.subheader("Image Size Scaling")
+                st.table(style_dataframe(size_summary_df))
+                st.pyplot(plot_image_size_scaling(size_summary_df))
+            if not st.session_state.balloons_triggered: st.balloons(); st.session_state.balloons_triggered = True
 
     # --- ENGINE ---
     if st.session_state.benchmark_running and not st.session_state.is_finished:
@@ -612,6 +643,7 @@ with tab1:
                             "run_order": st.session_state.current_run_order,
                             "task_count": len(task_queue)
                         },
+                        "environment": collect_environment_metadata("cuda" if "GPU" in selected_device_mode else "cpu"),
                         "total_execution_time": st.session_state.total_execution_time
                     }, f, indent=4)
             st.rerun()
@@ -641,6 +673,7 @@ with tab2:
                     st.header(f"🔬 Batch Summary (Historical)")
                     if h_total_time:
                         st.markdown(f"**Batch Wall Time:** `{format_time(h_total_time)}`")
+                    render_environment_summary(meta.get("environment"))
 
                     # --- EXPORT BUTTONS (History) ---
                     hx1, hx2, hx3 = st.columns([1, 1, 3])
@@ -652,7 +685,7 @@ with tab2:
                     with hx2:
                         h_pdf = os.path.join(sm.base_dir, bid, f"{bid}.pdf")
                         with st.spinner("Generating PDF..."):
-                            generate_pdf_report(bid, meta["results"], meta["methods"], h_pdf, h_total_time)
+                            generate_pdf_report(bid, meta["results"], meta["methods"], h_pdf, h_total_time, meta.get("environment"))
                         with open(h_pdf, "rb") as f:
                             st.download_button("📄 Export PDF", data=f, file_name=f"{bid}.pdf", mime="application/pdf", key=f"pdf_{bid}", use_container_width=True)
 

@@ -56,7 +56,7 @@ def presentation_df(df):
     remaining_cols = [c for c in df.columns if c not in ordered_cols]
     return df[ordered_cols + remaining_cols]
 
-def generate_pdf_report(batch_id, results_data, selected_methods, output_path, total_time=0):
+def generate_pdf_report(batch_id, results_data, selected_methods, output_path, total_time=0, environment=None):
     """
     Generates a PDF report that exactly mirrors the GUI's compact collage style.
     """
@@ -166,6 +166,18 @@ def generate_pdf_report(batch_id, results_data, selected_methods, output_path, t
                 s = int(total_time % 60)
                 time_str = f"{h}h {m}m {s}s" if h > 0 else f"{m}m {s}s" if m > 0 else f"{total_time:.1f}s"
                 plt.text(0.5, 0.87, f"Batch Wall Time: {time_str}", fontsize=12, ha='center', fontweight='bold')
+
+            if environment:
+                gpu_names = ", ".join([d.get("name", "Unknown GPU") for d in environment.get("cuda_devices", [])]) or "None"
+                env_lines = [
+                    f"Git: {environment.get('git_commit', 'unknown')}",
+                    f"Python: {environment.get('python_version', 'unknown')}",
+                    f"Torch: {environment.get('torch_version', 'unknown')}",
+                    f"CUDA: {environment.get('torch_cuda_version') or 'not available'}",
+                    f"Device: {environment.get('selected_device', 'unknown')}",
+                    f"GPU(s): {gpu_names}",
+                ]
+                plt.text(0.5, 0.80, " | ".join(env_lines), fontsize=8, ha='center', wrap=True)
 
             ax_sum_tbl = fig_sum.add_axes([0.1, 0.1, 0.8, 0.7])
             ax_sum_tbl.axis('off')

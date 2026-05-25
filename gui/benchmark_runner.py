@@ -2,6 +2,7 @@ import os
 import sys
 import time
 import json
+import subprocess
 import torch
 import pandas as pd
 from PIL import Image
@@ -32,6 +33,7 @@ from captum.attr import (
 from captum.attr import visualization as viz
 
 MODEL_CACHE = {}
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 GRAD_CAM_TARGET_LAYERS = {
     "resnet50": lambda model: model.layer4[-1],
@@ -62,6 +64,43 @@ def get_grad_cam_target_layer(model_name, model):
 def normalize_method_name(method_name):
     return method_name.lower().replace("-", "_")
 
+def get_git_commit():
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=PROJECT_ROOT,
+            stderr=subprocess.DEVNULL,
+            text=True
+        ).strip()
+    except Exception:
+        return "unknown"
+
+def collect_environment_metadata(device=None):
+    cuda_devices = []
+    if torch.cuda.is_available():
+        for idx in range(torch.cuda.device_count()):
+            props = torch.cuda.get_device_properties(idx)
+            cuda_devices.append({
+                "index": idx,
+                "name": torch.cuda.get_device_name(idx),
+                "total_memory_mb": round(props.total_memory / (1024 * 1024), 2),
+                "compute_capability": f"{props.major}.{props.minor}",
+            })
+
+    return {
+        "app_version": "1.0.0",
+        "git_commit": get_git_commit(),
+        "python_version": sys.version.split()[0],
+        "platform": platform.platform(),
+        "processor": platform.processor() or "Generic CPU",
+        "torch_version": torch.__version__,
+        "torch_cuda_version": torch.version.cuda,
+        "cuda_available": torch.cuda.is_available(),
+        "cuda_device_count": torch.cuda.device_count() if torch.cuda.is_available() else 0,
+        "cuda_devices": cuda_devices,
+        "selected_device": str(device) if device is not None else None,
+    }
+
 def run_benchmark_task(config, session_dir):
     """
     Executes a benchmark based on the config and saves results to session_dir.
@@ -71,6 +110,7 @@ def run_benchmark_task(config, session_dir):
     # 1. Setup Device & Environment
     force_dev = config.get('force_device')
     device = torch.device(force_dev if force_dev else ("cuda" if torch.cuda.is_available() else "cpu"))
+    environment_metadata = collect_environment_metadata(device)
 
     # Get specific device name for logging
     if device.type == 'cuda':
@@ -264,7 +304,8 @@ def run_benchmark_task(config, session_dir):
             **config,
             "prediction": predicted_class,
             "timing_scope": "attribution_only",
-            "memory_scope": "attribution_peak"
+            "memory_scope": "attribution_peak",
+            "environment": environment_metadata
         }, f, indent=4)
 
     # Final cleanup before returning to Streamlit
