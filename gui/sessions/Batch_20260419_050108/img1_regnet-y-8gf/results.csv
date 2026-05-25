@@ -1,2 +1,0 @@
-Method,Model,Resolution,Prediction,Runtime (sec),Peak Memory (MB)
-integrated_gradients,regnet-y-8gf,784 x 716,airliner,58.1053,1769.05

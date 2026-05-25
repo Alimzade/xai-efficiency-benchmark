@@ -38,6 +38,30 @@ st.markdown("""
 sm = SessionManager()
 
 # --- HELPER FUNCTIONS ---
+ATTR_RUNTIME_COL = "Attribution Runtime (sec)"
+ATTR_MEMORY_COL = "Peak Attribution Memory (MB)"
+LEGACY_RUNTIME_COL = "Runtime (sec)"
+LEGACY_MEMORY_COL = "Peak Memory (MB)"
+
+def metric_col(df, preferred, legacy):
+    return preferred if preferred in df.columns else legacy
+
+def normalize_metric_columns(df):
+    df = df.copy()
+    if ATTR_RUNTIME_COL not in df.columns and LEGACY_RUNTIME_COL in df.columns:
+        df[ATTR_RUNTIME_COL] = df[LEGACY_RUNTIME_COL]
+    if ATTR_MEMORY_COL not in df.columns and LEGACY_MEMORY_COL in df.columns:
+        df[ATTR_MEMORY_COL] = df[LEGACY_MEMORY_COL]
+    return df
+
+def presentation_df(df):
+    df = normalize_metric_columns(df)
+    duplicate_cols = [
+        LEGACY_RUNTIME_COL, "Runtime Median (sec)", "Runtime Mean (sec)",
+        "Runtime Std (sec)", "Runtime Min (sec)", "Runtime Max (sec)",
+        LEGACY_MEMORY_COL
+    ]
+    return df.drop(columns=[c for c in duplicate_cols if c in df.columns], errors="ignore")
 
 def get_cpu_info(): return platform.processor() or "Generic CPU"
 def format_time(seconds):
@@ -50,19 +74,29 @@ def get_base64(img):
     import base64; return base64.b64encode(buffered.getvalue()).decode()
 
 def style_dataframe(df):
-    subset_cols = [c for c in ["Runtime (sec)", "Peak Memory (MB)", "Avg Runtime (sec)", "Avg Peak Memory (MB)"] if c in df.columns]
+    df = normalize_metric_columns(df)
+    subset_cols = [c for c in [
+        ATTR_RUNTIME_COL, ATTR_MEMORY_COL,
+        "Attribution Runtime Median (sec)", "Attribution Runtime Mean (sec)",
+        "Attribution Runtime Std (sec)", "Attribution Runtime Min (sec)",
+        "Attribution Runtime Max (sec)"
+    ] if c in df.columns]
     return df.style.background_gradient(cmap="coolwarm", subset=subset_cols).format({c: "{:.4f}" if "sec" in c else "{:.2f}" for c in subset_cols})
 
 def plot_method_runtime_log(df, title="Runtime Comparison (Log Scale)"):
+    df = normalize_metric_columns(df)
+    runtime_col = metric_col(df, ATTR_RUNTIME_COL, LEGACY_RUNTIME_COL)
     fig, ax = plt.subplots(figsize=(10, 6))
-    summary = df.groupby("Method")["Runtime (sec)"].mean().sort_values().reset_index()
-    sns.barplot(data=summary, x="Runtime (sec)", y="Method", palette="crest", ax=ax, edgecolor="black")
+    summary = df.groupby("Method")[runtime_col].mean().sort_values().reset_index()
+    sns.barplot(data=summary, x=runtime_col, y="Method", palette="crest", ax=ax, edgecolor="black")
     ax.set_xscale("log"); ax.set_title(title, fontsize=14, fontweight='bold', family='serif')
     ax.grid(True, ls="-", alpha=0.2); plt.tight_layout(); return fig
 
 def plot_model_comparison_grouped(df, title="Architecture Efficiency Comparison"):
+    df = normalize_metric_columns(df)
+    runtime_col = metric_col(df, ATTR_RUNTIME_COL, LEGACY_RUNTIME_COL)
     fig, ax = plt.subplots(figsize=(12, 7))
-    sns.barplot(data=df, x="Method", y="Runtime (sec)", hue="Model", palette="colorblind", ax=ax, edgecolor="black")
+    sns.barplot(data=df, x="Method", y=runtime_col, hue="Model", palette="colorblind", ax=ax, edgecolor="black")
     ax.set_title(title, fontsize=14, fontweight='bold', family='serif')
     plt.xticks(rotation=45); ax.legend(loc='upper left', bbox_to_anchor=(1, 1)); plt.tight_layout(); return fig
 
@@ -116,7 +150,7 @@ def render_result_group(group, selected_methods):
                     if res: arch_results.append(res)
             
             if arch_results:
-                st.table(style_dataframe(pd.DataFrame(arch_results)))
+                st.table(style_dataframe(presentation_df(pd.DataFrame(arch_results))))
 
 @st.dialog("Image Viewer", width="large")
 def show_lightbox(img):
@@ -267,12 +301,14 @@ with tab1:
             for g in st.session_state.last_run_results:
                 for m in g["models"]: all_r.extend(m["results"])
             if all_r:
-                fdf = pd.DataFrame(all_r)
+                fdf = normalize_metric_columns(pd.DataFrame(all_r))
                 fdf["Model_Size"] = fdf["Model"] + " (" + fdf["Resolution"] + ")"
+                runtime_col = metric_col(fdf, ATTR_RUNTIME_COL, LEGACY_RUNTIME_COL)
+                memory_col = metric_col(fdf, ATTR_MEMORY_COL, LEGACY_MEMORY_COL)
                 
                 st.divider()
                 st.header("🔬 Batch Summary")
-                st.markdown(f"**Total Execution Time:** `{format_time(st.session_state.total_execution_time)}`")
+                st.markdown(f"**Batch Wall Time:** `{format_time(st.session_state.total_execution_time)}`")
                 
                 # --- EXPORT BUTTONS ---
                 ex1, ex2, ex3 = st.columns([1, 1, 3])
@@ -294,15 +330,15 @@ with tab1:
                     st.subheader("Configuration Averages")
                     group_cols = ["Model", "Resolution"]
                     if "Original Resolution" in fdf.columns: group_cols.append("Original Resolution")
-                    summary_df = fdf.groupby(group_cols).agg({"Runtime (sec)": "mean", "Peak Memory (MB)": "mean"}).reset_index()
+                    summary_df = fdf.groupby(group_cols).agg({runtime_col: "mean", memory_col: "mean"}).reset_index()
                     st.table(style_dataframe(summary_df))
                     fig1, ax1 = plt.subplots(figsize=(12, 7))
-                    sns.barplot(data=fdf, x="Method", y="Runtime (sec)", hue="Model_Size", palette="colorblind", ax=ax1, edgecolor="black")
+                    sns.barplot(data=fdf, x="Method", y=runtime_col, hue="Model_Size", palette="colorblind", ax=ax1, edgecolor="black")
                     ax1.set_title("Architecture & Resolution Efficiency", fontsize=14, fontweight='bold')
                     plt.xticks(rotation=45); ax1.legend(loc='upper left', bbox_to_anchor=(1, 1)); plt.tight_layout()
                     st.pyplot(fig1)
                 with cs2:
-                    st.subheader("Method Averages"); st.table(style_dataframe(fdf.groupby("Method").agg({"Runtime (sec)": "mean", "Peak Memory (MB)": "mean"}).reset_index()))
+                    st.subheader("Method Averages"); st.table(style_dataframe(fdf.groupby("Method").agg({runtime_col: "mean", memory_col: "mean"}).reset_index()))
                     st.pyplot(plot_method_runtime_log(fdf))
                 if not st.session_state.balloons_triggered: st.balloons(); st.session_state.balloons_triggered = True
 
@@ -388,8 +424,10 @@ with tab2:
                 for g in meta["results"]:
                     for m in g["models"]: all_h_r.extend(m["results"])
                 if all_h_r:
-                    hdf = pd.DataFrame(all_h_r)
+                    hdf = normalize_metric_columns(pd.DataFrame(all_h_r))
                     hdf["Model_Size"] = hdf["Model"] + " (" + hdf.get("Resolution", "224x224") + ")"
+                    h_runtime_col = metric_col(hdf, ATTR_RUNTIME_COL, LEGACY_RUNTIME_COL)
+                    h_memory_col = metric_col(hdf, ATTR_MEMORY_COL, LEGACY_MEMORY_COL)
                     # Ensure consistent row ordering: Method -> Resolution
                     hdf = hdf.sort_values(by=["Method", "Resolution"])
                     
@@ -397,7 +435,7 @@ with tab2:
                     h_total_time = meta.get("total_execution_time", 0)
                     st.header(f"🔬 Batch Summary (Historical)")
                     if h_total_time:
-                        st.markdown(f"**Total Execution Time:** `{format_time(h_total_time)}`")
+                        st.markdown(f"**Batch Wall Time:** `{format_time(h_total_time)}`")
 
                     # --- EXPORT BUTTONS (History) ---
                     hx1, hx2, hx3 = st.columns([1, 1, 3])
@@ -419,14 +457,14 @@ with tab2:
                         # Include Original Resolution in group by if it exists
                         group_cols = ["Model", "Resolution"]
                         if "Original Resolution" in hdf.columns: group_cols.append("Original Resolution")
-                        h_summ = hdf.groupby(group_cols).agg({"Runtime (sec)": "mean", "Peak Memory (MB)": "mean"}).reset_index()
+                        h_summ = hdf.groupby(group_cols).agg({h_runtime_col: "mean", h_memory_col: "mean"}).reset_index()
                         st.table(style_dataframe(h_summ))
                         fig_h, ax_h = plt.subplots(figsize=(12, 7))
-                        sns.barplot(data=hdf, x="Method", y="Runtime (sec)", hue="Model_Size", palette="colorblind", ax=ax_h, edgecolor="black")
+                        sns.barplot(data=hdf, x="Method", y=h_runtime_col, hue="Model_Size", palette="colorblind", ax=ax_h, edgecolor="black")
                         plt.xticks(rotation=45); ax_h.legend(loc='upper left', bbox_to_anchor=(1, 1)); plt.tight_layout()
                         st.pyplot(fig_h)
                     with hc2:
-                        st.subheader("Method Averages"); st.table(style_dataframe(hdf.groupby("Method").agg({"Runtime (sec)": "mean", "Peak Memory (MB)": "mean"}).reset_index()))
+                        st.subheader("Method Averages"); st.table(style_dataframe(hdf.groupby("Method").agg({h_runtime_col: "mean", h_memory_col: "mean"}).reset_index()))
                         st.pyplot(plot_method_runtime_log(hdf))
                 if st.button("🗑️ Delete Entire Batch"): sm.delete_batch(bid); st.rerun()
             except Exception as e:

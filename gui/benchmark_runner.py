@@ -21,10 +21,19 @@ from models.label_utils import get_label_mapping
 from captum.attr import Saliency, IntegratedGradients, GuidedBackprop, InputXGradient
 from captum.attr import visualization as viz
 
+MODEL_CACHE = {}
+
 def sync_device(device):
     """Wait for queued CUDA work so wall-clock timing reflects actual GPU work."""
     if device.type == 'cuda':
         torch.cuda.synchronize(device)
+
+def get_cached_model(model_name, device):
+    cache_key = (model_name, str(device))
+    was_cached = cache_key in MODEL_CACHE
+    if not was_cached:
+        MODEL_CACHE[cache_key] = load_model(model_name=model_name, device=device)
+    return MODEL_CACHE[cache_key], was_cached
 
 def run_benchmark_task(config, session_dir):
     """
@@ -50,7 +59,7 @@ def run_benchmark_task(config, session_dir):
 
     # 2. Load Model
     model_name = config.get('model_name', 'resnet50')
-    model = load_model(model_name=model_name, device=device)
+    model, was_model_cached = get_cached_model(model_name=model_name, device=device)
 
     # 3. Load Image
     img_src = config.get('image_source')
@@ -167,15 +176,25 @@ def run_benchmark_task(config, session_dir):
                 "Original Resolution": original_dims,
                 "Prediction": predicted_class,
                 "Device": device_info,
+                "Model Cache": "reused" if was_model_cached else "loaded",
+                "Timing Scope": "attribution_only",
                 "Runtime (sec)": round(runtime_median, 4),
+                "Attribution Runtime (sec)": round(runtime_median, 4),
                 "Runtime Median (sec)": round(runtime_median, 4),
+                "Attribution Runtime Median (sec)": round(runtime_median, 4),
                 "Runtime Mean (sec)": round(runtime_mean, 4),
+                "Attribution Runtime Mean (sec)": round(runtime_mean, 4),
                 "Runtime Std (sec)": round(runtime_std, 4),
+                "Attribution Runtime Std (sec)": round(runtime_std, 4),
                 "Runtime Min (sec)": round(runtime_min, 4),
+                "Attribution Runtime Min (sec)": round(runtime_min, 4),
                 "Runtime Max (sec)": round(runtime_max, 4),
+                "Attribution Runtime Max (sec)": round(runtime_max, 4),
                 "Warmup Runs": warmup_runs,
                 "Measured Runs": repeat_count,
-                "Peak Memory (MB)": round(peak_memory_mb, 2)
+                "Memory Scope": "attribution_peak",
+                "Peak Memory (MB)": round(peak_memory_mb, 2),
+                "Peak Attribution Memory (MB)": round(peak_memory_mb, 2)
             })
 
             # Explicitly delete objects and clear cache after each method
@@ -196,10 +215,15 @@ def run_benchmark_task(config, session_dir):
     # 6. Save Results
     pd.DataFrame(results).to_csv(os.path.join(session_dir, "results.csv"), index=False)
     with open(os.path.join(session_dir, "config.json"), 'w') as f:
-        json.dump({**config, "prediction": predicted_class}, f, indent=4)
+        json.dump({
+            **config,
+            "prediction": predicted_class,
+            "timing_scope": "attribution_only",
+            "memory_scope": "attribution_peak"
+        }, f, indent=4)
 
     # Final cleanup before returning to Streamlit
-    del model, input_tensor
+    del input_tensor
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
         gc.collect()

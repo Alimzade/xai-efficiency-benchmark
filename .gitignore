@@ -1,4 +1,6 @@
 env39
+venv/
+venv-2/
 datasets/__pycache__
 models/__pycache__
 utils/__pycache__
@@ -9,3 +11,7 @@ Local_Backpropagation/__pycache__
 __pycache__
 data
 .ipynb_checkpoints
+__pycache__/
+gui/__pycache__/
+gui/sessions/
+.streamlit/credentials.toml

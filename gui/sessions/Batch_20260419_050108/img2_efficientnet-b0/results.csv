@@ -1,2 +1,0 @@
-Method,Model,Resolution,Prediction,Runtime (sec),Peak Memory (MB)
-integrated_gradients,efficientnet-b0,1024 x 1024,ocean liner,41.8373,2.25

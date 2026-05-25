@@ -1,9 +1,0 @@
-{
-    "model_name": "resnet50",
-    "image_source": "gui/sessions\\run_20260419_044558_resnet50_77fea47e\\input_image.jpg",
-    "methods": [
-        "integrated_gradients"
-    ],
-    "force_device": "cuda",
-    "prediction": "rapeseed"
-}

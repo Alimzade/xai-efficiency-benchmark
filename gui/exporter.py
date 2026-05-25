@@ -6,6 +6,28 @@ from matplotlib.backends.backend_pdf import PdfPages
 from PIL import Image
 import numpy as np
 
+ATTR_RUNTIME_COL = "Attribution Runtime (sec)"
+ATTR_MEMORY_COL = "Peak Attribution Memory (MB)"
+LEGACY_RUNTIME_COL = "Runtime (sec)"
+LEGACY_MEMORY_COL = "Peak Memory (MB)"
+
+def normalize_metric_columns(df):
+    df = df.copy()
+    if ATTR_RUNTIME_COL not in df.columns and LEGACY_RUNTIME_COL in df.columns:
+        df[ATTR_RUNTIME_COL] = df[LEGACY_RUNTIME_COL]
+    if ATTR_MEMORY_COL not in df.columns and LEGACY_MEMORY_COL in df.columns:
+        df[ATTR_MEMORY_COL] = df[LEGACY_MEMORY_COL]
+    return df
+
+def presentation_df(df):
+    df = normalize_metric_columns(df)
+    duplicate_cols = [
+        LEGACY_RUNTIME_COL, "Runtime Median (sec)", "Runtime Mean (sec)",
+        "Runtime Std (sec)", "Runtime Min (sec)", "Runtime Max (sec)",
+        LEGACY_MEMORY_COL
+    ]
+    return df.drop(columns=[c for c in duplicate_cols if c in df.columns], errors="ignore")
+
 def generate_pdf_report(batch_id, results_data, selected_methods, output_path, total_time=0):
     """
     Generates a PDF report that exactly mirrors the GUI's compact collage style.
@@ -79,8 +101,8 @@ def generate_pdf_report(batch_id, results_data, selected_methods, output_path, t
                         if res: arch_results.append(res)
                 
                 if arch_results:
-                    df = pd.DataFrame(arch_results)
-                    cols = ["Method", "Resolution", "Prediction", "Runtime (sec)", "Peak Memory (MB)"]
+                    df = presentation_df(pd.DataFrame(arch_results))
+                    cols = ["Method", "Resolution", "Prediction", ATTR_RUNTIME_COL, ATTR_MEMORY_COL]
                     # Only keep columns that exist in data
                     cols = [c for c in cols if c in df.columns]
                     if "Status" in df.columns and any(df["Status"].notna()): cols.append("Status")
@@ -115,14 +137,15 @@ def generate_pdf_report(batch_id, results_data, selected_methods, output_path, t
                 m = int((total_time % 3600) // 60)
                 s = int(total_time % 60)
                 time_str = f"{h}h {m}m {s}s" if h > 0 else f"{m}m {s}s" if m > 0 else f"{total_time:.1f}s"
-                plt.text(0.5, 0.87, f"Total Execution Time: {time_str}", fontsize=12, ha='center', fontweight='bold')
+                plt.text(0.5, 0.87, f"Batch Wall Time: {time_str}", fontsize=12, ha='center', fontweight='bold')
 
             ax_sum_tbl = fig_sum.add_axes([0.1, 0.1, 0.8, 0.7])
             ax_sum_tbl.axis('off')
             group_cols = ["Model", "Resolution"]
             if "Original Resolution" in fdf.columns: group_cols.append("Original Resolution")
             
-            summary_df = fdf.groupby(group_cols).agg({"Runtime (sec)": "mean", "Peak Memory (MB)": "mean"}).reset_index()
+            fdf = normalize_metric_columns(fdf)
+            summary_df = fdf.groupby(group_cols).agg({ATTR_RUNTIME_COL: "mean", ATTR_MEMORY_COL: "mean"}).reset_index()
             tbl_sum = ax_sum_tbl.table(cellText=summary_df.values, colLabels=summary_df.columns, loc='center', cellLoc='center')
             tbl_sum.auto_set_font_size(False)
             tbl_sum.set_fontsize(9)
@@ -141,6 +164,6 @@ def generate_csv_report(results_data, output_path):
     for g in results_data:
         for m in g["models"]: all_r.extend(m["results"])
     if all_r:
-        pd.DataFrame(all_r).to_csv(output_path, index=False)
+        presentation_df(pd.DataFrame(all_r)).to_csv(output_path, index=False)
         return True
     return False

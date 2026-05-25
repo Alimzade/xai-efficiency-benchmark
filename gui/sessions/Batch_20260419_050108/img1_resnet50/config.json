@@ -1,9 +1,0 @@
-{
-    "model_name": "resnet50",
-    "image_source": "gui/sessions\\Batch_20260419_050108\\img1_resnet50\\input_image.jpg",
-    "methods": [
-        "integrated_gradients"
-    ],
-    "force_device": "cuda",
-    "prediction": "airliner"
-}
