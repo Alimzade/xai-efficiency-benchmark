@@ -1,90 +1,189 @@
-﻿# XAI Efficiency Benchmark 🔍
+# XAI Efficiency Benchmark
 
-A toolkit to measure and compare the runtime, memory, and energy overhead of popular explainable AI (XAI) methods on various models and datasets.
+This project benchmarks the computational cost of explainable AI methods for image classifiers. The current primary workflow is the Streamlit GUI in `gui/app.py`; the older notebooks are still kept for deeper experiments and historical evaluations.
 
-## Motivation 🎯
+The GUI can compare multiple model architectures, input sizes, and XAI methods on uploaded images or image URLs. It reports attribution runtime, peak attribution memory, prediction metadata, heatmaps, batch summaries, CSV exports, and PDF reports.
 
-Explainable AI is crucial for trust and transparency in model decisions. However, many explanation techniques introduce significant computational overhead. For example, perturbation-based methods may require *hundreds or thousands of forward passes* to generate a single explanation ([OpenVINO™ Explainable AI Toolkit User Guide — OpenVINO™ XAI 1.1.0 documentation](https://openvinotoolkit.github.io/openvino_xai/stable/user-guide.html#:~:text=%2A%20Flexible%20,Cons)), and model-agnostic methods like SHAP can be *prohibitively slow* on large models ([Explainable artificial intelligence (XAI): from inherent explainability to large language models](https://arxiv.org/html/2501.09967v1#:~:text=Also%2C%20the%20computational%20overhead%20when,In%20addition%2C%20model)). This efficiency gap means some XAI methods are impractical for real-time or resource-constrained deployment. Balancing interpretability with computational efficiency is a known trade-off ([Do All AI Systems Need to Be Explainable?](https://ssir.org/articles/entry/do_ai_systems_need_to_be_explainable#:~:text=5.%20The%20trade,When)). This toolkit benchmarks a variety of XAI methods across models and datasets, quantifying their runtime, memory, and energy costs.
+## Current Status
 
-## Prerequisites 
+- Primary app: `gui/app.py`
+- Windows launcher: `Run_Benchmark.bat`
+- Linux/macOS launcher: `run_benchmark.sh`
+- Batch output folder: `gui/sessions/<batch_id>/`
+- Historical notebook outputs: `experiment_results/`
 
-- **Python:** 3.9 (added to `PATH`)
-- **Git:** to clone this repository
+Generated GUI sessions are local artifacts and should normally stay out of git.
 
-## Setup Instructions (Windows 10/11) 
+## Supported Models and Methods
 
-1. **Open PowerShell as Administrator.**
-   
-3. **Navigate** to your project folder:
-   ```powershell
-   cd C:\path\to\your_project
-   ```
-4. **Create** a Python 3.9 virtual environment:
-   ```powershell
-   python3.9 -m venv env39
-   ```
-5. **Activate** the environment:
-   ```powershell
-   .\env39\Scripts\activate
-   ```
-6. **Open** your code editor (e.g., VSCode, Cursor) and restart the integrated terminal if needed.
-7. **Clone** this repository and `cd` into it:
-   ```powershell
-   git clone https://github.com/Alimzade/xai-efficiency-benchmark.git
-   cd xai-efficiency-benchmark
-   ```
-8. **Install** dependencies in the terminal
-   ```
-   pip install captum memory_profiler opencv-python requests tensorflow ipykernel pandas scikit-image scikit-learn seaborn
-   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
-   ```
+The GUI currently exposes these torchvision models:
 
-## Dataset Download 🗃️
-   *No need if using images from URLs*
+- `resnet50`
+- `convnext-t`
+- `efficientnet-b0`
+- `swin-t`
+- `regnet-y-8gf`
+- `mobilenet-v3-large`
+- `densenet121`
+- `vit-b-16`
 
-**For ImageNet:**
-1. Obtain a Hugging Face access token at https://huggingface.co/settings/tokens
-2. Insert the token into `datasets\imagenet_download.py` as instructed in that file.
+The GUI currently exposes these local Captum/backpropagation methods:
 
-Then download all datasets with (may take some time):
+- `Saliency`
+- `Integrated_Gradients`
+- `Guided_Backprop`
+- `Input_X_Gradient`
+- `Gradient_Shap`
+- `DeepLift`
+- `DeepLift_Shap`
+- `Grad_CAM`
+
+Some architectures have fixed input-size expectations. In the GUI, transformer-style models such as `vit-b-16` and `swin-t` are locked to `224px`.
+
+## Setup
+
+Python 3.9+ is required. Python 3.10 or 3.11 is recommended if you run into package compatibility issues.
+
+Clone the repository:
 
 ```powershell
-python datasets\download.py
+git clone https://github.com/Alimzade/xai-efficiency-benchmark.git
+cd xai-efficiency-benchmark
 ```
-   
 
-## Running Benchmarks 
+### Windows
 
-- **`benchmark.ipynb`** (recommended): select method, model, dataset, hardware, and run full suite.
-- **`local_benchmark.ipynb`**: run one configuration per cell.
-- **`LIME_benchmark.ipynb`**: tune perturbation settings (e.g., sample count).
-- **`extended_benchmark.ipynb`**: includes global XAI methods and aggregated views.
+The simplest path is:
 
-Results (JSON, CSV, plots) will be saved in `experiment_results/`.
+```powershell
+.\Run_Benchmark.bat
+```
 
-## Extending the Framework 
+The launcher will:
 
-- **Add XAI methods:** place a new Python file in `xai_methods/` following existing templates.
-- **Add models:** update scripts in `models/` folder to include loading logic for your model (architecture and weights).
-- **Add datasets:** update loader scripts in `datasets/` (`data_loader.py` & `dataset_loader.py`) and update `download.py` if needed.
+- find a compatible Python installation,
+- create `venv/` if needed,
+- run `smart_setup.py`,
+- install dependencies from `requirements.txt`,
+- launch the Streamlit GUI.
 
+Manual setup is also possible:
 
-## Utilities 🛠️
+```powershell
+python -m venv venv
+.\venv\Scripts\activate
+python -m pip install --upgrade pip
+python smart_setup.py
+python -m streamlit run gui/app.py --browser.gatherUsageStats=false
+```
 
-The `utils/` folder contains helper modules:
+### Linux/macOS
 
-- `utils/benchmark_utils.py`: Add your hardware information here. 
+```bash
+chmod +x run_benchmark.sh
+./run_benchmark.sh
+```
 
+Manual setup:
 
-## Output and Results 📊
+```bash
+python3 -m venv venv
+source venv/bin/activate
+python -m pip install --upgrade pip
+python smart_setup.py
+python -m streamlit run gui/app.py --browser.gatherUsageStats=false
+```
 
-- **Raw results**: After running benchmarks, raw output (e.g., runtime logs, memory usage) is saved in `experiment_results/`. All experiment results are saved in the same place; therefore, clean folders (using `clean_folders.ipynb`).
-- **Figures**: Run `evaluation.ipynb` to generate figures and tables if needed. The `figures/` folder contains generated plots (PNG/HTML) comparing methods by runtime, memory, and energy. These visuals help quickly see the efficiency differences.  
+## CUDA and Torch
 
-By inspecting these results, researchers can identify which XAI methods are most practical under resource constraints and how to optimize their use.
+`smart_setup.py` attempts to choose an appropriate Torch installation:
+
+- NVIDIA GPU: installs the CUDA 11.8 Torch wheel index.
+- Apple Silicon: installs the standard Torch packages with MPS support where available.
+- CPU-only systems: installs the standard CPU/universal Torch packages.
+
+If GPU setup fails, install the Torch wheel that matches your system from the official PyTorch selector, then run:
+
+```powershell
+python -m pip install -r requirements.txt
+```
+
+## Running a Benchmark
+
+1. Launch the GUI.
+2. Select one or more model architectures.
+3. Select input sizes for CNN-based models.
+4. Select XAI methods.
+5. Set warmup runs and measured repeats.
+6. Upload images or paste image URLs.
+7. Start the benchmark.
+
+During a run, the app shows the active task, elapsed batch time, progress, and completed results for the current batch. Previous batch summaries are hidden while a new batch runs.
+
+## Measurement Semantics
+
+The main runtime metric is attribution runtime. It measures the XAI attribution call, not image loading, preprocessing, prediction, heatmap rendering, file saving, or Streamlit UI time.
+
+The app also reports:
+
+- warmup runs: untimed repeats before measurement,
+- measured runs: timed repeats used for the reported statistics,
+- median, mean, standard deviation, minimum, and maximum attribution runtime,
+- peak attribution memory,
+- total batch wall time.
+
+For CUDA runs, timing synchronizes CUDA before and after measured attribution work. CUDA memory uses Torch peak allocated memory. CPU memory is process-memory based and should not be interpreted as GPU VRAM.
+
+## Image-Size Studies
+
+Image-size results are naturally noisy and should not be treated as exponential by default. For a useful size study:
+
+- use the same images for every size,
+- keep model and method fixed,
+- use Balanced or Randomized task order,
+- use enough measured repeats, such as 30-100 for fast methods,
+- compare median/mean with variance instead of a single run.
+
+The GUI includes an image-size scaling summary when multiple input sizes are present.
+
+## Outputs
+
+Each GUI batch is saved under:
+
+```text
+gui/sessions/<batch_id>/
+```
+
+Typical files include:
+
+- `batch_results.json`
+- per-task `config.json`
+- generated heatmaps,
+- exported CSV reports,
+- exported PDF reports.
+
+Older notebook workflows save results under `experiment_results/`.
+
+## Notebook Workflows
+
+The notebooks are still useful for reproducing older experiments:
+
+- `benchmark.ipynb`: broad benchmark workflow,
+- `local_benchmark.ipynb`: smaller local runs,
+- `LIME_benchmark.ipynb`: LIME parameter experiments,
+- `extended_benchmark.ipynb`: extended/global-method experiments,
+- `evaluation.ipynb`: analysis and plots.
+
+## Extending the Project
+
+- Add local XAI methods under `xai_methods/`.
+- Add or modify model loading in `models/model_loader.py`.
+- Add dataset logic under `datasets/`.
+- Update GUI method support in `gui/benchmark_runner.py` and `gui/app.py`.
 
 ## Citation
-If you use this tool in your work, please cite as below:
+
+If you use this tool in your work, please cite:
 
 ```bibtex
 @software{alimzade2025xai,

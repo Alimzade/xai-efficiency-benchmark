@@ -28,6 +28,51 @@ st.set_page_config(page_title="XAI Efficiency Benchmark", page_icon="🔍", layo
 # CSS
 st.markdown("""
     <style>
+    :root {
+        --xai-border: rgba(49, 51, 63, 0.12);
+        --xai-muted: #6b7280;
+        --xai-panel: #f8fafc;
+        --xai-accent: #2563eb;
+    }
+    .app-title {
+        border-bottom: 1px solid var(--xai-border);
+        margin-bottom: 1rem;
+        padding: 0.35rem 0 0.9rem 0;
+    }
+    .app-title h1 {
+        font-size: 1.75rem;
+        letter-spacing: 0;
+        margin: 0;
+    }
+    .app-title p {
+        color: var(--xai-muted);
+        margin: 0.25rem 0 0 0;
+        font-size: 0.95rem;
+    }
+    .run-card {
+        background: linear-gradient(180deg, #ffffff 0%, var(--xai-panel) 100%);
+        border: 1px solid var(--xai-border);
+        border-radius: 8px;
+        padding: 0.9rem 1rem;
+        margin-bottom: 1rem;
+    }
+    .run-card-title {
+        color: #111827;
+        font-size: 0.95rem;
+        font-weight: 700;
+        margin-bottom: 0.2rem;
+    }
+    .run-card-copy {
+        color: var(--xai-muted);
+        font-size: 0.86rem;
+        line-height: 1.4;
+    }
+    .settings-hint {
+        color: var(--xai-muted);
+        font-size: 0.82rem;
+        line-height: 1.35;
+        margin-top: -0.25rem;
+    }
     .compact-preview { max-width: 300px; margin-left: auto; margin-right: 0; }
     div[data-testid="column"]:nth-child(3) { display: flex; flex-direction: column; align-items: flex-end; }
     .stButton button { padding: 2px 10px !important; font-size: 0.9em !important; }
@@ -35,6 +80,13 @@ st.markdown("""
     .status-pulse { color: #ff4b4b; font-weight: bold; animation: pulse 1.5s infinite; font-size: 1.1em; }
     @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
     </style>
+    """, unsafe_allow_html=True)
+
+st.markdown("""
+    <div class="app-title">
+        <h1>XAI Efficiency Benchmark</h1>
+        <p>Compare attribution runtime, peak memory, and image-size behavior across models and methods.</p>
+    </div>
     """, unsafe_allow_html=True)
 
 sm = SessionManager()
@@ -385,6 +437,7 @@ if 'current_batch_id' not in st.session_state: st.session_state.current_batch_id
 if 'last_run_batch_id' not in st.session_state: st.session_state.last_run_batch_id = ""
 if 'completed_batch_id' not in st.session_state: st.session_state.completed_batch_id = ""
 if 'completion_notice_batch_id' not in st.session_state: st.session_state.completion_notice_batch_id = ""
+if 'run_view_prepared' not in st.session_state: st.session_state.run_view_prepared = True
 if 'current_img_base64' not in st.session_state: st.session_state.current_img_base64 = ""
 if 'batch_start_time' not in st.session_state: st.session_state.batch_start_time = None
 if 'total_execution_time' not in st.session_state: st.session_state.total_execution_time = 0
@@ -426,8 +479,25 @@ xai_opts = [
 ]
 selected_methods = st.sidebar.multiselect("XAI Methods", xai_opts, default=["Saliency", "Integrated_Gradients"], disabled=is_running)
 st.sidebar.divider(); st.sidebar.subheader("Measurement")
-selected_warmups = st.sidebar.number_input("Warmup runs", min_value=0, max_value=20, value=1, step=1, disabled=is_running)
-selected_repeats = st.sidebar.number_input("Measured repeats", min_value=1, max_value=1000, value=5, step=1, disabled=is_running)
+st.sidebar.markdown('<div class="settings-hint">Warmups are not reported. Measured repeats are timed and summarized with median/mean/std.</div>', unsafe_allow_html=True)
+selected_warmups = st.sidebar.number_input(
+    "Warmup runs",
+    min_value=0,
+    max_value=20,
+    value=1,
+    step=1,
+    help="Untimed runs before measurement. Useful for CUDA/model warmup.",
+    disabled=is_running
+)
+selected_repeats = st.sidebar.number_input(
+    "Measured repeats",
+    min_value=1,
+    max_value=1000,
+    value=5,
+    step=1,
+    help="Timed attribution repeats per image/model/size/method. Use 30-100 for stronger size studies when methods are fast enough.",
+    disabled=is_running
+)
 selected_run_order = st.sidebar.selectbox(
     "Task order",
     ["Balanced", "Grouped", "Randomized"],
@@ -493,6 +563,13 @@ with tab1:
             st.markdown('</div>', unsafe_allow_html=True)
 
     st.divider()
+
+    planned_task_count = len(img_sources) * len(selected_models) * len(selected_sizes) * len(selected_methods)
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Images", len(img_sources))
+    m2.metric("Configurations", planned_task_count)
+    m3.metric("Repeats/config", selected_repeats)
+    m4.metric("Warmups/config", selected_warmups)
     
     # --- ACTION BUTTONS ---
     if not st.session_state.benchmark_running:
@@ -504,7 +581,10 @@ with tab1:
             st.session_state.is_finished = False
             st.session_state.total_execution_time = 0
             st.session_state.task_queue = []
-            if not img_sources or not selected_models or not selected_methods: st.error("Select Settings.")
+            st.session_state.run_view_prepared = False
+            if not img_sources or not selected_models or not selected_methods:
+                st.session_state.run_view_prepared = True
+                st.error("Select at least one image, model, and XAI method.")
             else:
                 st.session_state.current_batch_id = sm.start_batch()
                 st.session_state.last_run_batch_id = st.session_state.current_batch_id
@@ -526,6 +606,7 @@ with tab1:
             st.session_state.stop_requested = True; st.session_state.benchmark_running = False
             st.session_state.last_run_results = []; st.session_state.task_queue = []
             st.session_state.last_run_batch_id = ""; st.session_state.completed_batch_id = ""
+            st.session_state.run_view_prepared = True
             st.rerun()
 
     # --- RESULTS AREA ---
@@ -548,6 +629,17 @@ with tab1:
         with timer_col:
             render_live_elapsed_timer(st.session_state.batch_start_time)
         st.progress(idx / total_steps if total_steps else 0); st.divider()
+
+        if not st.session_state.run_view_prepared:
+            st.markdown("""
+                <div class="run-card">
+                    <div class="run-card-title">Preparing fresh batch view</div>
+                    <div class="run-card-copy">Previous batch output is cleared before the new benchmark engine starts.</div>
+                </div>
+                """, unsafe_allow_html=True)
+            st.session_state.run_view_prepared = True
+            time.sleep(0.15)
+            st.rerun()
 
     current_batch_has_results = (
         bool(st.session_state.current_batch_id)
@@ -647,7 +739,7 @@ with tab1:
                 st.pyplot(plot_image_size_scaling(size_summary_df))
 
     # --- ENGINE ---
-    if st.session_state.benchmark_running and not st.session_state.is_finished:
+    if st.session_state.benchmark_running and not st.session_state.is_finished and st.session_state.run_view_prepared:
         idx = st.session_state.run_progress_idx
         task_queue = st.session_state.task_queue
 
