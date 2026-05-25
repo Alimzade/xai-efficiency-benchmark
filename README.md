@@ -116,7 +116,7 @@ python -m pip install -r requirements.txt
 4. Select XAI methods.
 5. Set warmup runs and measured repeats.
 6. Upload images or paste image URLs.
-7. Start the benchmark.
+7. Click **Start Multi-Model Benchmark**. The app prepares a fresh batch view, clears previous output, and then starts the run automatically.
 
 During a run, the app shows the active task, elapsed batch time, progress, and completed results for the current batch. Previous batch summaries are hidden while a new batch runs.
 

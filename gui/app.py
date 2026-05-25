@@ -437,16 +437,17 @@ if 'current_batch_id' not in st.session_state: st.session_state.current_batch_id
 if 'last_run_batch_id' not in st.session_state: st.session_state.last_run_batch_id = ""
 if 'completed_batch_id' not in st.session_state: st.session_state.completed_batch_id = ""
 if 'completion_notice_batch_id' not in st.session_state: st.session_state.completion_notice_batch_id = ""
-if 'run_view_prepared' not in st.session_state: st.session_state.run_view_prepared = True
+if 'benchmark_ready_to_run' not in st.session_state: st.session_state.benchmark_ready_to_run = False
 if 'current_img_base64' not in st.session_state: st.session_state.current_img_base64 = ""
 if 'batch_start_time' not in st.session_state: st.session_state.batch_start_time = None
 if 'total_execution_time' not in st.session_state: st.session_state.total_execution_time = 0
 if 'task_queue' not in st.session_state: st.session_state.task_queue = []
+if 'prepared_img_sources' not in st.session_state: st.session_state.prepared_img_sources = []
 if 'current_run_order' not in st.session_state: st.session_state.current_run_order = "Balanced"
 
 # --- SIDEBAR ---
 st.sidebar.title("Benchmark Settings ⚙️")
-is_running = st.session_state.benchmark_running
+is_running = st.session_state.benchmark_running or st.session_state.benchmark_ready_to_run
 
 model_opts = ['resnet50', 'convnext-t', 'efficientnet-b0', 'swin-t', 'regnet-y-8gf', 'mobilenet-v3-large', 'densenet121', 'vit-b-16']
 selected_models = st.sidebar.multiselect("Model Architectures", model_opts, default=["resnet50"], disabled=is_running)
@@ -564,15 +565,62 @@ with tab1:
 
     st.divider()
 
-    planned_task_count = len(img_sources) * len(selected_models) * len(selected_sizes) * len(selected_methods)
+    planned_image_count = len(st.session_state.prepared_img_sources) if st.session_state.benchmark_ready_to_run else len(img_sources)
+    planned_task_count = planned_image_count * len(selected_models) * len(selected_sizes) * len(selected_methods)
     m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Images", len(img_sources))
+    m1.metric("Images", planned_image_count)
     m2.metric("Configurations", planned_task_count)
     m3.metric("Repeats/config", selected_repeats)
     m4.metric("Warmups/config", selected_warmups)
     
     # --- ACTION BUTTONS ---
-    if not st.session_state.benchmark_running:
+    if st.session_state.benchmark_ready_to_run:
+        st.info("Fresh batch view prepared. Previous results are cleared; the benchmark is starting automatically.")
+        components.html("""
+            <script>
+                const targetLabel = "Auto-start benchmark engine";
+                let clicked = false;
+
+                function hideAndClick(button) {
+                    if (clicked || !button || button.disabled) {
+                        return;
+                    }
+                    clicked = true;
+                    const wrapper = button.closest('[data-testid="stButton"]') || button.parentElement;
+                    if (wrapper) {
+                        wrapper.style.display = "none";
+                        wrapper.style.height = "0";
+                        wrapper.style.overflow = "hidden";
+                    }
+                    setTimeout(() => button.click(), 650);
+                }
+
+                function findButton() {
+                    const buttons = Array.from(window.parent.document.querySelectorAll("button"));
+                    return buttons.find((button) => button.textContent.trim() === targetLabel);
+                }
+
+                function scan() {
+                    try {
+                        hideAndClick(findButton());
+                    } catch (error) {
+                        clicked = true;
+                    }
+                }
+
+                const observer = new MutationObserver(scan);
+                observer.observe(window.parent.document.body, { childList: true, subtree: true });
+                scan();
+                setTimeout(() => observer.disconnect(), 5000);
+            </script>
+        """, height=0)
+        if st.button("Auto-start benchmark engine", type="primary", width='stretch'):
+            st.session_state.batch_start_time = time.time()
+            st.session_state.total_execution_time = 0
+            st.session_state.benchmark_ready_to_run = False
+            st.session_state.benchmark_running = True
+            st.rerun()
+    elif not st.session_state.benchmark_running:
         if st.button("Start Multi-Model Benchmark ⚡", width='stretch'):
             st.session_state.last_run_results = []
             st.session_state.last_run_batch_id = ""
@@ -581,9 +629,8 @@ with tab1:
             st.session_state.is_finished = False
             st.session_state.total_execution_time = 0
             st.session_state.task_queue = []
-            st.session_state.run_view_prepared = False
+            st.session_state.prepared_img_sources = []
             if not img_sources or not selected_models or not selected_methods:
-                st.session_state.run_view_prepared = True
                 st.error("Select at least one image, model, and XAI method.")
             else:
                 st.session_state.current_batch_id = sm.start_batch()
@@ -597,151 +644,146 @@ with tab1:
                     selected_run_order,
                     seed=st.session_state.current_batch_id
                 )
-                st.session_state.batch_start_time = time.time()
+                st.session_state.prepared_img_sources = list(img_sources)
+                st.session_state.batch_start_time = None
                 st.session_state.total_execution_time = 0
                 st.session_state.stop_requested = False
-                st.session_state.run_progress_idx = 0; st.session_state.benchmark_running = True; st.rerun()
+                st.session_state.run_progress_idx = 0
+                st.session_state.benchmark_ready_to_run = True
+                st.rerun()
     else:
         if st.button("🛑 Stop Benchmark", width='stretch'):
             st.session_state.stop_requested = True; st.session_state.benchmark_running = False
-            st.session_state.last_run_results = []; st.session_state.task_queue = []
+            st.session_state.last_run_results = []; st.session_state.task_queue = []; st.session_state.prepared_img_sources = []
             st.session_state.last_run_batch_id = ""; st.session_state.completed_batch_id = ""
-            st.session_state.run_view_prepared = True
+            st.session_state.benchmark_ready_to_run = False
             st.rerun()
 
     # --- RESULTS AREA ---
-    if st.session_state.benchmark_running and not st.session_state.is_finished:
-        task_queue = st.session_state.task_queue
-        total_steps = len(task_queue)
-        idx = st.session_state.run_progress_idx
-        current_task = task_queue[idx] if idx < total_steps else {}
-        cur_mod = current_task.get("model_name", "?")
-        cur_met = current_task.get("method_name", "?")
-        cur_size = current_task.get("target_size", "?")
-        img_i = current_task.get("img_i", 0)
+    results_area = st.empty()
+    with results_area.container():
+        if st.session_state.benchmark_running and not st.session_state.is_finished:
+            task_queue = st.session_state.task_queue
+            total_steps = len(task_queue)
+            idx = st.session_state.run_progress_idx
+            current_task = task_queue[idx] if idx < total_steps else {}
+            cur_mod = current_task.get("model_name", "?")
+            cur_met = current_task.get("method_name", "?")
+            cur_size = current_task.get("target_size", "?")
+            img_i = current_task.get("img_i", 0)
 
-        status_col, timer_col = st.columns([5, 1])
-        with status_col:
-            st.markdown(
-                f"<div class='status-pulse'>🚀 STEP {idx + 1}/{total_steps}: Running {cur_met} on {cur_mod} @ {cur_size}px (Image {img_i + 1}, {st.session_state.current_run_order} order)</div>",
-                unsafe_allow_html=True
-            )
-        with timer_col:
-            render_live_elapsed_timer(st.session_state.batch_start_time)
-        st.progress(idx / total_steps if total_steps else 0); st.divider()
+            status_col, timer_col = st.columns([5, 1])
+            with status_col:
+                st.markdown(
+                    f"<div class='status-pulse'>🚀 STEP {idx + 1}/{total_steps}: Running {cur_met} on {cur_mod} @ {cur_size}px (Image {img_i + 1}, {st.session_state.current_run_order} order)</div>",
+                    unsafe_allow_html=True
+                )
+            with timer_col:
+                render_live_elapsed_timer(st.session_state.batch_start_time)
+            st.progress(idx / total_steps if total_steps else 0); st.divider()
 
-        if not st.session_state.run_view_prepared:
-            st.markdown("""
-                <div class="run-card">
-                    <div class="run-card-title">Preparing fresh batch view</div>
-                    <div class="run-card-copy">Previous batch output is cleared before the new benchmark engine starts.</div>
-                </div>
-                """, unsafe_allow_html=True)
-            st.session_state.run_view_prepared = True
-            time.sleep(0.15)
-            st.rerun()
+        current_batch_has_results = (
+            bool(st.session_state.current_batch_id)
+            and st.session_state.last_run_batch_id == st.session_state.current_batch_id
+            and bool(st.session_state.last_run_results)
+        )
+        current_batch_is_complete = (
+            current_batch_has_results
+            and st.session_state.is_finished
+            and st.session_state.completed_batch_id == st.session_state.current_batch_id
+        )
 
-    current_batch_has_results = (
-        bool(st.session_state.current_batch_id)
-        and st.session_state.last_run_batch_id == st.session_state.current_batch_id
-        and bool(st.session_state.last_run_results)
-    )
-    current_batch_is_complete = (
-        current_batch_has_results
-        and st.session_state.is_finished
-        and st.session_state.completed_batch_id == st.session_state.current_batch_id
-    )
+        if current_batch_has_results and st.session_state.benchmark_running and not st.session_state.is_finished:
+            st.subheader("Completed Results So Far")
+            for group in sorted_result_groups(st.session_state.last_run_results):
+                render_result_group(group, selected_methods)
 
-    if current_batch_has_results and st.session_state.benchmark_running and not st.session_state.is_finished:
-        st.subheader("Completed Results So Far")
-        for group in sorted_result_groups(st.session_state.last_run_results):
-            render_result_group(group, selected_methods)
+        if current_batch_is_complete:
+            st.success(f"Benchmark complete in {format_time(st.session_state.total_execution_time)}. Results, charts, and exports are ready.")
+            if st.session_state.completion_notice_batch_id != st.session_state.current_batch_id:
+                st.toast("Benchmark complete. Results are ready.", icon="✅")
+                st.session_state.completion_notice_batch_id = st.session_state.current_batch_id
 
-    if current_batch_is_complete:
-        st.success(f"Benchmark complete in {format_time(st.session_state.total_execution_time)}. Results, charts, and exports are ready.")
-        if st.session_state.completion_notice_batch_id != st.session_state.current_batch_id:
-            st.toast("Benchmark complete. Results are ready.", icon="✅")
-            st.session_state.completion_notice_batch_id = st.session_state.current_batch_id
+            for group in sorted_result_groups(st.session_state.last_run_results):
+                render_result_group(group, selected_methods)
 
-        for group in sorted_result_groups(st.session_state.last_run_results):
-            render_result_group(group, selected_methods)
+            all_r = []
+            for g in sorted_result_groups(st.session_state.last_run_results):
+                for m in g["models"]: all_r.extend(m["results"])
+            if all_r:
+                fdf = normalize_metric_columns(pd.DataFrame(all_r))
+                fdf["Model_Size"] = fdf["Model"] + " (" + fdf["Resolution"] + ")"
+                runtime_col = metric_col(fdf, ATTR_RUNTIME_COL, LEGACY_RUNTIME_COL)
+                memory_col = metric_col(fdf, ATTR_MEMORY_COL, LEGACY_MEMORY_COL)
+                
+                st.divider()
+                st.header("🔬 Batch Summary")
+                st.markdown(f"**Batch Wall Time:** `{format_time(st.session_state.total_execution_time)}`")
+                render_environment_summary(collect_environment_metadata("cuda" if "GPU" in selected_device_mode else "cpu"))
+                
+                # --- EXPORT BUTTONS ---
+                ex1, ex2, ex3 = st.columns([1, 1, 3])
+                with ex1:
+                    csv_path = os.path.join(sm.base_dir, st.session_state.current_batch_id, f"{st.session_state.current_batch_id}.csv")
+                    if generate_csv_report(st.session_state.last_run_results, csv_path):
+                        with open(csv_path, "rb") as f:
+                            st.download_button("📥 Export CSV", data=f, file_name=f"{st.session_state.current_batch_id}.csv", mime="text/csv", use_container_width=True)
+                with ex2:
+                    pdf_path = os.path.join(sm.base_dir, st.session_state.current_batch_id, f"{st.session_state.current_batch_id}.pdf")
+                    # Use a spinner while generating PDF
+                    with st.spinner("Generating PDF..."):
+                        generate_pdf_report(
+                            st.session_state.current_batch_id,
+                            st.session_state.last_run_results,
+                            selected_methods,
+                            pdf_path,
+                            st.session_state.total_execution_time,
+                            collect_environment_metadata("cuda" if "GPU" in selected_device_mode else "cpu")
+                        )
+                    with open(pdf_path, "rb") as f:
+                        st.download_button("📄 Export PDF", data=f, file_name=f"{st.session_state.current_batch_id}.pdf", mime="application/pdf", use_container_width=True)
 
-        all_r = []
-        for g in sorted_result_groups(st.session_state.last_run_results):
-            for m in g["models"]: all_r.extend(m["results"])
-        if all_r:
-            fdf = normalize_metric_columns(pd.DataFrame(all_r))
-            fdf["Model_Size"] = fdf["Model"] + " (" + fdf["Resolution"] + ")"
-            runtime_col = metric_col(fdf, ATTR_RUNTIME_COL, LEGACY_RUNTIME_COL)
-            memory_col = metric_col(fdf, ATTR_MEMORY_COL, LEGACY_MEMORY_COL)
-            
-            st.divider()
-            st.header("🔬 Batch Summary")
-            st.markdown(f"**Batch Wall Time:** `{format_time(st.session_state.total_execution_time)}`")
-            render_environment_summary(collect_environment_metadata("cuda" if "GPU" in selected_device_mode else "cpu"))
-            
-            # --- EXPORT BUTTONS ---
-            ex1, ex2, ex3 = st.columns([1, 1, 3])
-            with ex1:
-                csv_path = os.path.join(sm.base_dir, st.session_state.current_batch_id, f"{st.session_state.current_batch_id}.csv")
-                if generate_csv_report(st.session_state.last_run_results, csv_path):
-                    with open(csv_path, "rb") as f:
-                        st.download_button("📥 Export CSV", data=f, file_name=f"{st.session_state.current_batch_id}.csv", mime="text/csv", use_container_width=True)
-            with ex2:
-                pdf_path = os.path.join(sm.base_dir, st.session_state.current_batch_id, f"{st.session_state.current_batch_id}.pdf")
-                # Use a spinner while generating PDF
-                with st.spinner("Generating PDF..."):
-                    generate_pdf_report(
-                        st.session_state.current_batch_id,
-                        st.session_state.last_run_results,
-                        selected_methods,
-                        pdf_path,
-                        st.session_state.total_execution_time,
-                        collect_environment_metadata("cuda" if "GPU" in selected_device_mode else "cpu")
-                    )
-                with open(pdf_path, "rb") as f:
-                    st.download_button("📄 Export PDF", data=f, file_name=f"{st.session_state.current_batch_id}.pdf", mime="application/pdf", use_container_width=True)
-
-            cs1, cs2 = st.columns(2)
-            with cs1:
-                st.subheader("Configuration Averages")
-                group_cols = ["Model", "Resolution"]
-                if "Original Resolution" in fdf.columns: group_cols.append("Original Resolution")
-                summary_df = fdf.groupby(group_cols).agg({runtime_col: "mean", memory_col: "mean"}).reset_index()
-                st.table(style_dataframe(summary_df))
-                fig1, ax1 = plt.subplots(figsize=(12, 7))
-                sns.barplot(data=fdf, x="Method", y=runtime_col, hue="Model_Size", palette="colorblind", ax=ax1, edgecolor="black")
-                ax1.set_title("Architecture & Resolution Efficiency", fontsize=14, fontweight='bold')
-                plt.xticks(rotation=45); ax1.legend(loc='upper left', bbox_to_anchor=(1, 1)); plt.tight_layout()
-                st.pyplot(fig1)
-            with cs2:
-                st.subheader("Method Averages"); st.table(style_dataframe(fdf.groupby("Method").agg({runtime_col: "mean", memory_col: "mean"}).reset_index()))
-                st.pyplot(plot_method_runtime_log(fdf))
-            st.subheader("Method Detail")
-            st.table(style_dataframe(method_detail_summary(fdf)))
-            fs1, fs2 = st.columns(2)
-            fastest_df, slowest_df = fastest_slowest_rows(fdf)
-            with fs1:
-                st.subheader("Fastest Runs")
-                st.table(style_dataframe(fastest_df))
-            with fs2:
-                st.subheader("Slowest Runs")
-                st.table(style_dataframe(slowest_df))
-            dist1, dist2 = st.columns(2)
-            with dist1:
-                st.pyplot(plot_runtime_distribution(fdf))
-            with dist2:
-                st.pyplot(plot_runtime_memory_scatter(fdf))
-            size_summary_df = image_size_summary(fdf)
-            if not size_summary_df.empty:
-                st.subheader("Image Size Scaling")
-                st.table(style_dataframe(size_summary_df))
-                st.pyplot(plot_image_size_scaling(size_summary_df))
+                cs1, cs2 = st.columns(2)
+                with cs1:
+                    st.subheader("Configuration Averages")
+                    group_cols = ["Model", "Resolution"]
+                    if "Original Resolution" in fdf.columns: group_cols.append("Original Resolution")
+                    summary_df = fdf.groupby(group_cols).agg({runtime_col: "mean", memory_col: "mean"}).reset_index()
+                    st.table(style_dataframe(summary_df))
+                    fig1, ax1 = plt.subplots(figsize=(12, 7))
+                    sns.barplot(data=fdf, x="Method", y=runtime_col, hue="Model_Size", palette="colorblind", ax=ax1, edgecolor="black")
+                    ax1.set_title("Architecture & Resolution Efficiency", fontsize=14, fontweight='bold')
+                    plt.xticks(rotation=45); ax1.legend(loc='upper left', bbox_to_anchor=(1, 1)); plt.tight_layout()
+                    st.pyplot(fig1)
+                with cs2:
+                    st.subheader("Method Averages"); st.table(style_dataframe(fdf.groupby("Method").agg({runtime_col: "mean", memory_col: "mean"}).reset_index()))
+                    st.pyplot(plot_method_runtime_log(fdf))
+                st.subheader("Method Detail")
+                st.table(style_dataframe(method_detail_summary(fdf)))
+                fs1, fs2 = st.columns(2)
+                fastest_df, slowest_df = fastest_slowest_rows(fdf)
+                with fs1:
+                    st.subheader("Fastest Runs")
+                    st.table(style_dataframe(fastest_df))
+                with fs2:
+                    st.subheader("Slowest Runs")
+                    st.table(style_dataframe(slowest_df))
+                dist1, dist2 = st.columns(2)
+                with dist1:
+                    st.pyplot(plot_runtime_distribution(fdf))
+                with dist2:
+                    st.pyplot(plot_runtime_memory_scatter(fdf))
+                size_summary_df = image_size_summary(fdf)
+                if not size_summary_df.empty:
+                    st.subheader("Image Size Scaling")
+                    st.table(style_dataframe(size_summary_df))
+                    st.pyplot(plot_image_size_scaling(size_summary_df))
 
     # --- ENGINE ---
-    if st.session_state.benchmark_running and not st.session_state.is_finished and st.session_state.run_view_prepared:
+    if st.session_state.benchmark_running and not st.session_state.is_finished:
         idx = st.session_state.run_progress_idx
         task_queue = st.session_state.task_queue
+        run_img_sources = st.session_state.prepared_img_sources or img_sources
 
         if st.session_state.last_run_batch_id != st.session_state.current_batch_id:
             st.session_state.last_run_results = []
@@ -751,12 +793,12 @@ with tab1:
             task = task_queue[idx]
             img_i = task["img_i"]
             
-            src = img_sources[img_i]
+            src = run_img_sources[img_i]
             model_name = task["model_name"]
             target_size = task["target_size"]
             method_name = task["method_name"]
             
-            target_group = get_or_create_result_group(st.session_state.last_run_results, img_i, img_sources)
+            target_group = get_or_create_result_group(st.session_state.last_run_results, img_i, run_img_sources)
             model_label = f"{model_name} ({target_size}px)"
             model_entry = next((m for m in target_group["models"] if m.get("model_label") == model_label), None)
             
