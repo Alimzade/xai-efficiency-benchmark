@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import os
 import time
 import pandas as pd
@@ -124,11 +125,51 @@ def build_task_queue(num_images, models, sizes, methods, run_order, seed=None):
         rng.shuffle(tasks)
     return tasks
 
+def sorted_result_groups(groups):
+    return sorted(groups, key=lambda g: g.get("img_idx", 0))
+
+def get_or_create_result_group(results, img_i, img_sources):
+    img_idx = img_i + 1
+    group = next((g for g in results if g.get("img_idx") == img_idx), None)
+    if group is None:
+        group = {"img_idx": img_idx, "models": [], "source": img_sources[img_i]}
+        results.append(group)
+        results.sort(key=lambda g: g.get("img_idx", 0))
+    return group
+
 def get_cpu_info(): return platform.processor() or "Generic CPU"
 def format_time(seconds):
     if seconds < 60: return f"{seconds:.1f}s"
     elif seconds < 3600: return f"{int(seconds // 60)}m {int(seconds % 60)}s"
     else: return f"{int(seconds // 3600)}h {int((seconds % 3600) // 60)}m"
+
+def render_live_elapsed_timer(start_time):
+    start_ms = int((start_time or time.time()) * 1000)
+    components.html(f"""
+        <div id="elapsed-badge" style="
+            font-family: monospace;
+            font-size: 1.2em;
+            font-weight: 700;
+            color: #6b7280;
+            text-align: right;
+            white-space: nowrap;
+            padding-top: 2px;
+        ">0.0s</div>
+        <script>
+            const startMs = {start_ms};
+            const badge = document.getElementById("elapsed-badge");
+            function formatElapsed(seconds) {{
+                if (seconds < 60) return seconds.toFixed(1) + "s";
+                if (seconds < 3600) return Math.floor(seconds / 60) + "m " + Math.floor(seconds % 60) + "s";
+                return Math.floor(seconds / 3600) + "h " + Math.floor((seconds % 3600) / 60) + "m";
+            }}
+            function tick() {{
+                badge.textContent = formatElapsed((Date.now() - startMs) / 1000);
+            }}
+            tick();
+            setInterval(tick, 500);
+        </script>
+    """, height=34)
 
 def get_base64(img):
     buffered = BytesIO(); img.save(buffered, format="PNG")
@@ -338,10 +379,12 @@ if 'persisted_urls' not in st.session_state: st.session_state.persisted_urls = "
 if 'last_run_results' not in st.session_state: st.session_state.last_run_results = []
 if 'stop_requested' not in st.session_state: st.session_state.stop_requested = False
 if 'is_finished' not in st.session_state: st.session_state.is_finished = False
-if 'balloons_triggered' not in st.session_state: st.session_state.balloons_triggered = False
 if 'benchmark_running' not in st.session_state: st.session_state.benchmark_running = False
 if 'run_progress_idx' not in st.session_state: st.session_state.run_progress_idx = 0
 if 'current_batch_id' not in st.session_state: st.session_state.current_batch_id = ""
+if 'last_run_batch_id' not in st.session_state: st.session_state.last_run_batch_id = ""
+if 'completed_batch_id' not in st.session_state: st.session_state.completed_batch_id = ""
+if 'completion_notice_batch_id' not in st.session_state: st.session_state.completion_notice_batch_id = ""
 if 'current_img_base64' not in st.session_state: st.session_state.current_img_base64 = ""
 if 'batch_start_time' not in st.session_state: st.session_state.batch_start_time = None
 if 'total_execution_time' not in st.session_state: st.session_state.total_execution_time = 0
@@ -455,12 +498,16 @@ with tab1:
     if not st.session_state.benchmark_running:
         if st.button("Start Multi-Model Benchmark ⚡", width='stretch'):
             st.session_state.last_run_results = []
+            st.session_state.last_run_batch_id = ""
+            st.session_state.completed_batch_id = ""
+            st.session_state.completion_notice_batch_id = ""
             st.session_state.is_finished = False
             st.session_state.total_execution_time = 0
             st.session_state.task_queue = []
             if not img_sources or not selected_models or not selected_methods: st.error("Select Settings.")
             else:
                 st.session_state.current_batch_id = sm.start_batch()
+                st.session_state.last_run_batch_id = st.session_state.current_batch_id
                 st.session_state.current_run_order = selected_run_order
                 st.session_state.task_queue = build_task_queue(
                     len(img_sources),
@@ -472,12 +519,14 @@ with tab1:
                 )
                 st.session_state.batch_start_time = time.time()
                 st.session_state.total_execution_time = 0
-                st.session_state.stop_requested = False; st.session_state.balloons_triggered = False
+                st.session_state.stop_requested = False
                 st.session_state.run_progress_idx = 0; st.session_state.benchmark_running = True; st.rerun()
     else:
         if st.button("🛑 Stop Benchmark", width='stretch'):
             st.session_state.stop_requested = True; st.session_state.benchmark_running = False
-            st.session_state.last_run_results = []; st.session_state.task_queue = []; st.rerun()
+            st.session_state.last_run_results = []; st.session_state.task_queue = []
+            st.session_state.last_run_batch_id = ""; st.session_state.completed_batch_id = ""
+            st.rerun()
 
     # --- RESULTS AREA ---
     if st.session_state.benchmark_running and not st.session_state.is_finished:
@@ -490,26 +539,43 @@ with tab1:
         cur_size = current_task.get("target_size", "?")
         img_i = current_task.get("img_i", 0)
 
-        elapsed = time.time() - st.session_state.batch_start_time
-        st.markdown(f"""
-            <div style='display: flex; justify-content: space-between; align-items: center;'>
-                <div class='status-pulse'>🚀 STEP {idx + 1}/{total_steps}: Running {cur_met} on {cur_mod} @ {cur_size}px (Image {img_i + 1}, {st.session_state.current_run_order} order)</div>
-                <div style='font-family: monospace; font-size: 1.2em; font-weight: bold; color: gray;'>⏱️ {format_time(elapsed)}</div>
-            </div>
-        """, unsafe_allow_html=True)
+        status_col, timer_col = st.columns([5, 1])
+        with status_col:
+            st.markdown(
+                f"<div class='status-pulse'>🚀 STEP {idx + 1}/{total_steps}: Running {cur_met} on {cur_mod} @ {cur_size}px (Image {img_i + 1}, {st.session_state.current_run_order} order)</div>",
+                unsafe_allow_html=True
+            )
+        with timer_col:
+            render_live_elapsed_timer(st.session_state.batch_start_time)
         st.progress(idx / total_steps if total_steps else 0); st.divider()
 
-    if st.session_state.last_run_results and st.session_state.benchmark_running:
+    current_batch_has_results = (
+        bool(st.session_state.current_batch_id)
+        and st.session_state.last_run_batch_id == st.session_state.current_batch_id
+        and bool(st.session_state.last_run_results)
+    )
+    current_batch_is_complete = (
+        current_batch_has_results
+        and st.session_state.is_finished
+        and st.session_state.completed_batch_id == st.session_state.current_batch_id
+    )
+
+    if current_batch_has_results and st.session_state.benchmark_running and not st.session_state.is_finished:
         st.subheader("Completed Results So Far")
-        for group in st.session_state.last_run_results:
+        for group in sorted_result_groups(st.session_state.last_run_results):
             render_result_group(group, selected_methods)
 
-    if st.session_state.last_run_results and st.session_state.is_finished:
-        for group in st.session_state.last_run_results:
+    if current_batch_is_complete:
+        st.success(f"Benchmark complete in {format_time(st.session_state.total_execution_time)}. Results, charts, and exports are ready.")
+        if st.session_state.completion_notice_batch_id != st.session_state.current_batch_id:
+            st.toast("Benchmark complete. Results are ready.", icon="✅")
+            st.session_state.completion_notice_batch_id = st.session_state.current_batch_id
+
+        for group in sorted_result_groups(st.session_state.last_run_results):
             render_result_group(group, selected_methods)
 
         all_r = []
-        for g in st.session_state.last_run_results:
+        for g in sorted_result_groups(st.session_state.last_run_results):
             for m in g["models"]: all_r.extend(m["results"])
         if all_r:
             fdf = normalize_metric_columns(pd.DataFrame(all_r))
@@ -579,26 +645,26 @@ with tab1:
                 st.subheader("Image Size Scaling")
                 st.table(style_dataframe(size_summary_df))
                 st.pyplot(plot_image_size_scaling(size_summary_df))
-            if not st.session_state.balloons_triggered: st.balloons(); st.session_state.balloons_triggered = True
 
     # --- ENGINE ---
     if st.session_state.benchmark_running and not st.session_state.is_finished:
         idx = st.session_state.run_progress_idx
         task_queue = st.session_state.task_queue
 
+        if st.session_state.last_run_batch_id != st.session_state.current_batch_id:
+            st.session_state.last_run_results = []
+            st.session_state.last_run_batch_id = st.session_state.current_batch_id
+
         if idx < len(task_queue):
             task = task_queue[idx]
             img_i = task["img_i"]
-
-            if len(st.session_state.last_run_results) <= img_i:
-                st.session_state.last_run_results.append({"img_idx": img_i + 1, "models": [], "source": img_sources[img_i]})
             
             src = img_sources[img_i]
             model_name = task["model_name"]
             target_size = task["target_size"]
             method_name = task["method_name"]
             
-            target_group = st.session_state.last_run_results[img_i]
+            target_group = get_or_create_result_group(st.session_state.last_run_results, img_i, img_sources)
             model_label = f"{model_name} ({target_size}px)"
             model_entry = next((m for m in target_group["models"] if m.get("model_label") == model_label), None)
             
@@ -626,10 +692,11 @@ with tab1:
             
             if st.session_state.run_progress_idx >= len(task_queue):
                 st.session_state.is_finished = True; st.session_state.benchmark_running = False
+                st.session_state.completed_batch_id = st.session_state.current_batch_id
                 st.session_state.total_execution_time = time.time() - st.session_state.batch_start_time
                 
                 clean_results = []
-                for g in st.session_state.last_run_results:
+                for g in sorted_result_groups(st.session_state.last_run_results):
                     cg = g.copy()
                     if hasattr(cg["source"], 'name'): cg["source"] = cg["source"].name
                     clean_results.append(cg)
@@ -646,6 +713,11 @@ with tab1:
                         "environment": collect_environment_metadata("cuda" if "GPU" in selected_device_mode else "cpu"),
                         "total_execution_time": st.session_state.total_execution_time
                     }, f, indent=4)
+            st.rerun()
+        else:
+            st.session_state.is_finished = True
+            st.session_state.benchmark_running = False
+            st.session_state.completed_batch_id = st.session_state.current_batch_id
             st.rerun()
 
 with tab2:
