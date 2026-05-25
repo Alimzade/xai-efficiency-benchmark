@@ -29,10 +29,47 @@ st.set_page_config(page_title="XAI Efficiency Benchmark", page_icon="🔍", layo
 st.markdown("""
     <style>
     :root {
-        --xai-border: rgba(49, 51, 63, 0.12);
-        --xai-muted: #6b7280;
-        --xai-panel: #f8fafc;
-        --xai-accent: #2563eb;
+        --xai-bg-top: #151b2b;
+        --xai-bg-mid: #111827;
+        --xai-bg-bottom: #0f172a;
+        --xai-border: rgba(148, 163, 184, 0.2);
+        --xai-muted: #a8b3c3;
+        --xai-text: #e5edf6;
+        --xai-panel: rgba(255, 255, 255, 0.055);
+        --xai-panel-strong: rgba(255, 255, 255, 0.09);
+        --xai-accent: #2dd4bf;
+        --xai-accent-2: #60a5fa;
+        --xai-accent-warm: #fbbf24;
+        --xai-sidebar-top: #252b3a;
+        --xai-sidebar-mid: #1f2937;
+        --xai-sidebar-bottom: #18252d;
+        --xai-sidebar-panel: rgba(255, 255, 255, 0.055);
+        --xai-sidebar-panel-strong: rgba(255, 255, 255, 0.09);
+        --xai-sidebar-border: rgba(148, 163, 184, 0.22);
+        --xai-sidebar-text: #e5edf6;
+        --xai-sidebar-muted: #a8b3c3;
+        --xai-sidebar-accent: #2dd4bf;
+        --xai-sidebar-accent-2: #60a5fa;
+    }
+    [data-testid="stAppViewContainer"] {
+        background:
+            linear-gradient(180deg, var(--xai-bg-top) 0%, var(--xai-bg-mid) 42%, var(--xai-bg-bottom) 100%);
+    }
+    [data-testid="stHeader"] {
+        background: rgba(17, 24, 39, 0.78);
+        border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+    }
+    .stApp * {
+        caret-color: transparent;
+    }
+    .stApp input,
+    .stApp textarea,
+    .stApp [contenteditable="true"],
+    .stApp [role="textbox"] {
+        caret-color: auto;
+    }
+    [data-testid="stMainBlockContainer"] {
+        padding-top: 1.45rem;
     }
     .app-title {
         border-bottom: 1px solid var(--xai-border);
@@ -43,6 +80,7 @@ st.markdown("""
         font-size: 1.75rem;
         letter-spacing: 0;
         margin: 0;
+        color: var(--xai-text);
     }
     .app-title p {
         color: var(--xai-muted);
@@ -50,22 +88,64 @@ st.markdown("""
         font-size: 0.95rem;
     }
     .run-card {
-        background: linear-gradient(180deg, #ffffff 0%, var(--xai-panel) 100%);
+        background: linear-gradient(180deg, var(--xai-panel-strong) 0%, var(--xai-panel) 100%);
         border: 1px solid var(--xai-border);
         border-radius: 8px;
         padding: 0.9rem 1rem;
         margin-bottom: 1rem;
     }
     .run-card-title {
-        color: #111827;
+        color: var(--xai-text);
         font-size: 0.95rem;
         font-weight: 700;
-        margin-bottom: 0.2rem;
+        margin-bottom: 0.9rem;
     }
     .run-card-copy {
         color: var(--xai-muted);
         font-size: 0.86rem;
         line-height: 1.4;
+    }
+    .run-summary-bar {
+        display: flex;
+        flex-wrap: nowrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.035));
+        border: 1px solid var(--xai-border);
+        border-radius: 8px;
+        padding: 0.88rem 1rem;
+        margin-bottom: 0.2rem;
+        color: var(--xai-muted);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    }
+    .run-summary-item {
+        display: flex;
+        min-width: 0;
+        flex: 1 1 0;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.18rem;
+        padding: 0 0.85rem;
+        font-size: 0.83rem;
+        line-height: 1.15;
+    }
+    .run-summary-item strong {
+        color: var(--xai-text);
+        font-size: 1.55rem;
+        line-height: 1;
+        font-weight: 760;
+    }
+    .run-summary-separator {
+        color: rgba(148, 163, 184, 0.45);
+        align-self: stretch;
+        display: flex;
+        align-items: center;
+        font-size: 1.35rem;
+        padding: 0 0.1rem;
+    }
+    .run-summary-action-spacer {
+        height: 0.85rem;
     }
     .settings-hint {
         color: var(--xai-muted);
@@ -73,11 +153,185 @@ st.markdown("""
         line-height: 1.35;
         margin-top: -0.25rem;
     }
+    [data-testid="stSidebar"] {
+        background:
+            linear-gradient(180deg, var(--xai-sidebar-top) 0%, var(--xai-sidebar-mid) 48%, var(--xai-sidebar-bottom) 100%);
+        border-right: 1px solid var(--xai-sidebar-border);
+    }
+    [data-testid="stSidebarContent"] {
+        padding: 1.15rem 1rem 1.5rem 1rem;
+    }
+    [data-testid="stSidebar"] h1 {
+        font-size: 1.25rem;
+        font-weight: 800;
+        letter-spacing: 0;
+        margin-bottom: 0.7rem;
+        color: var(--xai-sidebar-text);
+    }
+    [data-testid="stSidebar"] h2,
+    [data-testid="stSidebar"] h3 {
+        font-size: 0.86rem;
+        font-weight: 800;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+        margin-top: 0.65rem;
+        color: #c7d2fe;
+    }
+    [data-testid="stSidebar"] h3::before {
+        content: "";
+        display: inline-block;
+        width: 0.45rem;
+        height: 0.45rem;
+        border-radius: 999px;
+        background: linear-gradient(135deg, var(--xai-sidebar-accent), var(--xai-sidebar-accent-2));
+        margin-right: 0.45rem;
+        vertical-align: 0.08rem;
+    }
+    [data-testid="stSidebar"] p,
+    [data-testid="stSidebar"] span,
+    [data-testid="stSidebar"] small {
+        color: var(--xai-sidebar-muted);
+    }
+    [data-testid="stSidebar"] label {
+        font-weight: 650;
+        color: var(--xai-sidebar-text);
+    }
+    [data-testid="stSidebar"] hr {
+        margin: 1rem 0;
+        border-color: rgba(148, 163, 184, 0.18);
+    }
+    [data-testid="stSidebar"] [data-baseweb="select"] > div,
+    [data-testid="stSidebar"] [data-baseweb="input"] > div,
+    [data-testid="stSidebar"] textarea,
+    [data-testid="stSidebar"] [role="radiogroup"] {
+        border-radius: 8px;
+        background: var(--xai-sidebar-panel);
+        border-color: rgba(148, 163, 184, 0.2);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    }
+    [data-testid="stSidebar"] [data-baseweb="tag"] {
+        border-radius: 999px;
+        background: rgba(45, 212, 191, 0.16);
+        border: 1px solid rgba(45, 212, 191, 0.24);
+        color: #d8fff8;
+    }
+    [data-testid="stSidebar"] [data-testid="stAlert"] {
+        border-radius: 8px;
+        border: 1px solid var(--xai-sidebar-border);
+        background: var(--xai-sidebar-panel-strong);
+    }
+    [data-testid="stSidebar"] pre {
+        border-radius: 8px;
+        border: 1px solid var(--xai-sidebar-border);
+        background: rgba(11, 18, 26, 0.36);
+        font-size: 0.76rem;
+    }
+    [data-testid="stTabs"] [role="tablist"] {
+        gap: 0.35rem;
+        border-bottom: 1px solid var(--xai-border);
+    }
+    [data-testid="stTabs"] [role="tab"] {
+        border-radius: 8px 8px 0 0;
+        color: var(--xai-muted);
+        padding: 0.6rem 0.9rem;
+    }
+    [data-testid="stTabs"] [aria-selected="true"] {
+        background: linear-gradient(180deg, rgba(96, 165, 250, 0.18), rgba(45, 212, 191, 0.08));
+        color: var(--xai-text);
+        border-bottom: 2px solid var(--xai-accent);
+    }
+    [data-testid="stMetric"] {
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.035));
+        border: 1px solid var(--xai-border);
+        border-radius: 8px;
+        padding: 0.8rem 0.9rem;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    }
+    [data-testid="stMetric"] label,
+    [data-testid="stMetric"] [data-testid="stMetricLabel"] {
+        color: var(--xai-muted);
+    }
+    [data-testid="stMetricValue"] {
+        color: var(--xai-text);
+        font-weight: 750;
+    }
+    div.stButton > button,
+    div.stDownloadButton > button {
+        border-radius: 8px !important;
+        border: 1px solid rgba(148, 163, 184, 0.24) !important;
+        background: linear-gradient(180deg, rgba(96, 165, 250, 0.18), rgba(45, 212, 191, 0.12)) !important;
+        color: var(--xai-text) !important;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    }
+    div.stButton > button:hover,
+    div.stDownloadButton > button:hover {
+        border-color: rgba(45, 212, 191, 0.55) !important;
+        background: linear-gradient(180deg, rgba(96, 165, 250, 0.24), rgba(45, 212, 191, 0.18)) !important;
+    }
+    [data-testid="stFileUploader"] {
+        background: rgba(255, 255, 255, 0.045);
+        border: 1px dashed rgba(96, 165, 250, 0.36);
+        border-radius: 8px;
+        padding: 0.75rem;
+    }
+    [data-testid="stFileUploaderDropzone"] {
+        background: rgba(15, 23, 42, 0.26);
+        border-radius: 8px;
+        border: 1px solid rgba(148, 163, 184, 0.12);
+    }
+    [data-testid="stExpander"] {
+        background: rgba(255, 255, 255, 0.045);
+        border: 1px solid var(--xai-border);
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    [data-testid="stExpander"] details summary {
+        color: var(--xai-text);
+    }
+    [data-testid="stAlert"] {
+        border-radius: 8px;
+        border: 1px solid var(--xai-border);
+        background: rgba(255, 255, 255, 0.07);
+    }
+    [data-testid="stTable"],
+    [data-testid="stDataFrame"] {
+        border-radius: 8px;
+        overflow: hidden;
+        border: 1px solid var(--xai-border);
+    }
+    [data-testid="stImage"] img {
+        border-radius: 8px;
+        border: 1px solid rgba(148, 163, 184, 0.16);
+    }
+    [data-testid="stMarkdownContainer"] h2,
+    [data-testid="stMarkdownContainer"] h3,
+    [data-testid="stMarkdownContainer"] h4 {
+        color: var(--xai-text);
+        letter-spacing: 0;
+    }
     .compact-preview { max-width: 300px; margin-left: auto; margin-right: 0; }
+    .preview-image-frame {
+        height: 310px;
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        border-radius: 8px;
+        background: rgba(15, 23, 42, 0.22);
+        border: 1px solid rgba(148, 163, 184, 0.16);
+    }
+    .preview-image-frame img {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+        border: 0;
+        border-radius: 7px;
+    }
     div[data-testid="column"]:nth-child(3) { display: flex; flex-direction: column; align-items: flex-end; }
     .stButton button { padding: 2px 10px !important; font-size: 0.9em !important; }
     [data-testid="stVerticalBlockBorderWrapper"] { border: none !important; }
-    .status-pulse { color: #ff4b4b; font-weight: bold; animation: pulse 1.5s infinite; font-size: 1.1em; }
+    .status-pulse { color: #22d3ee; font-weight: bold; animation: pulse 1.5s infinite; font-size: 1.1em; }
     @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
     </style>
     """, unsafe_allow_html=True)
@@ -408,7 +662,7 @@ def render_result_group(group, selected_methods):
                                 if os.path.exists(h_p):
                                     st.image(h_p, caption=f"{m_data['input_size']}px", use_container_width=True)
                             else:
-                                st.markdown("<div style='height: 60px; border: 1px dashed gray; text-align: center; padding-top: 20px; color: gray; font-size: 0.7em;'>...</div>", unsafe_allow_html=True)
+                                st.markdown("<div style='height: 60px; border: 1px dashed rgba(148, 163, 184, 0.32); border-radius: 8px; background: rgba(255, 255, 255, 0.035); text-align: center; padding-top: 20px; color: #94a3b8; font-size: 0.7em;'>...</div>", unsafe_allow_html=True)
             
             # 3. Consolidated Table for all sizes of this Architecture
             # Reorder arch_results to match the visual flow (Method first, then all sizes)
@@ -551,10 +805,13 @@ with tab1:
                 if hasattr(current_src, 'name'): img_view = Image.open(current_src)
                 else: response = requests.get(current_src); img_view = Image.open(BytesIO(response.content))
                 st.session_state.current_img_base64 = get_base64(img_view)
-                st.markdown(f"<div style='text-align: center; color: gray; font-size: 0.8em; margin-bottom: 2px;'>Resolution: {img_view.size[0]}x{img_view.size[1]} px</div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='text-align: center; color: #94a3b8; font-size: 0.8em; margin-bottom: 2px;'>Resolution: {img_view.size[0]}x{img_view.size[1]} px</div>", unsafe_allow_html=True)
                 if st.button("View", width='stretch'): show_lightbox(img_view)
-                with st.container(height=310, border=False): st.image(img_view, width='stretch')
-            except: st.markdown("<div style='height: 330px; text-align: center; padding-top: 100px;'>Preview unavailable</div>", unsafe_allow_html=True)
+                st.markdown(
+                    f'<div class="preview-image-frame"><img src="data:image/png;base64,{st.session_state.current_img_base64}" alt="Selected input preview"></div>',
+                    unsafe_allow_html=True
+                )
+            except: st.markdown("<div style='height: 330px; text-align: center; padding-top: 100px; color: #94a3b8;'>Preview unavailable</div>", unsafe_allow_html=True)
             n1, n2, n3 = st.columns([1, 0.8, 1])
             with n1:
                 if st.button("⬅️ Prev", key="prev_btn", width='stretch'): st.session_state.img_idx = (st.session_state.img_idx - 1) % num_imgs; st.rerun()
@@ -567,15 +824,25 @@ with tab1:
 
     planned_image_count = len(st.session_state.prepared_img_sources) if st.session_state.benchmark_ready_to_run else len(img_sources)
     planned_task_count = planned_image_count * len(selected_models) * len(selected_sizes) * len(selected_methods)
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Images", planned_image_count)
-    m2.metric("Configurations", planned_task_count)
-    m3.metric("Repeats/config", selected_repeats)
-    m4.metric("Warmups/config", selected_warmups)
+    st.markdown(f"""
+        <div class="run-summary-bar">
+            <span class="run-summary-item">Images <strong>{planned_image_count}</strong></span>
+            <span class="run-summary-separator">|</span>
+            <span class="run-summary-item">Size variations <strong>{len(selected_sizes)}</strong></span>
+            <span class="run-summary-separator">|</span>
+            <span class="run-summary-item">Models <strong>{len(selected_models)}</strong></span>
+            <span class="run-summary-separator">|</span>
+            <span class="run-summary-item">Methods <strong>{len(selected_methods)}</strong></span>
+            <span class="run-summary-separator">|</span>
+            <span class="run-summary-item">Repeats/config <strong>{selected_repeats}</strong></span>
+            <span class="run-summary-separator">|</span>
+            <span class="run-summary-item">Warmups/config <strong>{selected_warmups}</strong></span>
+        </div>
+        <div class="run-summary-action-spacer"></div>
+        """, unsafe_allow_html=True)
     
     # --- ACTION BUTTONS ---
     if st.session_state.benchmark_ready_to_run:
-        st.info("Fresh batch view prepared. Previous results are cleared; the benchmark is starting automatically.")
         components.html("""
             <script>
                 const targetLabel = "Auto-start benchmark engine";
