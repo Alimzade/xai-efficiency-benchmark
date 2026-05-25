@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import logging
 import json
+import random
 from PIL import Image
 import requests
 from io import BytesIO
@@ -54,14 +55,52 @@ def normalize_metric_columns(df):
         df[ATTR_MEMORY_COL] = df[LEGACY_MEMORY_COL]
     return df
 
+def add_input_size_column(df):
+    df = df.copy()
+    if "Input Size (px)" not in df.columns and "Resolution" in df.columns:
+        df["Input Size (px)"] = df["Resolution"].astype(str).str.extract(r"(\d+)").astype(float)
+    return df
+
 def presentation_df(df):
-    df = normalize_metric_columns(df)
+    df = add_input_size_column(normalize_metric_columns(df))
     duplicate_cols = [
         LEGACY_RUNTIME_COL, "Runtime Median (sec)", "Runtime Mean (sec)",
         "Runtime Std (sec)", "Runtime Min (sec)", "Runtime Max (sec)",
         LEGACY_MEMORY_COL
     ]
     return df.drop(columns=[c for c in duplicate_cols if c in df.columns], errors="ignore")
+
+def build_task_queue(num_images, models, sizes, methods, run_order, seed=None):
+    tasks = []
+    if run_order == "Balanced":
+        for img_i in range(num_images):
+            for mod_i, model_name in enumerate(models):
+                for met_i, method_name in enumerate(methods):
+                    rotation = (img_i + mod_i + met_i) % len(sizes)
+                    ordered_sizes = sizes[rotation:] + sizes[:rotation]
+                    for target_size in ordered_sizes:
+                        tasks.append({
+                            "img_i": img_i,
+                            "model_name": model_name,
+                            "target_size": target_size,
+                            "method_name": method_name,
+                        })
+    else:
+        for img_i in range(num_images):
+            for model_name in models:
+                for method_name in methods:
+                    for target_size in sizes:
+                        tasks.append({
+                            "img_i": img_i,
+                            "model_name": model_name,
+                            "target_size": target_size,
+                            "method_name": method_name,
+                        })
+
+    if run_order == "Randomized":
+        rng = random.Random(seed)
+        rng.shuffle(tasks)
+    return tasks
 
 def get_cpu_info(): return platform.processor() or "Generic CPU"
 def format_time(seconds):
@@ -79,7 +118,8 @@ def style_dataframe(df):
         ATTR_RUNTIME_COL, ATTR_MEMORY_COL,
         "Attribution Runtime Median (sec)", "Attribution Runtime Mean (sec)",
         "Attribution Runtime Std (sec)", "Attribution Runtime Min (sec)",
-        "Attribution Runtime Max (sec)"
+        "Attribution Runtime Max (sec)", "Mean Attribution Runtime (sec)",
+        "Std Across Images (sec)", "Mean Peak Attribution Memory (MB)"
     ] if c in df.columns]
     return df.style.background_gradient(cmap="coolwarm", subset=subset_cols).format({c: "{:.4f}" if "sec" in c else "{:.2f}" for c in subset_cols})
 
@@ -100,6 +140,46 @@ def plot_model_comparison_grouped(df, title="Architecture Efficiency Comparison"
     ax.set_title(title, fontsize=14, fontweight='bold', family='serif')
     plt.xticks(rotation=45); ax.legend(loc='upper left', bbox_to_anchor=(1, 1)); plt.tight_layout(); return fig
 
+def image_size_summary(df):
+    df = add_input_size_column(normalize_metric_columns(df))
+    runtime_col = metric_col(df, ATTR_RUNTIME_COL, LEGACY_RUNTIME_COL)
+    memory_col = metric_col(df, ATTR_MEMORY_COL, LEGACY_MEMORY_COL)
+    if "Input Size (px)" not in df.columns or df["Input Size (px)"].nunique() < 2:
+        return pd.DataFrame()
+
+    summary = df.groupby(["Model", "Method", "Input Size (px)"]).agg(
+        **{
+            "Mean Attribution Runtime (sec)": (runtime_col, "mean"),
+            "Std Across Images (sec)": (runtime_col, "std"),
+            "Samples": (runtime_col, "count"),
+            "Mean Peak Attribution Memory (MB)": (memory_col, "mean"),
+        }
+    ).reset_index()
+    summary["Std Across Images (sec)"] = summary["Std Across Images (sec)"].fillna(0)
+    summary["Input Size (px)"] = summary["Input Size (px)"].astype(int)
+    return summary.sort_values(["Model", "Method", "Input Size (px)"])
+
+def plot_image_size_scaling(summary_df):
+    fig, ax = plt.subplots(figsize=(10, 6))
+    for (model_name, method_name), group in summary_df.groupby(["Model", "Method"]):
+        group = group.sort_values("Input Size (px)")
+        label = f"{model_name} / {method_name}"
+        ax.errorbar(
+            group["Input Size (px)"],
+            group["Mean Attribution Runtime (sec)"],
+            yerr=group["Std Across Images (sec)"],
+            marker="o",
+            capsize=4,
+            label=label
+        )
+    ax.set_xlabel("Input Size (px)")
+    ax.set_ylabel("Mean Attribution Runtime (sec)")
+    ax.set_title("Image Size Scaling", fontsize=14, fontweight='bold')
+    ax.grid(True, alpha=0.25)
+    ax.legend(loc='upper left', bbox_to_anchor=(1, 1))
+    plt.tight_layout()
+    return fig
+
 def render_result_group(group, selected_methods):
     with st.expander(f"🖼️ Results for Image {group['img_idx']}", expanded=True):
         # Group entries by base model architecture
@@ -109,7 +189,10 @@ def render_result_group(group, selected_methods):
         
         for arch in architectures:
             st.markdown(f"#### Model: `{arch}`")
-            arch_models = [m for m in group["models"] if m["model"] == arch]
+            arch_models = sorted(
+                [m for m in group["models"] if m["model"] == arch],
+                key=lambda m: m.get("input_size", 0)
+            )
             
             # Layout: Input Image (Left) | Method Collage (Right)
             col_left, col_right = st.columns([1, 3])
@@ -169,6 +252,8 @@ if 'current_batch_id' not in st.session_state: st.session_state.current_batch_id
 if 'current_img_base64' not in st.session_state: st.session_state.current_img_base64 = ""
 if 'batch_start_time' not in st.session_state: st.session_state.batch_start_time = None
 if 'total_execution_time' not in st.session_state: st.session_state.total_execution_time = 0
+if 'task_queue' not in st.session_state: st.session_state.task_queue = []
+if 'current_run_order' not in st.session_state: st.session_state.current_run_order = "Balanced"
 
 # --- SIDEBAR ---
 st.sidebar.title("Benchmark Settings ⚙️")
@@ -198,6 +283,7 @@ selected_methods = st.sidebar.multiselect("XAI Methods", xai_opts, default=["Sal
 st.sidebar.divider(); st.sidebar.subheader("Measurement")
 selected_warmups = st.sidebar.number_input("Warmup runs", min_value=0, max_value=20, value=1, step=1, disabled=is_running)
 selected_repeats = st.sidebar.number_input("Measured repeats", min_value=1, max_value=1000, value=5, step=1, disabled=is_running)
+selected_run_order = st.sidebar.selectbox("Run order", ["Balanced", "Grouped", "Randomized"], index=0, disabled=is_running)
 st.sidebar.caption("Use higher repeat counts for image-size studies.")
 st.sidebar.divider(); st.sidebar.subheader("System Status")
 selected_device_mode = st.sidebar.radio("Force execution on:", ["GPU (CUDA)" if torch.cuda.is_available() else "CPU", "CPU"] if torch.cuda.is_available() else ["CPU"], label_visibility="collapsed", disabled=is_running)
@@ -257,6 +343,15 @@ with tab1:
             if not img_sources or not selected_models or not selected_methods: st.error("Select Settings.")
             else:
                 st.session_state.current_batch_id = sm.start_batch()
+                st.session_state.current_run_order = selected_run_order
+                st.session_state.task_queue = build_task_queue(
+                    len(img_sources),
+                    selected_models,
+                    selected_sizes,
+                    selected_methods,
+                    selected_run_order,
+                    seed=st.session_state.current_batch_id
+                )
                 st.session_state.batch_start_time = time.time()
                 st.session_state.total_execution_time = 0
                 st.session_state.stop_requested = False; st.session_state.balloons_triggered = False
@@ -264,33 +359,27 @@ with tab1:
     else:
         if st.button("🛑 Stop Benchmark", width='stretch'):
             st.session_state.stop_requested = True; st.session_state.benchmark_running = False
-            st.session_state.last_run_results = []; st.rerun()
+            st.session_state.last_run_results = []; st.session_state.task_queue = []; st.rerun()
 
     # --- RESULTS AREA ---
     if st.session_state.benchmark_running and not st.session_state.is_finished:
-        total_steps = len(img_sources) * len(selected_models) * len(selected_sizes) * len(selected_methods)
+        task_queue = st.session_state.task_queue
+        total_steps = len(task_queue)
         idx = st.session_state.run_progress_idx
-        img_i = idx // (len(selected_models) * len(selected_methods) * len(selected_sizes))
-        rem = idx % (len(selected_models) * len(selected_methods) * len(selected_sizes))
-
-        mod_i = rem // (len(selected_methods) * len(selected_sizes))
-        rem = rem % (len(selected_methods) * len(selected_sizes))
-
-        met_i = rem // len(selected_sizes)
-        size_i = rem % len(selected_sizes)
-
-        cur_mod = selected_models[mod_i] if mod_i < len(selected_models) else "?"
-        cur_met = selected_methods[met_i] if met_i < len(selected_methods) else "?"
-        cur_size = selected_sizes[size_i] if size_i < len(selected_sizes) else "?"
+        current_task = task_queue[idx] if idx < total_steps else {}
+        cur_mod = current_task.get("model_name", "?")
+        cur_met = current_task.get("method_name", "?")
+        cur_size = current_task.get("target_size", "?")
+        img_i = current_task.get("img_i", 0)
 
         elapsed = time.time() - st.session_state.batch_start_time
         st.markdown(f"""
             <div style='display: flex; justify-content: space-between; align-items: center;'>
-                <div class='status-pulse'>🚀 STEP {idx + 1}/{total_steps}: Running {cur_met} on {cur_mod} @ {cur_size}px (Image {img_i + 1})</div>
+                <div class='status-pulse'>🚀 STEP {idx + 1}/{total_steps}: Running {cur_met} on {cur_mod} @ {cur_size}px (Image {img_i + 1}, {st.session_state.current_run_order} order)</div>
                 <div style='font-family: monospace; font-size: 1.2em; font-weight: bold; color: gray;'>⏱️ {format_time(elapsed)}</div>
             </div>
         """, unsafe_allow_html=True)
-        st.progress(idx / total_steps); st.divider()
+        st.progress(idx / total_steps if total_steps else 0); st.divider()
 
     if st.session_state.last_run_results:
         for group in st.session_state.last_run_results:
@@ -340,30 +429,29 @@ with tab1:
                 with cs2:
                     st.subheader("Method Averages"); st.table(style_dataframe(fdf.groupby("Method").agg({runtime_col: "mean", memory_col: "mean"}).reset_index()))
                     st.pyplot(plot_method_runtime_log(fdf))
+                size_summary_df = image_size_summary(fdf)
+                if not size_summary_df.empty:
+                    st.subheader("Image Size Scaling")
+                    st.table(style_dataframe(size_summary_df))
+                    st.pyplot(plot_image_size_scaling(size_summary_df))
                 if not st.session_state.balloons_triggered: st.balloons(); st.session_state.balloons_triggered = True
 
     # --- ENGINE ---
     if st.session_state.benchmark_running and not st.session_state.is_finished:
-        steps_per_img = len(selected_models) * len(selected_methods) * len(selected_sizes)
         idx = st.session_state.run_progress_idx
-        img_i = idx // steps_per_img
-        rem = idx % steps_per_img
+        task_queue = st.session_state.task_queue
 
-        mod_i = rem // (len(selected_methods) * len(selected_sizes))
-        rem = rem % (len(selected_methods) * len(selected_sizes))
-
-        met_i = rem // len(selected_sizes)
-        size_i = rem % len(selected_sizes)
-
-        if img_i < len(img_sources):
+        if idx < len(task_queue):
+            task = task_queue[idx]
+            img_i = task["img_i"]
 
             if len(st.session_state.last_run_results) <= img_i:
                 st.session_state.last_run_results.append({"img_idx": img_i + 1, "models": [], "source": img_sources[img_i]})
             
             src = img_sources[img_i]
-            model_name = selected_models[mod_i]
-            target_size = selected_sizes[size_i]
-            method_name = selected_methods[met_i]
+            model_name = task["model_name"]
+            target_size = task["target_size"]
+            method_name = task["method_name"]
             
             target_group = st.session_state.last_run_results[img_i]
             model_label = f"{model_name} ({target_size}px)"
@@ -384,13 +472,14 @@ with tab1:
                 "force_device": "cuda" if "GPU" in selected_device_mode else "cpu", 
                 "input_size": target_size,
                 "warmup_runs": selected_warmups,
-                "repeat_count": selected_repeats
+                "repeat_count": selected_repeats,
+                "run_order": st.session_state.current_run_order
             }, model_entry["session_dir"])
             
             model_entry["results"].extend(results)
             st.session_state.run_progress_idx += 1
             
-            if st.session_state.run_progress_idx >= (len(img_sources) * steps_per_img):
+            if st.session_state.run_progress_idx >= len(task_queue):
                 st.session_state.is_finished = True; st.session_state.benchmark_running = False
                 st.session_state.total_execution_time = time.time() - st.session_state.batch_start_time
                 
@@ -405,7 +494,9 @@ with tab1:
                         "methods": selected_methods,
                         "benchmark_settings": {
                             "warmup_runs": selected_warmups,
-                            "repeat_count": selected_repeats
+                            "repeat_count": selected_repeats,
+                            "run_order": st.session_state.current_run_order,
+                            "task_count": len(task_queue)
                         },
                         "total_execution_time": st.session_state.total_execution_time
                     }, f, indent=4)
@@ -466,6 +557,11 @@ with tab2:
                     with hc2:
                         st.subheader("Method Averages"); st.table(style_dataframe(hdf.groupby("Method").agg({h_runtime_col: "mean", h_memory_col: "mean"}).reset_index()))
                         st.pyplot(plot_method_runtime_log(hdf))
+                    h_size_summary_df = image_size_summary(hdf)
+                    if not h_size_summary_df.empty:
+                        st.subheader("Image Size Scaling")
+                        st.table(style_dataframe(h_size_summary_df))
+                        st.pyplot(plot_image_size_scaling(h_size_summary_df))
                 if st.button("🗑️ Delete Entire Batch"): sm.delete_batch(bid); st.rerun()
             except Exception as e:
                 st.error(f"Error reading historical data: {str(e)}")

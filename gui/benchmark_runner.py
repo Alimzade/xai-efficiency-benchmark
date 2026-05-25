@@ -173,6 +173,7 @@ def run_benchmark_task(config, session_dir):
             
             results.append({
                 "Method": method_name, "Model": model_name, "Resolution": img_dims,
+                "Input Size (px)": target_size,
                 "Original Resolution": original_dims,
                 "Prediction": predicted_class,
                 "Device": device_info,
