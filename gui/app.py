@@ -1048,38 +1048,33 @@ def render_image_preview_gallery():
                 img_view = Image.open(BytesIO(response.content))
             st.session_state.current_img_base64 = get_base64(img_view)
             st.markdown(f"<div style='text-align: center; color: #94a3b8; font-size: 0.8em; margin-bottom: 2px;'>Resolution: {img_view.size[0]}x{img_view.size[1]} px</div>", unsafe_allow_html=True)
-            st.markdown(f"""
+            st.markdown("""
                 <style>
-                .st-key-image_preview_lightbox_trigger button {{
-                    height: 310px !important;
-                    width: 100% !important;
-                    background: rgba(15, 23, 42, 0.22) !important;
-                    background-image: url('data:image/png;base64,{st.session_state.current_img_base64}') !important;
-                    background-size: contain !important;
-                    background-position: center !important;
-                    background-repeat: no-repeat !important;
-                    border: 1px solid rgba(148, 163, 184, 0.16) !important;
-                    border-radius: 8px !important;
-                    cursor: pointer !important;
+                .st-key-hidden_lightbox_trigger {
+                    display: none !important;
+                    height: 0 !important;
+                    width: 0 !important;
                     padding: 0 !important;
-                    font-size: 0 !important;
-                    color: transparent !important;
-                }}
-                .st-key-image_preview_lightbox_trigger button:hover {{
+                    margin: 0 !important;
+                    overflow: hidden !important;
+                }
+                .preview-image-frame {
+                    cursor: pointer !important;
+                    transition: transform 0.2s ease, border-color 0.2s ease !important;
+                }
+                .preview-image-frame:hover {
                     border-color: rgba(45, 212, 191, 0.55) !important;
-                    background-color: rgba(15, 23, 42, 0.32) !important;
-                }}
-                .st-key-image_preview_lightbox_trigger button:focus {{
-                    box-shadow: 0 0 0 1px rgba(45, 212, 191, 0.55) !important;
-                }}
-                .st-key-image_preview_lightbox_trigger button * {{
-                    background: transparent !important;
-                    color: transparent !important;
-                    font-size: 0 !important;
-                }}
+                    transform: scale(1.01);
+                }
                 </style>
             """, unsafe_allow_html=True)
-            if st.button("Click to view", key="image_preview_lightbox_trigger", use_container_width=True):
+            
+            st.markdown(
+                f'<div class="preview-image-frame" onclick="const btn = (document.querySelector(\'.st-key-hidden_lightbox_trigger button\') || window.parent.document.querySelector(\'.st-key-hidden_lightbox_trigger button\')); if(btn) btn.click();"><img src="data:image/png;base64,{st.session_state.current_img_base64}" alt="Selected input preview"></div>',
+                unsafe_allow_html=True
+            )
+            
+            if st.button("Hidden Lightbox Trigger", key="hidden_lightbox_trigger"):
                 show_lightbox(img_view)
         except Exception:
             st.markdown("<div style='height: 330px; text-align: center; padding-top: 100px; color: #94a3b8;'>Preview unavailable</div>", unsafe_allow_html=True)
