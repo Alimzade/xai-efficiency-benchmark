@@ -1128,10 +1128,10 @@ def render_configure_page():
     # Row 4
     row4_left, row4_right = st.columns([2, 1])
     with row4_left:
-        st.markdown('<div style="margin-top: 35px; font-weight: bold; margin-bottom: 2px; font-size: 1.1em; color: var(--xai-text);">Measurement Details</div>', unsafe_allow_html=True)
+        st.markdown('<div style="margin-top: 35px; font-weight: bold; margin-bottom: 4px; font-size: 1.1em; color: var(--xai-text);">Measurement Details</div>', unsafe_allow_html=True)
         st.markdown('<div class="settings-hint">Warmups are not reported in statistics. Measured repeats are timed and summarized with median, mean, and standard deviation.<div style="margin-top: 6px;"><b>Task Ordering</b>: Benchmark runs are executed in a <b>Balanced</b> order (automatically rotating resolutions and model architectures) to mitigate PyTorch/CUDA caching allocator and execution-order bias.</div></div>', unsafe_allow_html=True)
     with row4_right:
-        st.markdown('<div style="margin-top: 35px; font-weight: bold; margin-bottom: 6px; font-size: 1.1em; color: var(--xai-text);">Hardware Status</div>', unsafe_allow_html=True)
+        st.markdown('<div style="margin-top: 35px; font-weight: bold; margin-bottom: 4px; font-size: 1.1em; color: var(--xai-text);">Hardware Status</div>', unsafe_allow_html=True)
         if "GPU" in st.session_state.selected_device_mode:
             st.success(f"**GPU Active:** {torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'Active'}")
         else:
