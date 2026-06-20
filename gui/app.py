@@ -1050,13 +1050,25 @@ def render_image_preview_gallery():
             st.markdown(f"<div style='text-align: center; color: #94a3b8; font-size: 0.8em; margin-bottom: 2px;'>Resolution: {img_view.size[0]}x{img_view.size[1]} px</div>", unsafe_allow_html=True)
             st.markdown("""
                 <style>
-                .st-key-hidden_lightbox_trigger {
-                    display: none !important;
-                    height: 0 !important;
-                    width: 0 !important;
+                .element-container:has(.preview-image-frame) + .element-container {
+                    opacity: 0 !important;
+                    position: absolute !important;
+                    width: 0px !important;
+                    height: 0px !important;
                     padding: 0 !important;
                     margin: 0 !important;
+                    pointer-events: none !important;
                     overflow: hidden !important;
+                }
+                .element-container:has(.preview-image-frame) + .element-container button {
+                    display: inline-block !important;
+                    opacity: 0 !important;
+                    width: 0px !important;
+                    height: 0px !important;
+                    padding: 0 !important;
+                    margin: 0 !important;
+                    border: none !important;
+                    background: transparent !important;
                 }
                 .preview-image-frame {
                     cursor: pointer !important;
@@ -1070,7 +1082,7 @@ def render_image_preview_gallery():
             """, unsafe_allow_html=True)
             
             st.markdown(
-                f'<div class="preview-image-frame" onclick="const btn = (document.querySelector(\'.st-key-hidden_lightbox_trigger button\') || window.parent.document.querySelector(\'.st-key-hidden_lightbox_trigger button\')); if(btn) btn.click();"><img src="data:image/png;base64,{st.session_state.current_img_base64}" alt="Selected input preview"></div>',
+                f'<div class="preview-image-frame" onclick="const btn = this.closest(\'.element-container\').nextElementSibling.querySelector(\'button\'); if(btn) btn.click();"><img src="data:image/png;base64,{st.session_state.current_img_base64}" alt="Selected input preview"></div>',
                 unsafe_allow_html=True
             )
             
