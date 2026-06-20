@@ -1048,57 +1048,24 @@ def render_image_preview_gallery():
                 img_view = Image.open(BytesIO(response.content))
             st.session_state.current_img_base64 = get_base64(img_view)
             st.markdown(f"<div style='text-align: center; color: #94a3b8; font-size: 0.8em; margin-bottom: 2px;'>Resolution: {img_view.size[0]}x{img_view.size[1]} px</div>", unsafe_allow_html=True)
-            st.markdown("""
-                <style>
-                .element-container:has(.preview-image-frame) + .element-container {
-                    opacity: 0 !important;
-                    position: absolute !important;
-                    width: 0px !important;
-                    height: 0px !important;
-                    padding: 0 !important;
-                    margin: 0 !important;
-                    pointer-events: none !important;
-                    overflow: hidden !important;
-                }
-                .element-container:has(.preview-image-frame) + .element-container button {
-                    display: inline-block !important;
-                    opacity: 0 !important;
-                    width: 0px !important;
-                    height: 0px !important;
-                    padding: 0 !important;
-                    margin: 0 !important;
-                    border: none !important;
-                    background: transparent !important;
-                }
-                .preview-image-frame {
-                    cursor: pointer !important;
-                    transition: transform 0.2s ease, border-color 0.2s ease !important;
-                }
-                .preview-image-frame:hover {
-                    border-color: rgba(45, 212, 191, 0.55) !important;
-                    transform: scale(1.01);
-                }
-                </style>
-            """, unsafe_allow_html=True)
-            
             st.markdown(
-                f'<div class="preview-image-frame" onclick="const btn = this.closest(\'.element-container\').nextElementSibling.querySelector(\'button\'); if(btn) btn.click();"><img src="data:image/png;base64,{st.session_state.current_img_base64}" alt="Selected input preview"></div>',
+                f'<div class="preview-image-frame"><img src="data:image/png;base64,{st.session_state.current_img_base64}" alt="Selected input preview"></div>',
                 unsafe_allow_html=True
             )
-            
-            if st.button("Hidden Lightbox Trigger", key="hidden_lightbox_trigger"):
+            st.markdown('<div style="margin-top: 8px;"></div>', unsafe_allow_html=True)
+            if st.button("View", use_container_width=True):
                 show_lightbox(img_view)
         except Exception:
             st.markdown("<div style='height: 330px; text-align: center; padding-top: 100px; color: #94a3b8;'>Preview unavailable</div>", unsafe_allow_html=True)
         n1, n2, n3 = st.columns([1, 0.8, 1])
         with n1:
-            if st.button("⬅️ Prev", key="prev_btn", width='stretch'):
+            if st.button("⬅️ Prev", key="prev_btn", use_container_width=True):
                 st.session_state.img_idx = (st.session_state.img_idx - 1) % num_imgs
                 rerun_fragment()
         with n2:
             st.markdown(f"<div style='text-align: center; padding-top: 5px; font-weight: bold;'>{st.session_state.img_idx + 1}/{num_imgs}</div>", unsafe_allow_html=True)
         with n3:
-            if st.button("Next ➡️", key="next_btn", width='stretch'):
+            if st.button("Next ➡️", key="next_btn", use_container_width=True):
                 st.session_state.img_idx = (st.session_state.img_idx + 1) % num_imgs
                 rerun_fragment()
         st.markdown('</div>', unsafe_allow_html=True)
