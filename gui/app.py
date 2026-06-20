@@ -1053,19 +1053,15 @@ def render_image_preview_gallery():
                 .st-key-image_preview_lightbox_trigger button {{
                     height: 310px !important;
                     width: 100% !important;
-                    background-image: url('data:image/png;base64,{st.session_state.current_img_base64}') !important;
-                    background-size: contain !important;
-                    background-position: center !important;
-                    background-repeat: no-repeat !important;
+                    background: rgba(15, 23, 42, 0.22) url('data:image/png;base64,{st.session_state.current_img_base64}') no-repeat center/contain !important;
                     border: 1px solid rgba(148, 163, 184, 0.16) !important;
-                    background-color: rgba(15, 23, 42, 0.22) !important;
                     border-radius: 8px !important;
                     cursor: pointer !important;
                     padding: 0 !important;
                 }}
                 .st-key-image_preview_lightbox_trigger button:hover {{
                     border-color: rgba(45, 212, 191, 0.55) !important;
-                    background-color: rgba(15, 23, 42, 0.32) !important;
+                    background: rgba(15, 23, 42, 0.32) url('data:image/png;base64,{st.session_state.current_img_base64}') no-repeat center/contain !important;
                 }}
                 .st-key-image_preview_lightbox_trigger button:focus {{
                     box-shadow: 0 0 0 1px rgba(45, 212, 191, 0.55) !important;
