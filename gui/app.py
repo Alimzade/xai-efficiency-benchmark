@@ -73,9 +73,8 @@ st.markdown("""
         padding-top: 1.45rem;
     }
     .app-title {
-        border-bottom: 1px solid var(--xai-border);
         margin-bottom: 1rem;
-        padding: 0.35rem 0 0.9rem 0;
+        padding: 0.35rem 0 0.2rem 0;
     }
     .app-title h1 {
         font-size: 1.75rem;
@@ -85,7 +84,7 @@ st.markdown("""
     }
     .app-title p {
         color: var(--xai-muted);
-        margin: 0.25rem 0 0 0;
+        margin: 0.05rem 0 0 0;
         font-size: 0.95rem;
     }
     .run-card {
