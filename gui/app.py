@@ -1472,7 +1472,7 @@ def render_active_run_page():
 
 # --- PAGE 3: HISTORY & EVALUATION ---
 def render_history_page():
-    st.markdown("## 📜 Benchmark History & Evaluation")
+    st.markdown('<div class="step-header">Benchmark History & Evaluation</div>', unsafe_allow_html=True)
     
     batches = sm.list_batches()
     if not batches:
@@ -1688,7 +1688,7 @@ with tab2:
     render_history_page()
 
 with tab3:
-    st.markdown("## 📖 Citation Details")
+    st.markdown('<div class="step-header">Citation Details</div>', unsafe_allow_html=True)
     st.markdown("If you use this benchmark in your research, papers, or projects, please cite it using the following BibTeX entry:")
     
     st.code("""@software{alimzade2025xai,
