@@ -1048,12 +1048,35 @@ def render_image_preview_gallery():
                 img_view = Image.open(BytesIO(response.content))
             st.session_state.current_img_base64 = get_base64(img_view)
             st.markdown(f"<div style='text-align: center; color: #94a3b8; font-size: 0.8em; margin-bottom: 2px;'>Resolution: {img_view.size[0]}x{img_view.size[1]} px</div>", unsafe_allow_html=True)
-            if st.button("View", width='stretch'):
+            st.markdown(f"""
+                <style>
+                .st-key-image_preview_lightbox_trigger button {{
+                    height: 310px !important;
+                    width: 100% !important;
+                    background-image: url('data:image/png;base64,{st.session_state.current_img_base64}') !important;
+                    background-size: contain !important;
+                    background-position: center !important;
+                    background-repeat: no-repeat !important;
+                    border: 1px solid rgba(148, 163, 184, 0.16) !important;
+                    background-color: rgba(15, 23, 42, 0.22) !important;
+                    border-radius: 8px !important;
+                    cursor: pointer !important;
+                    padding: 0 !important;
+                }}
+                .st-key-image_preview_lightbox_trigger button:hover {{
+                    border-color: rgba(45, 212, 191, 0.55) !important;
+                    background-color: rgba(15, 23, 42, 0.32) !important;
+                }}
+                .st-key-image_preview_lightbox_trigger button:focus {{
+                    box-shadow: 0 0 0 1px rgba(45, 212, 191, 0.55) !important;
+                }}
+                .st-key-image_preview_lightbox_trigger button div p {{
+                    display: none !important;
+                }}
+                </style>
+            """, unsafe_allow_html=True)
+            if st.button("Click to view", key="image_preview_lightbox_trigger", use_container_width=True):
                 show_lightbox(img_view)
-            st.markdown(
-                f'<div class="preview-image-frame"><img src="data:image/png;base64,{st.session_state.current_img_base64}" alt="Selected input preview"></div>',
-                unsafe_allow_html=True
-            )
         except Exception:
             st.markdown("<div style='height: 330px; text-align: center; padding-top: 100px; color: #94a3b8;'>Preview unavailable</div>", unsafe_allow_html=True)
         n1, n2, n3 = st.columns([1, 0.8, 1])
