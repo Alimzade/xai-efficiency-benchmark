@@ -1380,10 +1380,6 @@ def render_active_run_page():
             st.toast("Benchmark complete. Results are ready.", icon="✅")
             st.session_state.completion_notice_batch_id = st.session_state.current_batch_id
 
-        render_result_view_controls("current_final_results")
-        for group in sorted_result_groups(st.session_state.last_run_results):
-            render_result_group(group, st.session_state.current_batch_methods)
-
         all_r = []
         for g in sorted_result_groups(st.session_state.last_run_results):
             for m in g["models"]: all_r.extend(m["results"])
@@ -1394,7 +1390,6 @@ def render_active_run_page():
             runtime_col = metric_col(fdf, ATTR_RUNTIME_COL, LEGACY_RUNTIME_COL)
             memory_col = metric_col(fdf, ATTR_MEMORY_COL, LEGACY_MEMORY_COL)
             
-            st.divider()
             st.header("🔬 Batch Summary")
             st.markdown(f"**Batch Wall Time:** `{format_time(st.session_state.total_execution_time)}`")
             st.caption(f"Started: {display_timestamp(st.session_state.batch_started_at)} | Completed: {display_timestamp(st.session_state.batch_completed_at)}")
@@ -1465,6 +1460,13 @@ def render_active_run_page():
                 st.subheader("Image Size Scaling")
                 st.table(style_dataframe(size_summary_df))
                 st.pyplot(plot_image_size_scaling(size_summary_df))
+
+            st.divider()
+
+        st.subheader("🖼️ Detailed Per-Image Attribution Heatmaps")
+        render_result_view_controls("current_final_results")
+        for group in sorted_result_groups(st.session_state.last_run_results):
+            render_result_group(group, st.session_state.current_batch_methods)
     else:
         st.info("No active benchmark run. Go to the **Configure Benchmark** page to set up and launch a run!")
 
@@ -1495,10 +1497,6 @@ def render_history_page():
                 with open(batch_meta_p, 'r') as f:
                     meta = json.load(f)
                 
-                render_result_view_controls(f"history_results_{bid}")
-                for group in meta["results"]:
-                    render_result_group(group, meta["methods"])
-                
                 all_h_r = []
                 for g in meta["results"]:
                     for m in g["models"]: all_h_r.extend(m["results"])
@@ -1510,7 +1508,6 @@ def render_history_page():
                     h_memory_col = metric_col(hdf, ATTR_MEMORY_COL, LEGACY_MEMORY_COL)
                     hdf = hdf.sort_values(by=["Method", "Resolution"])
                     
-                    st.divider()
                     h_total_time = meta.get("total_execution_time", 0)
                     st.header(f"🔬 Batch Summary (Historical)")
                     if h_total_time:
@@ -1570,6 +1567,14 @@ def render_history_page():
                         st.table(style_dataframe(h_size_summary_df))
                         st.pyplot(plot_image_size_scaling(h_size_summary_df))
                         
+                    st.divider()
+
+                # Per-image results
+                st.subheader("🖼️ Detailed Per-Image Attribution Heatmaps")
+                render_result_view_controls(f"history_results_{bid}")
+                for group in meta["results"]:
+                    render_result_group(group, meta["methods"])
+
                 st.divider()
                 if st.button("🗑️ Delete Batch", key=f"del_{bid}", use_container_width=True):
                     sm.delete_batch(bid)
