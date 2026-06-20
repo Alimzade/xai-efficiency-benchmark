@@ -1063,7 +1063,7 @@ def render_configure_page():
     st.markdown("## ⚙️ Step 1: Configure Benchmark Settings")
     
     # Row 1
-    row1_left, row1_right = st.columns(2)
+    row1_left, row1_right = st.columns([2, 1])
     with row1_left:
         selected_models_widget = st.multiselect(
             "Model Architectures",
@@ -1081,7 +1081,7 @@ def render_configure_page():
         )
 
     # Row 2
-    row2_left, row2_right = st.columns(2)
+    row2_left, row2_right = st.columns([2, 1])
     with row2_left:
         fixed_size_trigger = any(m in ["vit-b-16", "swin-t"] for m in selected_models_widget)
         if fixed_size_trigger:
@@ -1107,7 +1107,7 @@ def render_configure_page():
         )
 
     # Row 3
-    row3_left, row3_right = st.columns(2)
+    row3_left, row3_right = st.columns([2, 1])
     with row3_left:
         st.multiselect(
             "XAI Methods",
@@ -1126,7 +1126,7 @@ def render_configure_page():
         )
 
     # Row 4
-    row4_left, row4_right = st.columns(2)
+    row4_left, row4_right = st.columns([2, 1])
     with row4_left:
         st.markdown('<div style="margin-top: 25px; font-weight: bold; margin-bottom: 2px; font-size: 1.1em; color: var(--xai-text);">Measurement Details</div>', unsafe_allow_html=True)
         st.markdown('<div class="settings-hint">Warmups are not reported in statistics. Measured repeats are timed and summarized with median, mean, and standard deviation. <br><br><b>Task Ordering</b>: Benchmark runs are executed in a <b>Balanced</b> order (automatically rotating resolutions and model architectures) to mitigate PyTorch/CUDA caching allocator and execution-order bias.</div>', unsafe_allow_html=True)
