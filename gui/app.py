@@ -10,6 +10,7 @@ import seaborn as sns
 import logging
 import json
 import random
+from datetime import datetime
 from PIL import Image
 import requests
 from io import BytesIO
@@ -214,6 +215,21 @@ st.markdown("""
         background: rgba(45, 212, 191, 0.16);
         border: 1px solid rgba(45, 212, 191, 0.24);
         color: #d8fff8;
+        max-width: none;
+        height: auto;
+        min-height: 1.65rem;
+        white-space: normal;
+    }
+    [data-testid="stSidebar"] [data-baseweb="tag"] span {
+        max-width: none;
+        overflow: visible;
+        text-overflow: clip;
+        white-space: normal;
+        line-height: 1.15;
+    }
+    [data-testid="stSidebar"] [data-baseweb="select"] > div > div {
+        flex-wrap: wrap;
+        row-gap: 0.3rem;
     }
     [data-testid="stSidebar"] [data-testid="stAlert"] {
         border-radius: 8px;
@@ -443,11 +459,44 @@ def get_or_create_result_group(results, img_i, img_sources):
         results.sort(key=lambda g: g.get("img_idx", 0))
     return group
 
+def methods_from_result_groups(groups):
+    methods = []
+    for group in groups:
+        for model_entry in group.get("models", []):
+            for result in model_entry.get("results", []):
+                method = result.get("Method")
+                if method and method not in methods:
+                    methods.append(method)
+    return methods
+
 def get_cpu_info(): return platform.processor() or "Generic CPU"
 def format_time(seconds):
     if seconds < 60: return f"{seconds:.1f}s"
     elif seconds < 3600: return f"{int(seconds // 60)}m {int(seconds % 60)}s"
     else: return f"{int(seconds // 3600)}h {int((seconds % 3600) // 60)}m"
+
+def timestamp_now():
+    return datetime.now().astimezone().isoformat(timespec="seconds")
+
+def display_timestamp(value):
+    if not value:
+        return "unknown"
+    try:
+        return datetime.fromisoformat(value).strftime("%Y-%m-%d %H:%M:%S %Z")
+    except ValueError:
+        return str(value)
+
+def parse_input_sizes(size_str):
+    try:
+        sizes = [int(s.strip()) for s in size_str.split(",") if s.strip().isdigit()]
+        return sizes or [224]
+    except Exception:
+        return [224]
+
+def current_image_sources():
+    uploaded_files = st.session_state.get("uploaded_files") or []
+    url_list = [u.strip() for u in st.session_state.persisted_urls.split("\n") if u.strip()]
+    return list(uploaded_files) + url_list
 
 def render_live_elapsed_timer(start_time):
     start_ms = int((start_time or time.time()) * 1000)
@@ -620,8 +669,55 @@ def render_environment_summary(environment):
         ])
         st.table(env_df)
 
-def render_result_group(group, selected_methods):
-    with st.expander(f"🖼️ Results for Image {group['img_idx']}", expanded=True):
+def render_result_view_controls(key_prefix):
+    components.html(f"""
+        <style>
+            body {{ margin: 0; background: transparent; }}
+            .xai-expander-controls {{
+                display: flex;
+                gap: 0.45rem;
+                align-items: center;
+                margin: 0.1rem 0 0.55rem 0;
+            }}
+            .xai-expander-controls button {{
+                border: 1px solid rgba(148, 163, 184, 0.26);
+                border-radius: 8px;
+                background: linear-gradient(180deg, rgba(96, 165, 250, 0.16), rgba(45, 212, 191, 0.1));
+                color: #e5edf6;
+                cursor: pointer;
+                font: 600 12px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                padding: 0.35rem 0.7rem;
+            }}
+            .xai-expander-controls button:hover {{
+                border-color: rgba(45, 212, 191, 0.55);
+                background: linear-gradient(180deg, rgba(96, 165, 250, 0.24), rgba(45, 212, 191, 0.18));
+            }}
+        </style>
+        <div class="xai-expander-controls" data-key="{key_prefix}">
+            <button type="button" data-action="expand">Expand all</button>
+            <button type="button" data-action="collapse">Collapse all</button>
+        </div>
+        <script>
+            const root = window.parent.document;
+            const controls = document.querySelector('.xai-expander-controls[data-key="{key_prefix}"]');
+            function imageResultDetails() {{
+                return Array.from(root.querySelectorAll('details')).filter((details) => {{
+                    const summary = details.querySelector('summary');
+                    return summary && summary.textContent.includes('Results for Image');
+                }});
+            }}
+            controls.addEventListener('click', (event) => {{
+                const action = event.target.dataset.action;
+                if (!action) return;
+                imageResultDetails().forEach((details) => {{
+                    details.open = action === 'expand';
+                }});
+            }});
+        </script>
+    """, height=45)
+
+def render_result_group(group, selected_methods, expanded=True):
+    with st.expander(f"🖼️ Results for Image {group['img_idx']}", expanded=expanded):
         # Group entries by base model architecture
         architectures = []
         for m in group["models"]:
@@ -694,34 +790,26 @@ if 'completion_notice_batch_id' not in st.session_state: st.session_state.comple
 if 'benchmark_ready_to_run' not in st.session_state: st.session_state.benchmark_ready_to_run = False
 if 'current_img_base64' not in st.session_state: st.session_state.current_img_base64 = ""
 if 'batch_start_time' not in st.session_state: st.session_state.batch_start_time = None
+if 'batch_started_at' not in st.session_state: st.session_state.batch_started_at = ""
+if 'batch_completed_at' not in st.session_state: st.session_state.batch_completed_at = ""
 if 'total_execution_time' not in st.session_state: st.session_state.total_execution_time = 0
 if 'task_queue' not in st.session_state: st.session_state.task_queue = []
 if 'prepared_img_sources' not in st.session_state: st.session_state.prepared_img_sources = []
 if 'current_run_order' not in st.session_state: st.session_state.current_run_order = "Balanced"
+if 'current_batch_methods' not in st.session_state: st.session_state.current_batch_methods = []
+if 'current_batch_models' not in st.session_state: st.session_state.current_batch_models = []
+if 'current_batch_sizes' not in st.session_state: st.session_state.current_batch_sizes = []
+if 'selected_models' not in st.session_state: st.session_state.selected_models = ["resnet50"]
+if 'input_size_str' not in st.session_state: st.session_state.input_size_str = "224"
+if 'selected_methods' not in st.session_state: st.session_state.selected_methods = ["Saliency", "Integrated_Gradients"]
+if 'selected_warmups' not in st.session_state: st.session_state.selected_warmups = 1
+if 'selected_repeats' not in st.session_state: st.session_state.selected_repeats = 5
+if 'selected_run_order' not in st.session_state: st.session_state.selected_run_order = "Balanced"
+default_device_mode = "GPU (CUDA)" if torch.cuda.is_available() else "CPU"
+if 'selected_device_mode' not in st.session_state: st.session_state.selected_device_mode = default_device_mode
 
 # --- SIDEBAR ---
-st.sidebar.title("Benchmark Settings ⚙️")
-is_running = st.session_state.benchmark_running or st.session_state.benchmark_ready_to_run
-
 model_opts = ['resnet50', 'convnext-t', 'efficientnet-b0', 'swin-t', 'regnet-y-8gf', 'mobilenet-v3-large', 'densenet121', 'vit-b-16']
-selected_models = st.sidebar.multiselect("Model Architectures", model_opts, default=["resnet50"], disabled=is_running)
-
-# Input Size Selection
-fixed_size_trigger = any(m in ["vit-b-16", "swin-t"] for m in selected_models)
-if fixed_size_trigger:
-    selected_sizes = [224]
-    st.sidebar.text_input("Input Sizes (px)", value="224", disabled=True)
-    st.sidebar.caption("⚠️ *Fixed-size architecture selected (Locked to 224px)*")
-else:
-    size_str = st.sidebar.text_input("Input Sizes (px)", value="224", help="Only applicable to CNN-based architectures.", disabled=is_running)
-    st.sidebar.markdown('<div style="margin-top: -15px; margin-bottom: 15px; font-size: 0.85em; color: gray;">Separate by commas (e.g., 224, 448, 512).</div>', unsafe_allow_html=True)
-    try:
-        selected_sizes = [int(s.strip()) for s in size_str.split(",") if s.strip().isdigit()]
-        if not selected_sizes: selected_sizes = [224]
-    except:
-        selected_sizes = [224]
-        st.sidebar.error("Invalid size format. Using 224.")
-
 xai_opts = [
     "Saliency",
     "Integrated_Gradients",
@@ -732,49 +820,106 @@ xai_opts = [
     "DeepLift_Shap",
     "Grad_CAM",
 ]
-selected_methods = st.sidebar.multiselect("XAI Methods", xai_opts, default=["Saliency", "Integrated_Gradients"], disabled=is_running)
-st.sidebar.divider(); st.sidebar.subheader("Measurement")
-st.sidebar.markdown('<div class="settings-hint">Warmups are not reported. Measured repeats are timed and summarized with median/mean/std.</div>', unsafe_allow_html=True)
-selected_warmups = st.sidebar.number_input(
-    "Warmup runs",
-    min_value=0,
-    max_value=20,
-    value=1,
-    step=1,
-    help="Untimed runs before measurement. Useful for CUDA/model warmup.",
-    disabled=is_running
-)
-selected_repeats = st.sidebar.number_input(
-    "Measured repeats",
-    min_value=1,
-    max_value=1000,
-    value=5,
-    step=1,
-    help="Timed attribution repeats per image/model/size/method. Use 30-100 for stronger size studies when methods are fast enough.",
-    disabled=is_running
-)
-selected_run_order = st.sidebar.selectbox(
-    "Task order",
-    ["Balanced", "Grouped", "Randomized"],
-    index=0,
-    help=(
-        "Balanced rotates image-size order across tasks to reduce cache/order bias. "
-        "Grouped runs tasks in the old fixed order. Randomized shuffles tasks reproducibly per batch."
-    ),
-    disabled=is_running
-)
 run_order_notes = {
     "Balanced": "Rotates size order across images/models/methods; recommended for size studies.",
     "Grouped": "Runs image -> model -> method -> size in fixed order; useful for debugging.",
     "Randomized": "Shuffles all tasks with a batch-specific seed; useful for robustness checks.",
 }
-st.sidebar.caption(f"{run_order_notes[selected_run_order]} Use higher repeat counts for image-size studies.")
-st.sidebar.divider(); st.sidebar.subheader("System Status")
-selected_device_mode = st.sidebar.radio("Force execution on:", ["GPU (CUDA)" if torch.cuda.is_available() else "CPU", "CPU"] if torch.cuda.is_available() else ["CPU"], label_visibility="collapsed", disabled=is_running)
-if "GPU" in selected_device_mode: st.sidebar.success(f"**GPU:** {torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'Active'}")
-else: st.sidebar.warning(f"**CPU:** {get_cpu_info()}")
-st.sidebar.divider(); st.sidebar.info("### How to Cite")
-st.sidebar.code("""@software{alimzade2025xai,
+fragment_api = getattr(st, "fragment", getattr(st, "experimental_fragment", None))
+
+def rerun_app():
+    try:
+        st.rerun(scope="app")
+    except TypeError:
+        st.rerun()
+
+def rerun_fragment():
+    if fragment_api:
+        st.rerun(scope="fragment")
+    else:
+        rerun_app()
+
+def render_sidebar_settings():
+    st.title("Benchmark Settings ⚙️")
+    is_running_now = st.session_state.benchmark_running or st.session_state.benchmark_ready_to_run
+
+    selected_models_widget = st.multiselect(
+        "Model Architectures",
+        model_opts,
+        key="selected_models",
+        disabled=is_running_now
+    )
+
+    # Input Size Selection
+    fixed_size_trigger = any(m in ["vit-b-16", "swin-t"] for m in selected_models_widget)
+    if fixed_size_trigger:
+        st.text_input("Input Sizes (px)", value="224", disabled=True)
+        st.caption("⚠️ *Fixed-size architecture selected (Locked to 224px)*")
+    else:
+        st.text_input(
+            "Input Sizes (px)",
+            key="input_size_str",
+            help="Only applicable to CNN-based architectures.",
+            disabled=is_running_now
+        )
+        st.markdown('<div style="margin-top: -15px; margin-bottom: 15px; font-size: 0.85em; color: gray;">Separate by commas (e.g., 224, 448, 512).</div>', unsafe_allow_html=True)
+        if parse_input_sizes(st.session_state.input_size_str) == [224] and st.session_state.input_size_str.strip() not in ["", "224"]:
+            st.error("Invalid size format. Using 224.")
+
+    st.multiselect(
+        "XAI Methods",
+        xai_opts,
+        key="selected_methods",
+        disabled=is_running_now
+    )
+    st.divider(); st.subheader("Measurement")
+    st.markdown('<div class="settings-hint">Warmups are not reported. Measured repeats are timed and summarized with median/mean/std.</div>', unsafe_allow_html=True)
+    st.number_input(
+        "Warmup runs",
+        min_value=0,
+        max_value=20,
+        key="selected_warmups",
+        step=1,
+        help="Untimed runs before measurement. Useful for CUDA/model warmup.",
+        disabled=is_running_now
+    )
+    st.number_input(
+        "Measured repeats",
+        min_value=1,
+        max_value=1000,
+        key="selected_repeats",
+        step=1,
+        help="Timed attribution repeats per image/model/size/method. Use 30-100 for stronger size studies when methods are fast enough.",
+        disabled=is_running_now
+    )
+    st.selectbox(
+        "Task order",
+        ["Balanced", "Grouped", "Randomized"],
+        key="selected_run_order",
+        help=(
+            "Balanced rotates image-size order across tasks to reduce cache/order bias. "
+            "Grouped runs tasks in the old fixed order. Randomized shuffles tasks reproducibly per batch."
+        ),
+        disabled=is_running_now
+    )
+    st.caption(f"{run_order_notes[st.session_state.selected_run_order]} Use higher repeat counts for image-size studies.")
+    st.divider(); st.subheader("System Status")
+    device_options = ["GPU (CUDA)", "CPU"] if torch.cuda.is_available() else ["CPU"]
+    if st.session_state.selected_device_mode not in device_options:
+        st.session_state.selected_device_mode = device_options[0]
+    st.radio(
+        "Force execution on:",
+        device_options,
+        key="selected_device_mode",
+        label_visibility="collapsed",
+        disabled=is_running_now
+    )
+    if "GPU" in st.session_state.selected_device_mode:
+        st.success(f"**GPU:** {torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'Active'}")
+    else:
+        st.warning(f"**CPU:** {get_cpu_info()}")
+    st.divider(); st.info("### How to Cite")
+    st.code("""@software{alimzade2025xai,
   author  = {Anar Alimzade},
   title   = {Efficiency Benchmark for XAI},
   year    = {2025},
@@ -782,66 +927,106 @@ st.sidebar.code("""@software{alimzade2025xai,
   version = {1.0.0}
 }""", language="bibtex")
 
-# --- Tabs ---
-tab1, tab2 = st.tabs(["🚀 Run Benchmark", "📜 Results History"])
+if fragment_api:
+    render_sidebar_settings = fragment_api(render_sidebar_settings)
 
-with tab1:
+with st.sidebar:
+    render_sidebar_settings()
+
+is_running = st.session_state.benchmark_running or st.session_state.benchmark_ready_to_run
+selected_models = st.session_state.selected_models
+selected_methods = st.session_state.selected_methods
+selected_warmups = st.session_state.selected_warmups
+selected_repeats = st.session_state.selected_repeats
+selected_run_order = st.session_state.selected_run_order
+selected_device_mode = st.session_state.selected_device_mode
+selected_sizes = [224] if any(m in ["vit-b-16", "swin-t"] for m in selected_models) else parse_input_sizes(st.session_state.input_size_str)
+
+def render_run_setup():
+    setup_is_running = st.session_state.benchmark_running or st.session_state.benchmark_ready_to_run
+    setup_selected_models = st.session_state.selected_models
+    setup_selected_methods = st.session_state.selected_methods
+    setup_selected_warmups = st.session_state.selected_warmups
+    setup_selected_repeats = st.session_state.selected_repeats
+    setup_selected_run_order = st.session_state.selected_run_order
+    setup_selected_sizes = [224] if any(m in ["vit-b-16", "swin-t"] for m in setup_selected_models) else parse_input_sizes(st.session_state.input_size_str)
+
     col_input, col_spacer, col_preview = st.columns([2.5, 0.2, 0.8])
     with col_input:
-        uploaded_files = st.file_uploader("Drag and drop images", type=["jpg", "jpeg", "png"], accept_multiple_files=True, disabled=is_running)
+        st.file_uploader(
+            "Drag and drop images",
+            type=["jpg", "jpeg", "png"],
+            accept_multiple_files=True,
+            disabled=setup_is_running,
+            key="uploaded_files"
+        )
         with st.expander("Paste Image URLs", expanded=False):
-            urls_input = st.text_area("Input URLs here", st.session_state.persisted_urls, height=100, label_visibility="collapsed", disabled=is_running)
-            st.session_state.persisted_urls = urls_input
-        url_list = [u.strip() for u in st.session_state.persisted_urls.split("\n") if u.strip()]
-        img_sources = (uploaded_files if uploaded_files else []) + url_list
+            st.text_area(
+                "Input URLs here",
+                height=100,
+                label_visibility="collapsed",
+                disabled=setup_is_running,
+                key="persisted_urls"
+            )
 
+    img_sources = current_image_sources()
     with col_preview:
         if img_sources:
             num_imgs = len(img_sources)
-            if st.session_state.img_idx >= num_imgs: st.session_state.img_idx = 0
+            if st.session_state.img_idx >= num_imgs:
+                st.session_state.img_idx = 0
             st.markdown('<div class="compact-preview">', unsafe_allow_html=True)
             current_src = img_sources[st.session_state.img_idx]
             try:
-                if hasattr(current_src, 'name'): img_view = Image.open(current_src)
-                else: response = requests.get(current_src); img_view = Image.open(BytesIO(response.content))
+                if hasattr(current_src, 'name'):
+                    img_view = Image.open(current_src)
+                else:
+                    response = requests.get(current_src)
+                    img_view = Image.open(BytesIO(response.content))
                 st.session_state.current_img_base64 = get_base64(img_view)
                 st.markdown(f"<div style='text-align: center; color: #94a3b8; font-size: 0.8em; margin-bottom: 2px;'>Resolution: {img_view.size[0]}x{img_view.size[1]} px</div>", unsafe_allow_html=True)
-                if st.button("View", width='stretch'): show_lightbox(img_view)
+                if st.button("View", width='stretch'):
+                    show_lightbox(img_view)
                 st.markdown(
                     f'<div class="preview-image-frame"><img src="data:image/png;base64,{st.session_state.current_img_base64}" alt="Selected input preview"></div>',
                     unsafe_allow_html=True
                 )
-            except: st.markdown("<div style='height: 330px; text-align: center; padding-top: 100px; color: #94a3b8;'>Preview unavailable</div>", unsafe_allow_html=True)
+            except Exception:
+                st.markdown("<div style='height: 330px; text-align: center; padding-top: 100px; color: #94a3b8;'>Preview unavailable</div>", unsafe_allow_html=True)
             n1, n2, n3 = st.columns([1, 0.8, 1])
             with n1:
-                if st.button("⬅️ Prev", key="prev_btn", width='stretch'): st.session_state.img_idx = (st.session_state.img_idx - 1) % num_imgs; st.rerun()
-            with n2: st.markdown(f"<div style='text-align: center; padding-top: 5px; font-weight: bold;'>{st.session_state.img_idx + 1}/{num_imgs}</div>", unsafe_allow_html=True)
+                if st.button("⬅️ Prev", key="prev_btn", width='stretch'):
+                    st.session_state.img_idx = (st.session_state.img_idx - 1) % num_imgs
+                    rerun_fragment()
+            with n2:
+                st.markdown(f"<div style='text-align: center; padding-top: 5px; font-weight: bold;'>{st.session_state.img_idx + 1}/{num_imgs}</div>", unsafe_allow_html=True)
             with n3:
-                if st.button("Next ➡️", key="next_btn", width='stretch'): st.session_state.img_idx = (st.session_state.img_idx + 1) % num_imgs; st.rerun()
+                if st.button("Next ➡️", key="next_btn", width='stretch'):
+                    st.session_state.img_idx = (st.session_state.img_idx + 1) % num_imgs
+                    rerun_fragment()
             st.markdown('</div>', unsafe_allow_html=True)
 
     st.divider()
 
     planned_image_count = len(st.session_state.prepared_img_sources) if st.session_state.benchmark_ready_to_run else len(img_sources)
-    planned_task_count = planned_image_count * len(selected_models) * len(selected_sizes) * len(selected_methods)
+    planned_task_count = planned_image_count * len(setup_selected_models) * len(setup_selected_sizes) * len(setup_selected_methods)
     st.markdown(f"""
         <div class="run-summary-bar">
             <span class="run-summary-item">Images <strong>{planned_image_count}</strong></span>
             <span class="run-summary-separator">|</span>
-            <span class="run-summary-item">Size variations <strong>{len(selected_sizes)}</strong></span>
+            <span class="run-summary-item">Size variations <strong>{len(setup_selected_sizes)}</strong></span>
             <span class="run-summary-separator">|</span>
-            <span class="run-summary-item">Models <strong>{len(selected_models)}</strong></span>
+            <span class="run-summary-item">Models <strong>{len(setup_selected_models)}</strong></span>
             <span class="run-summary-separator">|</span>
-            <span class="run-summary-item">Methods <strong>{len(selected_methods)}</strong></span>
+            <span class="run-summary-item">Methods <strong>{len(setup_selected_methods)}</strong></span>
             <span class="run-summary-separator">|</span>
-            <span class="run-summary-item">Repeats/config <strong>{selected_repeats}</strong></span>
+            <span class="run-summary-item">Repeats/config <strong>{setup_selected_repeats}</strong></span>
             <span class="run-summary-separator">|</span>
-            <span class="run-summary-item">Warmups/config <strong>{selected_warmups}</strong></span>
+            <span class="run-summary-item">Warmups/config <strong>{setup_selected_warmups}</strong></span>
         </div>
         <div class="run-summary-action-spacer"></div>
         """, unsafe_allow_html=True)
-    
-    # --- ACTION BUTTONS ---
+
     if st.session_state.benchmark_ready_to_run:
         components.html("""
             <script>
@@ -883,10 +1068,12 @@ with tab1:
         """, height=0)
         if st.button("Auto-start benchmark engine", type="primary", width='stretch'):
             st.session_state.batch_start_time = time.time()
+            st.session_state.batch_started_at = timestamp_now()
+            st.session_state.batch_completed_at = ""
             st.session_state.total_execution_time = 0
             st.session_state.benchmark_ready_to_run = False
             st.session_state.benchmark_running = True
-            st.rerun()
+            rerun_app()
     elif not st.session_state.benchmark_running:
         if st.button("Start Multi-Model Benchmark ⚡", width='stretch'):
             st.session_state.last_run_results = []
@@ -895,20 +1082,28 @@ with tab1:
             st.session_state.completion_notice_batch_id = ""
             st.session_state.is_finished = False
             st.session_state.total_execution_time = 0
+            st.session_state.batch_started_at = ""
+            st.session_state.batch_completed_at = ""
             st.session_state.task_queue = []
             st.session_state.prepared_img_sources = []
-            if not img_sources or not selected_models or not selected_methods:
+            st.session_state.current_batch_methods = []
+            st.session_state.current_batch_models = []
+            st.session_state.current_batch_sizes = []
+            if not img_sources or not setup_selected_models or not setup_selected_methods:
                 st.error("Select at least one image, model, and XAI method.")
             else:
                 st.session_state.current_batch_id = sm.start_batch()
                 st.session_state.last_run_batch_id = st.session_state.current_batch_id
-                st.session_state.current_run_order = selected_run_order
+                st.session_state.current_run_order = setup_selected_run_order
+                st.session_state.current_batch_methods = list(setup_selected_methods)
+                st.session_state.current_batch_models = list(setup_selected_models)
+                st.session_state.current_batch_sizes = list(setup_selected_sizes)
                 st.session_state.task_queue = build_task_queue(
                     len(img_sources),
-                    selected_models,
-                    selected_sizes,
-                    selected_methods,
-                    selected_run_order,
+                    st.session_state.current_batch_models,
+                    st.session_state.current_batch_sizes,
+                    st.session_state.current_batch_methods,
+                    setup_selected_run_order,
                     seed=st.session_state.current_batch_id
                 )
                 st.session_state.prepared_img_sources = list(img_sources)
@@ -917,14 +1112,31 @@ with tab1:
                 st.session_state.stop_requested = False
                 st.session_state.run_progress_idx = 0
                 st.session_state.benchmark_ready_to_run = True
-                st.rerun()
+                rerun_app()
     else:
         if st.button("🛑 Stop Benchmark", width='stretch'):
-            st.session_state.stop_requested = True; st.session_state.benchmark_running = False
-            st.session_state.last_run_results = []; st.session_state.task_queue = []; st.session_state.prepared_img_sources = []
-            st.session_state.last_run_batch_id = ""; st.session_state.completed_batch_id = ""
+            st.session_state.stop_requested = True
+            st.session_state.benchmark_running = False
+            st.session_state.last_run_results = []
+            st.session_state.task_queue = []
+            st.session_state.prepared_img_sources = []
+            st.session_state.last_run_batch_id = ""
+            st.session_state.completed_batch_id = ""
             st.session_state.benchmark_ready_to_run = False
-            st.rerun()
+            st.session_state.current_batch_methods = []
+            st.session_state.current_batch_models = []
+            st.session_state.current_batch_sizes = []
+            rerun_app()
+
+if fragment_api:
+    render_run_setup = fragment_api(render_run_setup)
+
+# --- Tabs ---
+tab1, tab2 = st.tabs(["🚀 Run Benchmark", "📜 Results History"])
+
+with tab1:
+    render_run_setup()
+    img_sources = current_image_sources()
 
     # --- RESULTS AREA ---
     results_area = st.empty()
@@ -959,11 +1171,17 @@ with tab1:
             and st.session_state.is_finished
             and st.session_state.completed_batch_id == st.session_state.current_batch_id
         )
+        current_batch_methods = (
+            st.session_state.current_batch_methods
+            or methods_from_result_groups(st.session_state.last_run_results)
+            or selected_methods
+        )
 
         if current_batch_has_results and st.session_state.benchmark_running and not st.session_state.is_finished:
             st.subheader("Completed Results So Far")
+            render_result_view_controls("current_live_results")
             for group in sorted_result_groups(st.session_state.last_run_results):
-                render_result_group(group, selected_methods)
+                render_result_group(group, current_batch_methods)
 
         if current_batch_is_complete:
             st.success(f"Benchmark complete in {format_time(st.session_state.total_execution_time)}. Results, charts, and exports are ready.")
@@ -971,8 +1189,9 @@ with tab1:
                 st.toast("Benchmark complete. Results are ready.", icon="✅")
                 st.session_state.completion_notice_batch_id = st.session_state.current_batch_id
 
+            render_result_view_controls("current_final_results")
             for group in sorted_result_groups(st.session_state.last_run_results):
-                render_result_group(group, selected_methods)
+                render_result_group(group, current_batch_methods)
 
             all_r = []
             for g in sorted_result_groups(st.session_state.last_run_results):
@@ -986,29 +1205,33 @@ with tab1:
                 st.divider()
                 st.header("🔬 Batch Summary")
                 st.markdown(f"**Batch Wall Time:** `{format_time(st.session_state.total_execution_time)}`")
+                st.caption(f"Started: {display_timestamp(st.session_state.batch_started_at)} | Completed: {display_timestamp(st.session_state.batch_completed_at)}")
                 render_environment_summary(collect_environment_metadata("cuda" if "GPU" in selected_device_mode else "cpu"))
                 
                 # --- EXPORT BUTTONS ---
                 ex1, ex2, ex3 = st.columns([1, 1, 3])
                 with ex1:
                     csv_path = os.path.join(sm.base_dir, st.session_state.current_batch_id, f"{st.session_state.current_batch_id}.csv")
-                    if generate_csv_report(st.session_state.last_run_results, csv_path):
+                    if not os.path.exists(csv_path):
+                        generate_csv_report(st.session_state.last_run_results, csv_path)
+                    if os.path.exists(csv_path):
                         with open(csv_path, "rb") as f:
                             st.download_button("📥 Export CSV", data=f, file_name=f"{st.session_state.current_batch_id}.csv", mime="text/csv", use_container_width=True)
                 with ex2:
                     pdf_path = os.path.join(sm.base_dir, st.session_state.current_batch_id, f"{st.session_state.current_batch_id}.pdf")
-                    # Use a spinner while generating PDF
-                    with st.spinner("Generating PDF..."):
-                        generate_pdf_report(
-                            st.session_state.current_batch_id,
-                            st.session_state.last_run_results,
-                            selected_methods,
-                            pdf_path,
-                            st.session_state.total_execution_time,
-                            collect_environment_metadata("cuda" if "GPU" in selected_device_mode else "cpu")
-                        )
-                    with open(pdf_path, "rb") as f:
-                        st.download_button("📄 Export PDF", data=f, file_name=f"{st.session_state.current_batch_id}.pdf", mime="application/pdf", use_container_width=True)
+                    if not os.path.exists(pdf_path):
+                        with st.spinner("Generating PDF..."):
+                            generate_pdf_report(
+                                st.session_state.current_batch_id,
+                                st.session_state.last_run_results,
+                                current_batch_methods,
+                                pdf_path,
+                                st.session_state.total_execution_time,
+                                collect_environment_metadata("cuda" if "GPU" in selected_device_mode else "cpu")
+                            )
+                    if os.path.exists(pdf_path):
+                        with open(pdf_path, "rb") as f:
+                            st.download_button("📄 Export PDF", data=f, file_name=f"{st.session_state.current_batch_id}.pdf", mime="application/pdf", use_container_width=True)
 
                 cs1, cs2 = st.columns(2)
                 with cs1:
@@ -1095,6 +1318,7 @@ with tab1:
                 st.session_state.is_finished = True; st.session_state.benchmark_running = False
                 st.session_state.completed_batch_id = st.session_state.current_batch_id
                 st.session_state.total_execution_time = time.time() - st.session_state.batch_start_time
+                st.session_state.batch_completed_at = timestamp_now()
                 
                 clean_results = []
                 for g in sorted_result_groups(st.session_state.last_run_results):
@@ -1104,14 +1328,19 @@ with tab1:
                 with open(os.path.join(sm.base_dir, st.session_state.current_batch_id, "batch_results.json"), 'w') as f:
                     json.dump({
                         "results": clean_results, 
-                        "methods": selected_methods,
+                        "methods": st.session_state.current_batch_methods or selected_methods,
                         "benchmark_settings": {
                             "warmup_runs": selected_warmups,
                             "repeat_count": selected_repeats,
                             "run_order": st.session_state.current_run_order,
-                            "task_count": len(task_queue)
+                            "task_count": len(task_queue),
+                            "models": st.session_state.current_batch_models,
+                            "input_sizes": st.session_state.current_batch_sizes,
+                            "methods": st.session_state.current_batch_methods
                         },
                         "environment": collect_environment_metadata("cuda" if "GPU" in selected_device_mode else "cpu"),
+                        "started_at": st.session_state.batch_started_at,
+                        "completed_at": st.session_state.batch_completed_at,
                         "total_execution_time": st.session_state.total_execution_time
                     }, f, indent=4)
             st.rerun()
@@ -1119,6 +1348,7 @@ with tab1:
             st.session_state.is_finished = True
             st.session_state.benchmark_running = False
             st.session_state.completed_batch_id = st.session_state.current_batch_id
+            st.session_state.batch_completed_at = timestamp_now()
             st.rerun()
 
 with tab2:
@@ -1129,7 +1359,9 @@ with tab2:
         if os.path.exists(batch_meta_p):
             try:
                 with open(batch_meta_p, 'r') as f: meta = json.load(f)
-                for group in meta["results"]: render_result_group(group, meta["methods"])
+                render_result_view_controls(f"history_results_{bid}")
+                for group in meta["results"]:
+                    render_result_group(group, meta["methods"])
                 all_h_r = []
                 for g in meta["results"]:
                     for m in g["models"]: all_h_r.extend(m["results"])
@@ -1146,21 +1378,26 @@ with tab2:
                     st.header(f"🔬 Batch Summary (Historical)")
                     if h_total_time:
                         st.markdown(f"**Batch Wall Time:** `{format_time(h_total_time)}`")
+                    st.caption(f"Started: {display_timestamp(meta.get('started_at'))} | Completed: {display_timestamp(meta.get('completed_at'))}")
                     render_environment_summary(meta.get("environment"))
 
                     # --- EXPORT BUTTONS (History) ---
                     hx1, hx2, hx3 = st.columns([1, 1, 3])
                     with hx1:
                         h_csv = os.path.join(sm.base_dir, bid, f"{bid}.csv")
-                        if generate_csv_report(meta["results"], h_csv):
+                        if not os.path.exists(h_csv):
+                            generate_csv_report(meta["results"], h_csv)
+                        if os.path.exists(h_csv):
                             with open(h_csv, "rb") as f:
                                 st.download_button("📥 Export CSV", data=f, file_name=f"{bid}.csv", mime="text/csv", key=f"csv_{bid}", use_container_width=True)
                     with hx2:
                         h_pdf = os.path.join(sm.base_dir, bid, f"{bid}.pdf")
-                        with st.spinner("Generating PDF..."):
-                            generate_pdf_report(bid, meta["results"], meta["methods"], h_pdf, h_total_time, meta.get("environment"))
-                        with open(h_pdf, "rb") as f:
-                            st.download_button("📄 Export PDF", data=f, file_name=f"{bid}.pdf", mime="application/pdf", key=f"pdf_{bid}", use_container_width=True)
+                        if not os.path.exists(h_pdf):
+                            with st.spinner("Generating PDF..."):
+                                generate_pdf_report(bid, meta["results"], meta["methods"], h_pdf, h_total_time, meta.get("environment"))
+                        if os.path.exists(h_pdf):
+                            with open(h_pdf, "rb") as f:
+                                st.download_button("📄 Export PDF", data=f, file_name=f"{bid}.pdf", mime="application/pdf", key=f"pdf_{bid}", use_container_width=True)
 
                     hc1, hc2 = st.columns(2)
                     with hc1:

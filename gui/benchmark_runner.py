@@ -13,6 +13,7 @@ import gc
 import numpy as np
 import matplotlib.pyplot as plt
 import platform
+from datetime import datetime
 
 # Add the parent directory to sys.path so we can import models and xai_methods
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -106,6 +107,7 @@ def run_benchmark_task(config, session_dir):
     Executes a benchmark based on the config and saves results to session_dir.
     Includes memory optimization for high-resolution XAI.
     """
+    task_started_at = datetime.now().astimezone().isoformat(timespec="seconds")
     # 1. Environment Setup for Memory Stability
     # 1. Setup Device & Environment
     force_dev = config.get('force_device')
@@ -299,12 +301,15 @@ def run_benchmark_task(config, session_dir):
 
     # 6. Save Results
     pd.DataFrame(results).to_csv(os.path.join(session_dir, "results.csv"), index=False)
+    task_completed_at = datetime.now().astimezone().isoformat(timespec="seconds")
     with open(os.path.join(session_dir, "config.json"), 'w') as f:
         json.dump({
             **config,
             "prediction": predicted_class,
             "timing_scope": "attribution_only",
             "memory_scope": "attribution_peak",
+            "task_started_at": task_started_at,
+            "task_completed_at": task_completed_at,
             "environment": environment_metadata
         }, f, indent=4)
 
