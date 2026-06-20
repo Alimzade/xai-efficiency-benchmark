@@ -474,6 +474,21 @@ st.markdown("""
         color: rgba(229, 237, 246, 0.45) !important;
         cursor: not-allowed !important;
     }
+    
+    /* Styled step headers */
+    .step-header {
+        background: linear-gradient(90deg, rgba(255, 255, 255, 0.055) 0%, rgba(255, 255, 255, 0.015) 100%) !important;
+        border: 1px solid rgba(148, 163, 184, 0.12) !important;
+        border-left: 4px solid var(--xai-accent) !important;
+        padding: 0.55rem 1rem !important;
+        border-radius: 6px !important;
+        font-size: 1.35rem !important;
+        font-weight: 700 !important;
+        color: var(--xai-text) !important;
+        margin-top: 1.8rem !important;
+        margin-bottom: 1.2rem !important;
+        display: block !important;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -1059,7 +1074,7 @@ if fragment_api:
 
 # --- PAGE 1: CONFIGURE ---
 def render_configure_page():
-    st.markdown("## ⚙️ Step 1: Configure Benchmark Settings")
+    st.markdown('<div class="step-header">Step 1: Configure Benchmark Settings</div>', unsafe_allow_html=True)
     
     # Row 1
     row1_left, row1_right = st.columns([2, 1])
@@ -1137,7 +1152,7 @@ def render_configure_page():
             st.warning(f"**CPU Active:** {get_cpu_info()}")
 
     st.divider()
-    st.markdown("## 🖼️ Step 2: Select Input Images")
+    st.markdown('<div class="step-header">Step 2: Select Input Images</div>', unsafe_allow_html=True)
     
     col_input, col_spacer, col_preview = st.columns([2.5, 0.2, 0.8])
     with col_input:
