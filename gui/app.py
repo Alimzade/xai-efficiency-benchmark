@@ -1390,7 +1390,7 @@ def render_active_run_page():
             runtime_col = metric_col(fdf, ATTR_RUNTIME_COL, LEGACY_RUNTIME_COL)
             memory_col = metric_col(fdf, ATTR_MEMORY_COL, LEGACY_MEMORY_COL)
             
-            st.header("🔬 Batch Summary")
+            st.markdown('<div class="step-header">Batch Summary</div>', unsafe_allow_html=True)
             st.markdown(f"**Batch Wall Time:** `{format_time(st.session_state.total_execution_time)}`")
             st.caption(f"Started: {display_timestamp(st.session_state.batch_started_at)} | Completed: {display_timestamp(st.session_state.batch_completed_at)}")
             render_environment_summary(collect_environment_metadata("cuda" if "GPU" in st.session_state.selected_device_mode else "cpu"))
@@ -1463,7 +1463,7 @@ def render_active_run_page():
 
             st.divider()
 
-        st.subheader("🖼️ Detailed Per-Image Attribution Heatmaps")
+        st.markdown('<div class="step-header">Detailed Per-Image Attribution Heatmaps</div>', unsafe_allow_html=True)
         render_result_view_controls("current_final_results")
         for group in sorted_result_groups(st.session_state.last_run_results):
             render_result_group(group, st.session_state.current_batch_methods)
@@ -1509,7 +1509,7 @@ def render_history_page():
                     hdf = hdf.sort_values(by=["Method", "Resolution"])
                     
                     h_total_time = meta.get("total_execution_time", 0)
-                    st.header(f"🔬 Batch Summary (Historical)")
+                    st.markdown('<div class="step-header">Batch Summary (Historical)</div>', unsafe_allow_html=True)
                     if h_total_time:
                         st.markdown(f"**Batch Wall Time:** `{format_time(h_total_time)}`")
                     st.caption(f"Started: {display_timestamp(meta.get('started_at'))} | Completed: {display_timestamp(meta.get('completed_at'))}")
@@ -1570,7 +1570,7 @@ def render_history_page():
                     st.divider()
 
                 # Per-image results
-                st.subheader("🖼️ Detailed Per-Image Attribution Heatmaps")
+                st.markdown('<div class="step-header">Detailed Per-Image Attribution Heatmaps</div>', unsafe_allow_html=True)
                 render_result_view_controls(f"history_results_{bid}")
                 for group in meta["results"]:
                     render_result_group(group, meta["methods"])
