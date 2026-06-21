@@ -1258,13 +1258,13 @@ def render_configure_page():
     
     st.markdown(f"""
         <div class="run-summary-bar">
-            <span class="run-summary-item">Images <strong>{planned_image_count}</strong></span>
+            <span class="run-summary-item">Models <strong>{len(st.session_state.selected_models)}</strong></span>
             <span class="run-summary-separator">|</span>
             <span class="run-summary-item">Size variations <strong>{len(selected_sizes)}</strong></span>
             <span class="run-summary-separator">|</span>
-            <span class="run-summary-item">Models <strong>{len(st.session_state.selected_models)}</strong></span>
-            <span class="run-summary-separator">|</span>
             <span class="run-summary-item">Methods <strong>{len(st.session_state.selected_methods)}</strong></span>
+            <span class="run-summary-separator">|</span>
+            <span class="run-summary-item">Images <strong>{planned_image_count}</strong></span>
             <span class="run-summary-separator">|</span>
             <span class="run-summary-item">Repeats/config <strong>{st.session_state.selected_repeats}</strong></span>
             <span class="run-summary-separator">|</span>
