@@ -347,7 +347,10 @@ st.markdown("""
         color: var(--xai-text);
         letter-spacing: 0;
     }
-    .compact-preview { max-width: 300px; margin-left: auto; margin-right: 0; }
+    .compact-preview { width: 100%; }
+    div[data-testid="column"]:has(.compact-preview) {
+        margin-top: -3.2rem !important;
+    }
     .preview-image-frame {
         height: 310px;
         width: 100%;
@@ -1066,7 +1069,6 @@ def render_image_preview_gallery():
         num_imgs = len(img_sources)
         if st.session_state.img_idx >= num_imgs:
             st.session_state.img_idx = 0
-        st.markdown('<div class="compact-preview">', unsafe_allow_html=True)
         current_src = img_sources[st.session_state.img_idx]
         try:
             if hasattr(current_src, 'name'):
@@ -1075,16 +1077,19 @@ def render_image_preview_gallery():
                 response = requests.get(current_src)
                 img_view = Image.open(BytesIO(response.content))
             st.session_state.current_img_base64 = get_base64(img_view)
-            st.markdown(f"<div style='text-align: center; color: #94a3b8; font-size: 0.8em; margin-bottom: 2px;'>Resolution: {img_view.size[0]}x{img_view.size[1]} px</div>", unsafe_allow_html=True)
-            st.markdown(
-                f'<div class="preview-image-frame"><img src="data:image/png;base64,{st.session_state.current_img_base64}" alt="Selected input preview"></div>',
-                unsafe_allow_html=True
-            )
+            
+            html_content = f"""
+            <div class="compact-preview">
+                <div style='text-align: center; color: #94a3b8; font-size: 0.8em; margin-bottom: 2px;'>Resolution: {img_view.size[0]}x{img_view.size[1]} px</div>
+                <div class="preview-image-frame"><img src="data:image/png;base64,{st.session_state.current_img_base64}" alt="Selected input preview"></div>
+            </div>
+            """
+            st.markdown(html_content, unsafe_allow_html=True)
             st.markdown('<div style="margin-top: 8px;"></div>', unsafe_allow_html=True)
             if st.button("View", use_container_width=True):
                 show_lightbox(img_view)
         except Exception:
-            st.markdown("<div style='height: 330px; text-align: center; padding-top: 100px; color: #94a3b8;'>Preview unavailable</div>", unsafe_allow_html=True)
+            st.markdown("<div class='compact-preview'><div style='height: 330px; text-align: center; padding-top: 100px; color: #94a3b8;'>Preview unavailable</div></div>", unsafe_allow_html=True)
         n1, n2, n3 = st.columns([1, 0.8, 1])
         with n1:
             if st.button("⬅️ Prev", key="prev_btn", use_container_width=True):
@@ -1096,7 +1101,6 @@ def render_image_preview_gallery():
             if st.button("Next ➡️", key="next_btn", use_container_width=True):
                 st.session_state.img_idx = (st.session_state.img_idx + 1) % num_imgs
                 rerun_fragment()
-        st.markdown('</div>', unsafe_allow_html=True)
 
 if fragment_api:
     render_image_preview_gallery = fragment_api(render_image_preview_gallery)
