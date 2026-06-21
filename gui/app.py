@@ -73,18 +73,18 @@ st.markdown("""
         padding-top: 1.45rem;
     }
     .app-title {
-        margin-bottom: 1rem;
+        margin-bottom: 2.2rem !important;
         padding: 0.35rem 0 0.2rem 0;
     }
     .app-title h1 {
         font-size: 1.75rem;
         letter-spacing: 0;
-        margin: 0;
+        margin: 0 !important;
         color: var(--xai-text);
     }
     .app-title p {
         color: var(--xai-muted);
-        margin: 0.05rem 0 0 0;
+        margin: -0.15rem 0 0 0 !important;
         font-size: 0.95rem;
     }
     .run-card {
@@ -274,6 +274,9 @@ st.markdown("""
         background: linear-gradient(180deg, rgba(96, 165, 250, 0.18), rgba(45, 212, 191, 0.08));
         color: var(--xai-text);
         border-bottom: 2px solid var(--xai-accent);
+    }
+    div[data-baseweb="tab-highlight"] {
+        background-color: transparent !important;
     }
     [data-testid="stMetric"] {
         background: linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.035));
@@ -488,6 +491,31 @@ st.markdown("""
         margin-top: 1.8rem !important;
         margin-bottom: 1.2rem !important;
         display: block !important;
+    }
+    
+    /* Nice modern bullets styling */
+    .nice-bullets {
+        list-style: none !important;
+        padding-left: 0 !important;
+        margin: 0 !important;
+        margin-left: -0.9rem !important;
+    }
+    .nice-bullets li {
+        position: relative !important;
+        padding-left: 0.9rem !important;
+        margin-bottom: 0.55rem !important;
+        color: var(--xai-muted) !important;
+        font-size: 0.84rem !important;
+        line-height: 1.45 !important;
+    }
+    .nice-bullets li::before {
+        content: "•" !important;
+        position: absolute !important;
+        left: 0.02rem !important;
+        top: -0.05rem !important;
+        color: var(--xai-accent) !important;
+        font-size: 1.25rem !important;
+        line-height: 1 !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -1075,8 +1103,8 @@ if fragment_api:
 
 # --- PAGE 1: CONFIGURE ---
 def render_configure_page():
-    st.markdown('<div class="step-header">Step 1: Configure Benchmark Settings</div>', unsafe_allow_html=True)
-    
+    st.markdown('<div style="margin-top: 1.5rem;"></div>', unsafe_allow_html=True)
+
     # Row 1
     row1_left, row1_right = st.columns([2, 1])
     with row1_left:
@@ -1144,7 +1172,12 @@ def render_configure_page():
     row4_left, row4_right = st.columns([2, 1])
     with row4_left:
         st.markdown('<div style="margin-top: 35px; font-weight: bold; margin-bottom: 8px; font-size: 1.1em; color: var(--xai-text);">Measurement Details</div>', unsafe_allow_html=True)
-        st.markdown('<div class="settings-hint">Warmups are not reported in statistics. Measured repeats are timed and summarized with median, mean, and standard deviation.<div style="margin-top: 6px;"><b>Task Ordering</b>: Benchmark runs are executed in a <b>Balanced</b> order (automatically rotating resolutions and model architectures) to mitigate PyTorch/CUDA caching allocator and execution-order bias.</div></div>', unsafe_allow_html=True)
+        st.markdown("""
+        <ul class="nice-bullets">
+            <li><b>Warmups</b> are not reported in statistics. Measured repeats are timed and summarized with median, mean, and standard deviation.</li>
+            <li><b>Task Ordering</b>: Benchmark runs are executed in a <b>Balanced</b> order (automatically rotating resolutions and model architectures) to mitigate PyTorch/CUDA caching allocator and execution-order bias.</li>
+        </ul>
+        """, unsafe_allow_html=True)
     with row4_right:
         st.markdown('<div style="margin-top: 35px; font-weight: bold; margin-bottom: 8px; font-size: 1.1em; color: var(--xai-text);">Hardware Status</div>', unsafe_allow_html=True)
         if "GPU" in st.session_state.selected_device_mode:
@@ -1153,8 +1186,7 @@ def render_configure_page():
             st.warning(f"**CPU Active:** {get_cpu_info()}")
 
     st.divider()
-    st.markdown('<div class="step-header">Step 2: Select Input Images</div>', unsafe_allow_html=True)
-    
+
     col_input, col_spacer, col_preview = st.columns([2.5, 0.2, 0.8])
     with col_input:
         uploaded_files = st.file_uploader(
@@ -1464,7 +1496,7 @@ def render_active_run_page():
 
             st.divider()
 
-        st.markdown('<div class="step-header">Detailed Per-Image Attribution Heatmaps</div>', unsafe_allow_html=True)
+        st.markdown('<div class="step-header">Detailed Per-Image Attribution Heatmaps and Results</div>', unsafe_allow_html=True)
         render_result_view_controls("current_final_results")
         for group in sorted_result_groups(st.session_state.last_run_results):
             render_result_group(group, st.session_state.current_batch_methods)
@@ -1473,7 +1505,7 @@ def render_active_run_page():
 
 # --- PAGE 3: HISTORY & EVALUATION ---
 def render_history_page():
-    st.markdown('<div class="step-header">Benchmark History & Evaluation</div>', unsafe_allow_html=True)
+    st.markdown('<div style="margin-top: 1.5rem;"></div>', unsafe_allow_html=True)
     
     batches = sm.list_batches()
     if not batches:
@@ -1510,7 +1542,7 @@ def render_history_page():
                     hdf = hdf.sort_values(by=["Method", "Resolution"])
                     
                     h_total_time = meta.get("total_execution_time", 0)
-                    st.markdown('<div class="step-header">Batch Summary (Historical)</div>', unsafe_allow_html=True)
+                    st.markdown('<div style="margin-top: 1.5rem;"></div>', unsafe_allow_html=True)
                     if h_total_time:
                         st.markdown(f"**Batch Wall Time:** `{format_time(h_total_time)}`")
                     st.caption(f"Started: {display_timestamp(meta.get('started_at'))} | Completed: {display_timestamp(meta.get('completed_at'))}")
@@ -1571,7 +1603,7 @@ def render_history_page():
                     st.divider()
 
                 # Per-image results
-                st.markdown('<div class="step-header">Detailed Per-Image Attribution Heatmaps</div>', unsafe_allow_html=True)
+                st.markdown('<div class="step-header">Detailed Per-Image Attribution Heatmaps and Results</div>', unsafe_allow_html=True)
                 render_result_view_controls(f"history_results_{bid}")
                 for group in meta["results"]:
                     render_result_group(group, meta["methods"])
@@ -1689,7 +1721,7 @@ with tab2:
     render_history_page()
 
 with tab3:
-    st.markdown('<div class="step-header">Citation Details</div>', unsafe_allow_html=True)
+    st.markdown('<div style="margin-top: 1.5rem;"></div>', unsafe_allow_html=True)
     st.markdown("If you use this benchmark in your research, papers, or projects, please cite it using the following BibTeX entry:")
     
     st.code("""@software{alimzade2025xai,
