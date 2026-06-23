@@ -319,6 +319,13 @@ st.markdown("""
         background: linear-gradient(180deg, rgba(239, 68, 68, 0.14), rgba(220, 38, 38, 0.08)) !important;
         color: var(--xai-text) !important;
     }
+    /* Increase font-size of locked size warning caption */
+    div[data-testid="column"]:has(input[disabled]) [data-testid="stCaptionContainer"] {
+        font-size: 0.88rem !important;
+    }
+    div[data-testid="column"]:has(input[disabled]) code {
+        font-size: 1.0rem !important;
+    }
     [data-testid="stFileUploader"] {
         background: rgba(255, 255, 255, 0.045);
         border: 1px dashed rgba(96, 165, 250, 0.36);
@@ -900,9 +907,18 @@ def get_batch_display_name(bid, base_dir):
                 date_part = parts[1]
                 time_part = parts[2]
                 
-                # Format date
+                # Format date to DD-MM-YYYY
                 if len(date_part) == 8: # YYYYMMDD
-                    date_str = f"{date_part[:4]}-{date_part[4:6]}-{date_part[6:]}"
+                    year = date_part[:4]
+                    month = date_part[4:6]
+                    day = date_part[6:]
+                    date_str = f"{day}-{month}-{year}"
+                elif "-" in date_part: # YYYY-MM-DD
+                    y_m_d = date_part.split("-")
+                    if len(y_m_d) == 3:
+                        date_str = f"{y_m_d[2]}-{y_m_d[1]}-{y_m_d[0]}"
+                    else:
+                        date_str = date_part
                 else:
                     date_str = date_part
                     
@@ -912,7 +928,8 @@ def get_batch_display_name(bid, base_dir):
                 else:
                     time_str = time_part.replace("-", ":")
                     
-                display_time = f"{date_str} {time_str}"
+                # 4 non-breaking spaces between date and time
+                display_time = f"{date_str}\u00A0\u00A0\u00A0\u00A0{time_str}"
             else:
                 display_time = bid
                 
@@ -943,7 +960,8 @@ def get_batch_display_name(bid, base_dir):
             model_lbl = f"{len(models)} model" if len(models) == 1 else f"{len(models)} models"
             method_lbl = f"{len(methods)} method" if len(methods) == 1 else f"{len(methods)} methods"
             
-            return f"{display_time} ({img_lbl}, {model_lbl}, {method_lbl})"
+            # 4 non-breaking spaces before details parenthesis
+            return f"{display_time}\u00A0\u00A0\u00A0\u00A0({img_lbl}, {model_lbl}, {method_lbl})"
         except Exception:
             return bid
     return bid
@@ -1319,10 +1337,14 @@ def render_configure_page():
     # Row 2
     row2_left, row2_right = st.columns([2, 1])
     with row2_left:
-        fixed_size_trigger = any(m in ["vit-b-16", "swin-t"] for m in selected_models_widget)
-        if fixed_size_trigger:
+        fixed_models = [m for m in selected_models_widget if m in ["vit-b-16", "swin-t"]]
+        if fixed_models:
             st.text_input("Input Sizes (px)", value="224", disabled=True)
-            st.caption("⚠️ *Fixed-size architecture selected (Locked to 224px)*")
+            if len(fixed_models) == 1:
+                st.caption(f"⚠️ *Fixed-size architecture selected (Locked to 224px):* **`{fixed_models[0]}`**")
+            else:
+                formatted_models = ", ".join([f"**`{m}`**" for m in fixed_models])
+                st.caption(f"⚠️ *Fixed-size architectures selected (Locked to 224px):* {formatted_models}")
         else:
             st.text_input(
                 "Input Sizes (px)",
@@ -1617,7 +1639,7 @@ def render_active_run_page():
             memory_col = metric_col(fdf, ATTR_MEMORY_COL, LEGACY_MEMORY_COL)
             
             st.markdown('<div class="step-header">Batch Summary</div>', unsafe_allow_html=True)
-            st.markdown(f"**Batch Wall Time:** `{format_time(st.session_state.total_execution_time)}`")
+            st.markdown(f"**Total Duration:** `{format_time(st.session_state.total_execution_time)}`")
             st.caption(f"Started: {display_timestamp(st.session_state.batch_started_at)} | Completed: {display_timestamp(st.session_state.batch_completed_at)}")
             render_environment_summary(collect_environment_metadata("cuda" if "GPU" in st.session_state.selected_device_mode else "cpu"))
             
@@ -1740,7 +1762,7 @@ def render_history_page():
                     
                     # Header row with metadata
                     if h_total_time:
-                        st.markdown(f"**Batch Wall Time:** `{format_time(h_total_time)}`")
+                        st.markdown(f"**Total Duration:** `{format_time(h_total_time)}`")
                     st.caption(f"Started: {display_timestamp(meta.get('started_at'))} | Completed: {display_timestamp(meta.get('completed_at'))}")
                             
                     with st.expander("Environment & Configuration Details", expanded=False):
@@ -1769,7 +1791,7 @@ def render_history_page():
                             with open(h_pdf, "rb") as f:
                                 st.download_button("📄 Export PDF", data=f, file_name=f"{bid}.pdf", mime="application/pdf", key=f"pdf_{bid}", use_container_width=True)
                     with hx3:
-                        if st.button("🗑️ Delete Batch", key=f"del_{bid}", use_container_width=True):
+                        if st.button("Delete Batch", key=f"del_{bid}", use_container_width=True):
                             sm.delete_batch(bid)
                             st.success(f"Batch {bid} deleted.")
                             st.rerun()
@@ -1824,7 +1846,7 @@ def render_history_page():
                     st.error(f"Error reading historical data: {str(e)}")
                 with header_right:
                     st.markdown('<div style="margin-top: 10px;"></div>', unsafe_allow_html=True)
-                    if st.button("🗑️ Delete Batch", key=f"del_corr_{bid}", use_container_width=True):
+                    if st.button("Delete Batch", key=f"del_corr_{bid}", use_container_width=True):
                         sm.delete_batch(bid)
                         st.success(f"Batch {bid} deleted.")
                         st.rerun()
@@ -1833,11 +1855,31 @@ def render_history_page():
             st.info("Loading metadata for this batch...")
     else:
         # Multi-Batch Evaluation Mode!
-        st.markdown("### 🎛️ Combined Multi-Batch Evaluation Dashboard")
+        del_col_spacer, del_col_top = st.columns([2.8, 2.2])
+        with del_col_top:
+            if st.button("Delete All Selected Batches", key="del_all_top", use_container_width=True):
+                for bid in selected_bids:
+                    sm.delete_batch(bid)
+                st.success("Selected batches deleted successfully!")
+                st.rerun()
+            st.markdown('<div class="delete-marker" style="display: none;"></div>', unsafe_allow_html=True)
+            
+        st.markdown("### Combined Multi-Batch Evaluation Dashboard")
         
         all_combined_results = []
         env_records = []
         methods_in_batches = set()
+        
+        # Metadata accumulation
+        combined_total_time = 0
+        started_times = []
+        completed_times = []
+        combined_models = set()
+        combined_methods = set()
+        combined_resolutions = set()
+        combined_repeats = set()
+        combined_warmups = set()
+        total_images = 0
         
         for bid in selected_bids:
             batch_meta_p = os.path.join(sm.base_dir, bid, "batch_results.json")
@@ -1848,6 +1890,13 @@ def render_history_page():
                     
                     methods_in_batches.update(meta.get("methods", []))
                     
+                    # Accumulate times
+                    combined_total_time += meta.get("total_execution_time", 0)
+                    if meta.get("started_at"):
+                        started_times.append(meta["started_at"])
+                    if meta.get("completed_at"):
+                        completed_times.append(meta["completed_at"])
+                        
                     env = meta.get("environment", {})
                     gpu_names = ", ".join([d.get("name", "Unknown GPU") for d in env.get("cuda_devices", [])]) or "None"
                     env_records.append({
@@ -1856,10 +1905,34 @@ def render_history_page():
                         "Torch": env.get("torch_version", "unknown"),
                         "CUDA": env.get("torch_cuda_version") or "N/A",
                         "Platform": env.get("platform", "unknown")[:25] + "..." if len(env.get("platform", "unknown")) > 25 else env.get("platform", "unknown"),
-                        "Wall Time": format_time(meta.get("total_execution_time", 0))
+                        "Total Duration": format_time(meta.get("total_execution_time", 0))
                     })
                     
-                    for group in meta["results"]:
+                    settings = meta.get("benchmark_settings", {})
+                    if settings:
+                        combined_models.update(settings.get("models", []))
+                        combined_methods.update(settings.get("methods", []))
+                        combined_resolutions.update(settings.get("input_sizes", []))
+                        if settings.get("repeat_count") is not None:
+                            combined_repeats.add(settings.get("repeat_count"))
+                        if settings.get("warmup_runs") is not None:
+                            combined_warmups.add(settings.get("warmup_runs"))
+                            
+                    results = meta.get("results", [])
+                    if results:
+                        total_images += len(results)
+                        if not settings or not settings.get("models") or not settings.get("methods"):
+                            for g in results:
+                                for m in g.get("models", []):
+                                    if m.get("model_name"):
+                                        combined_models.add(m.get("model_name"))
+                                    for r in m.get("results", []):
+                                        if r.get("Method"):
+                                            combined_methods.add(r.get("Method"))
+                                        if "Resolution" in r and r.get("Resolution"):
+                                            combined_resolutions.add(str(r.get("Resolution")))
+                                            
+                    for group in results:
                         for model_entry in group["models"]:
                             for r in model_entry["results"]:
                                 r_copy = r.copy()
@@ -1875,14 +1948,70 @@ def render_history_page():
             runtime_col = metric_col(combined_df, ATTR_RUNTIME_COL, LEGACY_RUNTIME_COL)
             memory_col = metric_col(combined_df, ATTR_MEMORY_COL, LEGACY_MEMORY_COL)
             
-            if env_records:
-                st.subheader("💻 Executing Environments")
-                st.table(pd.DataFrame(env_records))
+            # Header metadata section
+            st.markdown('<div style="margin-top: 1.5rem;"></div>', unsafe_allow_html=True)
+            if combined_total_time:
+                st.markdown(f"**Total Duration:** `{format_time(combined_total_time)}`")
+            time_range_str = ""
+            if started_times and completed_times:
+                time_range_str = f" | Time Range: {display_timestamp(min(started_times))} to {display_timestamp(max(completed_times))}"
+            st.caption(f"Combined {len(selected_bids)} batches{time_range_str}")
+            
+            # Combined Environment & Configuration details expander
+            with st.expander("Environment & Configuration Details", expanded=False):
+                if env_records:
+                    st.markdown('<div style="font-weight: 600; margin-bottom: 8px; color: var(--xai-text);">Executing Environments</div>', unsafe_allow_html=True)
+                    st.table(pd.DataFrame(env_records))
+                    st.markdown('<div style="margin-top: 1.5rem;"></div>', unsafe_allow_html=True)
+                
+                st.markdown('<div style="font-weight: 600; margin-bottom: 8px; color: var(--xai-text);">Combined Configuration Summary</div>', unsafe_allow_html=True)
+                
+                # Format lists nicely for configuration summary
+                models_list = sorted(list(combined_models))
+                methods_list = sorted(list(combined_methods))
+                resolutions_list = sorted([str(r) for r in combined_resolutions])
+                repeats_list = sorted([str(r) for r in combined_repeats])
+                warmups_list = sorted([str(w) for w in combined_warmups])
+                
+                def clean_val(v):
+                    if v is None or str(v).strip() in ["", "nan", "None", "."]:
+                        return "-"
+                    return str(v)
+                    
+                combined_rows = [
+                    ("Batches Combined", clean_val(len(selected_bids)), ", ".join(selected_bids)),
+                    ("Images Analyzed", clean_val(total_images), "-"),
+                    ("Models", clean_val(len(models_list)), ", ".join(models_list) if models_list else "-"),
+                    ("Methods", clean_val(len(methods_list)), ", ".join(methods_list) if methods_list else "-"),
+                    ("Input Resolutions", clean_val(len(resolutions_list)), ", ".join(resolutions_list) if resolutions_list else "-"),
+                    ("Repeats per Config", clean_val(len(repeats_list)), ", ".join(repeats_list) if repeats_list else "-"),
+                    ("Warmup Runs", clean_val(len(warmups_list)), ", ".join(warmups_list) if warmups_list else "-"),
+                ]
+                
+                config_table_html = """<table style="width:100%; border-collapse: collapse; font-family: sans-serif; font-size: 0.88rem; color: var(--xai-text); margin-bottom: 0.5rem;">
+  <thead>
+    <tr style="border-bottom: 2px solid var(--xai-border); text-align: left; color: var(--xai-muted);">
+      <th style="padding: 8px 10px; width: 160px; font-weight: 600;">Parameter</th>
+      <th style="padding: 8px 10px; width: 80px; font-weight: 600;">Count / Value</th>
+      <th style="padding: 8px 10px; font-weight: 600;">Detail</th>
+    </tr>
+  </thead>
+  <tbody>"""
+                
+                for param, count, detail in combined_rows:
+                    config_table_html += f"""<tr style="border-bottom: 1px solid rgba(148, 163, 184, 0.12);">
+  <td style="padding: 8px 10px; font-weight: 500; color: var(--xai-text);">{param}</td>
+  <td style="padding: 8px 10px; color: var(--xai-muted);">{count}</td>
+  <td style="padding: 8px 10px; color: var(--xai-muted);">{detail}</td>
+</tr>"""
+                    
+                config_table_html += "</tbody></table>"
+                st.markdown(config_table_html, unsafe_allow_html=True)
                 
             st.divider()
             
-            st.subheader("📊 Comparative Performance Visualizations")
-            chart_tab1, chart_tab2 = st.tabs(["⏱️ Attribution Runtime", "💾 Peak Memory Overhead"])
+            st.subheader("Comparative Performance Visualizations")
+            chart_tab1, chart_tab2 = st.tabs(["Attribution Runtime", "Peak Memory Overhead"])
             
             with chart_tab1:
                 st.pyplot(plot_combined_batches_comparison(combined_df))
@@ -1891,7 +2020,7 @@ def render_history_page():
                 
             st.divider()
             
-            st.subheader("📈 Combined Grouped Averages")
+            st.subheader("Combined Grouped Averages")
             group_cols = ["Batch", "Model"]
             if "Resolution" in combined_df.columns:
                 group_cols.append("Resolution")
@@ -1906,14 +2035,9 @@ def render_history_page():
             
             st.table(style_dataframe(combined_summary_df))
             
-            st.divider()
-            if st.button("🗑️ Delete All Selected Batches", use_container_width=True):
-                for bid in selected_bids:
-                    sm.delete_batch(bid)
-                st.success("Selected batches deleted successfully!")
-                st.rerun()
             
-            with st.expander("🔍 View Raw Combined Dataset", expanded=False):
+            
+            with st.expander("View Raw Combined Dataset", expanded=False):
                 st.dataframe(style_dataframe(presentation_df(combined_df)))
         else:
             st.error("No valid results found in the selected batches.")
