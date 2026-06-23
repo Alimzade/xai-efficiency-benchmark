@@ -306,6 +306,19 @@ st.markdown("""
         border-color: rgba(45, 212, 191, 0.55) !important;
         background: linear-gradient(180deg, rgba(96, 165, 250, 0.24), rgba(45, 212, 191, 0.18)) !important;
     }
+    /* Reddish theme for delete buttons containing .delete-marker */
+    div:has(.delete-marker) div.stButton > button {
+        border-radius: 8px !important;
+        border: 1px solid rgba(239, 68, 68, 0.15) !important;
+        background: linear-gradient(180deg, rgba(239, 68, 68, 0.08), rgba(220, 38, 38, 0.04)) !important;
+        color: var(--xai-text) !important;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    }
+    div:has(.delete-marker) div.stButton > button:hover {
+        border-color: rgba(239, 68, 68, 0.35) !important;
+        background: linear-gradient(180deg, rgba(239, 68, 68, 0.14), rgba(220, 38, 38, 0.08)) !important;
+        color: var(--xai-text) !important;
+    }
     [data-testid="stFileUploader"] {
         background: rgba(255, 255, 255, 0.045);
         border: 1px dashed rgba(96, 165, 250, 0.36);
@@ -826,19 +839,195 @@ def plot_runtime_memory_scatter(df):
 def render_environment_summary(environment):
     if not environment:
         return
-    with st.expander("Environment Metadata", expanded=False):
-        gpu_names = ", ".join([d.get("name", "Unknown GPU") for d in environment.get("cuda_devices", [])]) or "None"
-        env_df = pd.DataFrame([
-            {"Field": "Git Commit", "Value": environment.get("git_commit", "unknown")},
-            {"Field": "Python", "Value": environment.get("python_version", "unknown")},
-            {"Field": "Platform", "Value": environment.get("platform", "unknown")},
-            {"Field": "Torch", "Value": environment.get("torch_version", "unknown")},
-            {"Field": "Torch CUDA", "Value": environment.get("torch_cuda_version") or "not available"},
-            {"Field": "CUDA Available", "Value": environment.get("cuda_available", False)},
-            {"Field": "Selected Device", "Value": environment.get("selected_device", "unknown")},
-            {"Field": "GPU(s)", "Value": gpu_names},
-        ])
-        st.table(env_df)
+        
+    gpu_names = ", ".join([d.get("name", "Unknown GPU") for d in environment.get("cuda_devices", [])]) or "None"
+    
+    # Helper to clean strings and handle missing
+    def clean_val(v):
+        if v is None or str(v).strip() in ["", "nan", "None", ".", "unknown", "not available"]:
+            return "-"
+        return str(v)
+        
+    env_rows = [
+        ("Git Commit", clean_val(environment.get("git_commit"))),
+        ("Python", clean_val(environment.get("python_version"))),
+        ("Platform", clean_val(environment.get("platform"))),
+        ("Torch", clean_val(environment.get("torch_version"))),
+        ("Selected Device", clean_val(environment.get("selected_device"))),
+        ("GPU(s)", clean_val(gpu_names)),
+    ]
+    
+    # Build HTML table with controlled column widths and style matching Config Metadata
+    table_html = """
+    <table style="width:100%; border-collapse: collapse; font-family: sans-serif; font-size: 0.88rem; color: var(--xai-text); margin-bottom: 0.5rem;">
+      <thead>
+        <tr style="border-bottom: 2px solid var(--xai-border); text-align: left; color: var(--xai-muted);">
+          <th style="padding: 8px 10px; width: 160px; font-weight: 600;">Field</th>
+          <th style="padding: 8px 10px; font-weight: 600;">Value</th>
+        </tr>
+      </thead>
+      <tbody>
+    """
+    
+    for field, value in env_rows:
+        table_html += f"""
+        <tr style="border-bottom: 1px solid rgba(148, 163, 184, 0.12);">
+          <td style="padding: 8px 10px; font-weight: 500; color: var(--xai-text);">{field}</td>
+          <td style="padding: 8px 10px; color: var(--xai-muted);">{value}</td>
+        </tr>
+        """
+        
+    table_html += """
+      </tbody>
+    </table>
+    """
+    
+    # Clean up whitespace to prevent markdown block parsing issues
+    clean_html = table_html.replace("\n", "").replace("    ", "").strip()
+    st.markdown(clean_html, unsafe_allow_html=True)
+
+@st.cache_data(show_spinner=False)
+def get_batch_display_name(bid, base_dir):
+    batch_meta_p = os.path.join(base_dir, bid, "batch_results.json")
+    if os.path.exists(batch_meta_p):
+        try:
+            with open(batch_meta_p, 'r') as f:
+                meta = json.load(f)
+            
+            # Format date & time from: Batch_YYYYMMDD_HHMMSS or Batch_YYYY-MM-DD_HH-MM-SS
+            parts = bid.split("_")
+            if len(parts) >= 3:
+                date_part = parts[1]
+                time_part = parts[2]
+                
+                # Format date
+                if len(date_part) == 8: # YYYYMMDD
+                    date_str = f"{date_part[:4]}-{date_part[4:6]}-{date_part[6:]}"
+                else:
+                    date_str = date_part
+                    
+                # Format time
+                if len(time_part) == 6: # HHMMSS
+                    time_str = f"{time_part[:2]}:{time_part[2:4]}:{time_part[4:]}"
+                else:
+                    time_str = time_part.replace("-", ":")
+                    
+                display_time = f"{date_str} {time_str}"
+            else:
+                display_time = bid
+                
+            results = meta.get("results", [])
+            img_count = len(results)
+            
+            settings = meta.get("benchmark_settings", {}) or {}
+            models = settings.get("models", []) or []
+            methods = settings.get("methods", []) or meta.get("methods", []) or []
+            
+            # Fallback if settings are empty
+            if not models or not methods:
+                scanned_models = set()
+                scanned_methods = set()
+                for g in results:
+                    for m in g.get("models", []):
+                        if m.get("model_name"):
+                            scanned_models.add(m.get("model_name"))
+                        for r in m.get("results", []):
+                            if r.get("Method"):
+                                scanned_methods.add(r.get("Method"))
+                if not models:
+                    models = list(scanned_models)
+                if not methods:
+                    methods = list(scanned_methods)
+                
+            img_lbl = f"{img_count} img" if img_count == 1 else f"{img_count} imgs"
+            model_lbl = f"{len(models)} model" if len(models) == 1 else f"{len(models)} models"
+            method_lbl = f"{len(methods)} method" if len(methods) == 1 else f"{len(methods)} methods"
+            
+            return f"{display_time} ({img_lbl}, {model_lbl}, {method_lbl})"
+        except Exception:
+            return bid
+    return bid
+
+def render_configuration_summary(settings, results):
+    if not results:
+        return
+    # Fallback to scanning results if settings is empty/missing
+    if not settings:
+        settings = {}
+        
+    models = settings.get("models", [])
+    methods = settings.get("methods", [])
+    sizes = settings.get("input_sizes", [])
+    repeats = settings.get("repeat_count")
+    warmups = settings.get("warmup_runs")
+    
+    if not models or not methods or not sizes:
+        scanned_models = set()
+        scanned_methods = set()
+        scanned_sizes = set()
+        for g in results:
+            for m in g.get("models", []):
+                if m.get("model_name"):
+                    scanned_models.add(m.get("model_name"))
+                for r in m.get("results", []):
+                    if r.get("Method"):
+                        scanned_methods.add(r.get("Method"))
+                    if "Resolution" in r and r.get("Resolution"):
+                        scanned_sizes.add(str(r.get("Resolution")))
+        if not models:
+            models = sorted(list(scanned_models))
+        if not methods:
+            methods = sorted(list(scanned_methods))
+        if not sizes:
+            sizes = sorted(list(scanned_sizes))
+            
+    img_count = len(results)
+    
+    # Helper to clean strings and handle missing
+    def clean_val(v):
+        if v is None or str(v).strip() in ["", "nan", "None", "."]:
+            return "-"
+        return str(v)
+        
+    config_rows = [
+        ("Images Analyzed", clean_val(img_count), "-"),
+        ("Models", clean_val(len(models)), ", ".join(models) if models else "-"),
+        ("Methods", clean_val(len(methods)), ", ".join(methods) if methods else "-"),
+        ("Input Resolutions", clean_val(len(sizes)), ", ".join([str(s) for s in sizes]) if sizes else "-"),
+        ("Repeats per Config", clean_val(repeats), "-"),
+        ("Warmup Runs", clean_val(warmups), "-"),
+    ]
+    
+    # Build HTML table with controlled column widths
+    table_html = """
+    <table style="width:100%; border-collapse: collapse; font-family: sans-serif; font-size: 0.88rem; color: var(--xai-text); margin-bottom: 0.5rem;">
+      <thead>
+        <tr style="border-bottom: 2px solid var(--xai-border); text-align: left; color: var(--xai-muted);">
+          <th style="padding: 8px 10px; width: 160px; font-weight: 600;">Parameter</th>
+          <th style="padding: 8px 10px; width: 80px; font-weight: 600;">Count</th>
+          <th style="padding: 8px 10px; font-weight: 600;">Detail</th>
+        </tr>
+      </thead>
+      <tbody>
+    """
+    
+    for param, count, detail in config_rows:
+        table_html += f"""
+        <tr style="border-bottom: 1px solid rgba(148, 163, 184, 0.12);">
+          <td style="padding: 8px 10px; font-weight: 500; color: var(--xai-text);">{param}</td>
+          <td style="padding: 8px 10px; color: var(--xai-muted);">{count}</td>
+          <td style="padding: 8px 10px; color: var(--xai-muted);">{detail}</td>
+        </tr>
+        """
+        
+    table_html += """
+      </tbody>
+    </table>
+    """
+    
+    # Clean up whitespace to prevent the markdown parser from treating indented HTML as code
+    clean_html = table_html.replace("\n", "").replace("    ", "").strip()
+    st.markdown(clean_html, unsafe_allow_html=True)
 
 def render_result_view_controls(key_prefix):
     components.html(f"""
@@ -1519,6 +1708,7 @@ def render_history_page():
     selected_bids = st.multiselect(
         "Select Benchmark Batch(es) to View & Evaluate",
         [b["id"] for b in batches],
+        format_func=lambda bid: get_batch_display_name(bid, sm.base_dir),
         help="Select one batch to view its standard results, or multiple batches to combine and compare them."
     )
 
@@ -1547,12 +1737,22 @@ def render_history_page():
                     
                     h_total_time = meta.get("total_execution_time", 0)
                     st.markdown('<div style="margin-top: 1.5rem;"></div>', unsafe_allow_html=True)
+                    
+                    # Header row with metadata
                     if h_total_time:
                         st.markdown(f"**Batch Wall Time:** `{format_time(h_total_time)}`")
                     st.caption(f"Started: {display_timestamp(meta.get('started_at'))} | Completed: {display_timestamp(meta.get('completed_at'))}")
-                    render_environment_summary(meta.get("environment"))
+                            
+                    with st.expander("Environment & Configuration Details", expanded=False):
+                        meta_col1, meta_col_spacer, meta_col2 = st.columns([1.8, 0.2, 2.0])
+                        with meta_col1:
+                            st.markdown('<div style="font-weight: 600; margin-bottom: 8px; color: var(--xai-text);">Environment Summary</div>', unsafe_allow_html=True)
+                            render_environment_summary(meta.get("environment"))
+                        with meta_col2:
+                            st.markdown('<div style="font-weight: 600; margin-bottom: 8px; color: var(--xai-text);">Benchmark Configuration</div>', unsafe_allow_html=True)
+                            render_configuration_summary(meta.get("benchmark_settings"), meta.get("results"))
 
-                    hx1, hx2, hx3 = st.columns([1, 1, 3])
+                    hx1, hx2, hx3, hx_spacer = st.columns([1, 1, 1.2, 1.8])
                     with hx1:
                         h_csv = os.path.join(sm.base_dir, bid, f"{bid}.csv")
                         if not os.path.exists(h_csv):
@@ -1568,6 +1768,12 @@ def render_history_page():
                         if os.path.exists(h_pdf):
                             with open(h_pdf, "rb") as f:
                                 st.download_button("📄 Export PDF", data=f, file_name=f"{bid}.pdf", mime="application/pdf", key=f"pdf_{bid}", use_container_width=True)
+                    with hx3:
+                        if st.button("🗑️ Delete Batch", key=f"del_{bid}", use_container_width=True):
+                            sm.delete_batch(bid)
+                            st.success(f"Batch {bid} deleted.")
+                            st.rerun()
+                        st.markdown('<div class="delete-marker" style="display: none;"></div>', unsafe_allow_html=True)
 
                     hc1, hc2 = st.columns(2)
                     with hc1:
@@ -1612,17 +1818,17 @@ def render_history_page():
                 for group in meta["results"]:
                     render_result_group(group, meta["methods"])
 
-                st.divider()
-                if st.button("🗑️ Delete Batch", key=f"del_{bid}", use_container_width=True):
-                    sm.delete_batch(bid)
-                    st.success(f"Batch {bid} deleted.")
-                    st.rerun()
             except Exception as e:
-                st.error(f"Error reading historical data: {str(e)}")
-                if st.button("🗑️ Delete Corrupted Batch", key=f"del_corr_{bid}", use_container_width=True):
-                    sm.delete_batch(bid)
-                    st.success(f"Batch {bid} deleted.")
-                    st.rerun()
+                header_left, header_right = st.columns([4, 1.2])
+                with header_left:
+                    st.error(f"Error reading historical data: {str(e)}")
+                with header_right:
+                    st.markdown('<div style="margin-top: 10px;"></div>', unsafe_allow_html=True)
+                    if st.button("🗑️ Delete Batch", key=f"del_corr_{bid}", use_container_width=True):
+                        sm.delete_batch(bid)
+                        st.success(f"Batch {bid} deleted.")
+                        st.rerun()
+                    st.markdown('<div class="delete-marker" style="display: none;"></div>', unsafe_allow_html=True)
         else:
             st.info("Loading metadata for this batch...")
     else:
