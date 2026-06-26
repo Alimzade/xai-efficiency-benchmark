@@ -8,7 +8,6 @@ captum
 memory_profiler
 opencv-python
 requests
-tensorflow
 pandas
 scikit-image
 scikit-learn
