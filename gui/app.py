@@ -553,6 +553,13 @@ st.markdown("""
 sm = SessionManager()
 
 # --- HELPER FUNCTIONS ---
+def get_device_string(mode_str):
+    if "CUDA" in mode_str:
+        return "cuda"
+    elif "MPS" in mode_str:
+        return "mps"
+    return "cpu"
+
 ATTR_RUNTIME_COL = "Attribution Runtime (sec)"
 ATTR_MEMORY_COL = "Peak Attribution Memory (MB)"
 LEGACY_RUNTIME_COL = "Runtime (sec)"
@@ -1183,7 +1190,14 @@ if 'selected_methods' not in st.session_state: st.session_state.selected_methods
 if 'selected_warmups' not in st.session_state: st.session_state.selected_warmups = 1
 if 'selected_repeats' not in st.session_state: st.session_state.selected_repeats = 5
 if 'selected_run_order' not in st.session_state: st.session_state.selected_run_order = "Balanced"
-default_device_mode = "GPU (CUDA)" if torch.cuda.is_available() else "CPU"
+has_cuda = torch.cuda.is_available()
+has_mps = hasattr(torch.backends, "mps") and torch.backends.mps.is_available()
+default_device_mode = "CPU"
+if has_cuda:
+    default_device_mode = "GPU (CUDA)"
+elif has_mps:
+    default_device_mode = "GPU (MPS)"
+
 if 'selected_device_mode' not in st.session_state: st.session_state.selected_device_mode = default_device_mode
 if 'current_page' not in st.session_state: st.session_state.current_page = "Configure"
 
@@ -1373,7 +1387,14 @@ def render_configure_page():
             key="selected_methods",
         )
     with row3_right:
-        device_options = ["GPU (CUDA)", "CPU"] if torch.cuda.is_available() else ["CPU"]
+        has_cuda = torch.cuda.is_available()
+        has_mps = hasattr(torch.backends, "mps") and torch.backends.mps.is_available()
+        device_options = ["CPU"]
+        if has_cuda:
+            device_options.insert(0, "GPU (CUDA)")
+        elif has_mps:
+            device_options.insert(0, "GPU (MPS)")
+
         if st.session_state.selected_device_mode not in device_options:
             st.session_state.selected_device_mode = device_options[0]
         st.radio(
@@ -1396,7 +1417,13 @@ def render_configure_page():
     with row4_right:
         st.markdown('<div style="margin-top: 35px; font-weight: bold; margin-bottom: 8px; font-size: 1.1em; color: var(--xai-text);">Hardware Status</div>', unsafe_allow_html=True)
         if "GPU" in st.session_state.selected_device_mode:
-            st.success(f"**GPU Active:** {torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'Active'}")
+            if torch.cuda.is_available():
+                gpu_desc = torch.cuda.get_device_name(0)
+            elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+                gpu_desc = "Apple Silicon GPU (MPS)"
+            else:
+                gpu_desc = "Active"
+            st.success(f"**GPU Active:** {gpu_desc}")
         else:
             st.warning(f"**CPU Active:** {get_cpu_info()}")
 
@@ -1641,7 +1668,7 @@ def render_active_run_page():
             st.markdown('<div class="step-header">Batch Summary</div>', unsafe_allow_html=True)
             st.markdown(f"**Total Duration:** `{format_time(st.session_state.total_execution_time)}`")
             st.caption(f"Started: {display_timestamp(st.session_state.batch_started_at)} | Completed: {display_timestamp(st.session_state.batch_completed_at)}")
-            render_environment_summary(collect_environment_metadata("cuda" if "GPU" in st.session_state.selected_device_mode else "cpu"))
+            render_environment_summary(collect_environment_metadata(get_device_string(st.session_state.selected_device_mode)))
             
             # --- EXPORT BUTTONS ---
             ex1, ex2, ex3 = st.columns([1, 1, 3])
@@ -1662,7 +1689,7 @@ def render_active_run_page():
                             st.session_state.current_batch_methods,
                             pdf_path,
                             st.session_state.total_execution_time,
-                            collect_environment_metadata("cuda" if "GPU" in st.session_state.selected_device_mode else "cpu")
+                            collect_environment_metadata(get_device_string(st.session_state.selected_device_mode))
                         )
                 if os.path.exists(pdf_path):
                     with open(pdf_path, "rb") as f:
@@ -2105,7 +2132,7 @@ if st.session_state.benchmark_running and not st.session_state.is_finished:
             "model_name": model_name, 
             "image_source": model_entry["src_path"], 
             "methods": [method_name.lower()], 
-            "force_device": "cuda" if "GPU" in st.session_state.selected_device_mode else "cpu", 
+            "force_device": get_device_string(st.session_state.selected_device_mode), 
             "input_size": target_size,
             "warmup_runs": st.session_state.selected_warmups,
             "repeat_count": st.session_state.selected_repeats,
@@ -2140,7 +2167,7 @@ if st.session_state.benchmark_running and not st.session_state.is_finished:
                         "input_sizes": st.session_state.current_batch_sizes,
                         "methods": st.session_state.current_batch_methods
                     },
-                    "environment": collect_environment_metadata("cuda" if "GPU" in st.session_state.selected_device_mode else "cpu"),
+                    "environment": collect_environment_metadata(get_device_string(st.session_state.selected_device_mode)),
                     "started_at": st.session_state.batch_started_at,
                     "completed_at": st.session_state.batch_completed_at,
                     "total_execution_time": st.session_state.total_execution_time

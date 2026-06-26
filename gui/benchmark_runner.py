@@ -46,12 +46,26 @@ GRAD_CAM_TARGET_LAYERS = {
 }
 
 def sync_device(device):
-    """Wait for queued CUDA work so wall-clock timing reflects actual GPU work."""
+    """Wait for queued CUDA/MPS work so wall-clock timing reflects actual GPU work."""
     if device.type == 'cuda':
         torch.cuda.synchronize(device)
+    elif device.type == 'mps':
+        if hasattr(torch, 'mps') and hasattr(torch.mps, 'synchronize'):
+            torch.mps.synchronize()
 
 def get_cached_model(model_name, device):
     cache_key = (model_name, str(device))
+    
+    # Keep at most 2 different models in cache to prevent VRAM accumulation OOM
+    if cache_key not in MODEL_CACHE and len(MODEL_CACHE) >= 2:
+        oldest_key = list(MODEL_CACHE.keys())[0]
+        del MODEL_CACHE[oldest_key]
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        elif hasattr(torch, 'mps') and hasattr(torch.mps, 'empty_cache'):
+            torch.mps.empty_cache()
+        gc.collect()
+
     was_cached = cache_key in MODEL_CACHE
     if not was_cached:
         MODEL_CACHE[cache_key] = load_model(model_name=model_name, device=device)
@@ -199,11 +213,17 @@ def run_benchmark_task(config, session_dir):
 
             def timed_get_attr(measure_memory=True):
                 peak_memory_mb = None
-                if measure_memory and device.type == 'cuda':
-                    torch.cuda.empty_cache()
-                    gc.collect()
-                    torch.cuda.reset_peak_memory_stats(device)
-                    memory_before = torch.cuda.memory_allocated(device)
+                if measure_memory:
+                    if device.type == 'cuda':
+                        torch.cuda.empty_cache()
+                        gc.collect()
+                        torch.cuda.reset_peak_memory_stats(device)
+                        memory_before = torch.cuda.memory_allocated(device)
+                    elif device.type == 'mps':
+                        if hasattr(torch, 'mps') and hasattr(torch.mps, 'empty_cache'):
+                            torch.mps.empty_cache()
+                        gc.collect()
+                        memory_before = torch.mps.current_allocated_memory() if (hasattr(torch, 'mps') and hasattr(torch.mps, 'current_allocated_memory')) else 0
 
                 sync_device(device)
                 start_time = time.perf_counter()
@@ -211,9 +231,13 @@ def run_benchmark_task(config, session_dir):
                 sync_device(device)
                 runtime_sec = time.perf_counter() - start_time
 
-                if measure_memory and device.type == 'cuda':
-                    peak_memory = torch.cuda.max_memory_allocated(device)
-                    peak_memory_mb = max(peak_memory - memory_before, 0) / (1024 * 1024)
+                if measure_memory:
+                    if device.type == 'cuda':
+                        peak_memory = torch.cuda.max_memory_allocated(device)
+                        peak_memory_mb = max(peak_memory - memory_before, 0) / (1024 * 1024)
+                    elif device.type == 'mps':
+                        memory_after = torch.mps.current_allocated_memory() if (hasattr(torch, 'mps') and hasattr(torch.mps, 'current_allocated_memory')) else 0
+                        peak_memory_mb = max(memory_after - memory_before, 0) / (1024 * 1024)
 
                 return attribution_result, runtime_sec, peak_memory_mb
 
@@ -222,14 +246,16 @@ def run_benchmark_task(config, session_dir):
                 del warmup_attribution
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
-                    gc.collect()
+                elif hasattr(torch, 'mps') and hasattr(torch.mps, 'empty_cache'):
+                    torch.mps.empty_cache()
+                gc.collect()
 
             attribution = None
             runtime_values = []
             memory_values = []
 
             for _ in range(repeat_count):
-                if device.type == 'cuda':
+                if device.type in ['cuda', 'mps']:
                     current_attribution, current_runtime, current_memory = timed_get_attr()
                 else:
                     mem_usage, timed_result = memory_usage((timed_get_attr, ()), interval=0.1, retval=True)
@@ -288,7 +314,9 @@ def run_benchmark_task(config, session_dir):
             del attribution, attr_np, xai_tool
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
-                gc.collect()
+            elif hasattr(torch, 'mps') and hasattr(torch.mps, 'empty_cache'):
+                torch.mps.empty_cache()
+            gc.collect()
 
         except Exception as e:
             results.append({
@@ -317,6 +345,8 @@ def run_benchmark_task(config, session_dir):
     del input_tensor
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
-        gc.collect()
+    elif hasattr(torch, 'mps') and hasattr(torch.mps, 'empty_cache'):
+        torch.mps.empty_cache()
+    gc.collect()
 
     return results
