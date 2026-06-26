@@ -132,7 +132,9 @@ The app also reports:
 - peak attribution memory,
 - total batch wall time.
 
-For CUDA runs, timing synchronizes CUDA before and after measured attribution work. CUDA memory uses Torch peak allocated memory. CPU memory is process-memory based and should not be interpreted as GPU VRAM.
+For CUDA runs, timing synchronizes CUDA before and after measured attribution work. CUDA memory uses Torch peak allocated memory. For MPS (Apple Silicon) runs, timing synchronizes MPS in the same way. CPU memory is process-memory based and should not be interpreted as GPU VRAM.
+
+**CPU memory limitation:** CPU peak memory is measured by polling process memory at 100 ms intervals. If an attribution method completes in less than ~100 ms (common for fast methods like Saliency or Grad-CAM on small inputs), the profiler may miss the allocation spike entirely and report 0.0 MB. This is a known sampling limitation. The reported CPU memory values are most reliable for slower methods or larger input sizes where execution exceeds the polling window. CUDA and MPS memory measurements are not affected by this limitation because they use event-driven allocator tracking.
 
 ## Image-Size Studies
 
