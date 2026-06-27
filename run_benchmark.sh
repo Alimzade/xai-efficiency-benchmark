@@ -35,9 +35,15 @@ if [ ! -f "venv/bin/activate" ]; then
     fi
     
     source venv/bin/activate
-    python -m pip install --upgrade pip
-    echo "[INFO] Starting Smart Setup..."
+    python -m pip install --upgrade pip && \
+    echo "[INFO] Starting Smart Setup..." && \
     python smart_setup.py
+    
+    if [ $? -ne 0 ]; then
+        echo "[ERROR] Installation or smart setup failed. Cleaning up incomplete environment..."
+        rm -rf venv
+        exit 1
+    fi
 else
     # 2. Activate environment
     echo "[INFO] Activating virtual environment..."
