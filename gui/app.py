@@ -15,7 +15,7 @@ from PIL import Image
 import requests
 from io import BytesIO
 from session_manager import SessionManager
-from benchmark_runner import collect_environment_metadata, run_benchmark_task
+from benchmark_runner import collect_environment_metadata, run_benchmark_task, get_cpu_name
 from exporter import generate_pdf_report, generate_csv_report
 
 # --- SILENCE NOISY WARNINGS ---
@@ -667,7 +667,7 @@ def methods_from_result_groups(groups):
                     methods.append(method)
     return methods
 
-def get_cpu_info(): return platform.processor() or "Generic CPU"
+def get_cpu_info(): return get_cpu_name()
 def format_time(seconds):
     if seconds < 60: return f"{seconds:.1f}s"
     elif seconds < 3600: return f"{int(seconds // 60)}m {int(seconds % 60)}s"
