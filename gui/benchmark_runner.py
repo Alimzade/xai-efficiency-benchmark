@@ -133,6 +133,29 @@ def get_git_commit():
     except Exception:
         return "unknown"
 
+def get_cpu_name():
+    try:
+        system = platform.system()
+        if system == "Windows":
+            return platform.processor()
+        elif system == "Darwin":
+            import subprocess
+            return subprocess.check_output(["sysctl", "-n", "machdep.cpu.brand_string"]).decode().strip()
+        elif system == "Linux":
+            if os.path.exists("/proc/cpuinfo"):
+                with open("/proc/cpuinfo", "r") as f:
+                    for line in f:
+                        if "model name" in line:
+                            return line.split(":")[1].strip()
+                # Fallback for ARM Linux (like Raspberry Pi)
+                with open("/proc/cpuinfo", "r") as f:
+                    for line in f:
+                        if "Hardware" in line or "Processor" in line:
+                            return line.split(":")[1].strip()
+    except Exception:
+        pass
+    return platform.processor() or "Generic CPU"
+
 def collect_environment_metadata(device=None):
     cuda_devices = []
     if torch.cuda.is_available():
@@ -150,7 +173,7 @@ def collect_environment_metadata(device=None):
         "git_commit": get_git_commit(),
         "python_version": sys.version.split()[0],
         "platform": platform.platform(),
-        "processor": platform.processor() or "Generic CPU",
+        "processor": get_cpu_name(),
         "torch_version": torch.__version__,
         "torch_cuda_version": torch.version.cuda,
         "cuda_available": torch.cuda.is_available(),
