@@ -1199,6 +1199,9 @@ elif has_mps:
     default_device_mode = "GPU (MPS)"
 
 if 'selected_device_mode' not in st.session_state: st.session_state.selected_device_mode = default_device_mode
+if 'current_device_mode' not in st.session_state: st.session_state.current_device_mode = default_device_mode
+if 'current_warmups' not in st.session_state: st.session_state.current_warmups = 1
+if 'current_repeats' not in st.session_state: st.session_state.current_repeats = 5
 if 'current_page' not in st.session_state: st.session_state.current_page = "Configure"
 
 # --- SIDEBAR ---
@@ -1535,6 +1538,9 @@ def render_configure_page():
             st.session_state.current_batch_methods = list(st.session_state.selected_methods)
             st.session_state.current_batch_models = list(st.session_state.selected_models)
             st.session_state.current_batch_sizes = list(selected_sizes)
+            st.session_state.current_device_mode = st.session_state.selected_device_mode
+            st.session_state.current_warmups = st.session_state.selected_warmups
+            st.session_state.current_repeats = st.session_state.selected_repeats
             st.session_state.task_queue = build_task_queue(
                 len(img_sources),
                 st.session_state.current_batch_models,
@@ -1667,8 +1673,8 @@ def render_active_run_page():
             
             st.markdown('<div class="step-header">Batch Summary</div>', unsafe_allow_html=True)
             st.markdown(f"**Total Duration:** `{format_time(st.session_state.total_execution_time)}`")
-            st.caption(f"Started: {display_timestamp(st.session_state.batch_started_at)} | Completed: {display_timestamp(st.session_state.batch_completed_at)}")
-            render_environment_summary(collect_environment_metadata(get_device_string(st.session_state.selected_device_mode)))
+             st.caption(f"Started: {display_timestamp(st.session_state.batch_started_at)} | Completed: {display_timestamp(st.session_state.batch_completed_at)}")
+            render_environment_summary(collect_environment_metadata(get_device_string(st.session_state.current_device_mode)))
             
             # --- EXPORT BUTTONS ---
             ex1, ex2, ex3 = st.columns([1, 1, 3])
@@ -1684,12 +1690,12 @@ def render_active_run_page():
                 if not os.path.exists(pdf_path):
                     with st.spinner("Generating PDF..."):
                         generate_pdf_report(
-                            st.session_state.current_batch_id,
-                            st.session_state.last_run_results,
-                            st.session_state.current_batch_methods,
-                            pdf_path,
-                            st.session_state.total_execution_time,
-                            collect_environment_metadata(get_device_string(st.session_state.selected_device_mode))
+                             st.session_state.current_batch_id,
+                             st.session_state.last_run_results,
+                             st.session_state.current_batch_methods,
+                             pdf_path,
+                             st.session_state.total_execution_time,
+                             collect_environment_metadata(get_device_string(st.session_state.current_device_mode))
                         )
                 if os.path.exists(pdf_path):
                     with open(pdf_path, "rb") as f:
@@ -2132,10 +2138,10 @@ if st.session_state.benchmark_running and not st.session_state.is_finished:
             "model_name": model_name, 
             "image_source": model_entry["src_path"], 
             "methods": [method_name.lower()], 
-            "force_device": get_device_string(st.session_state.selected_device_mode), 
+            "force_device": get_device_string(st.session_state.current_device_mode), 
             "input_size": target_size,
-            "warmup_runs": st.session_state.selected_warmups,
-            "repeat_count": st.session_state.selected_repeats,
+            "warmup_runs": st.session_state.current_warmups,
+            "repeat_count": st.session_state.current_repeats,
             "run_order": st.session_state.current_run_order
         }, model_entry["session_dir"])
         
@@ -2159,15 +2165,15 @@ if st.session_state.benchmark_running and not st.session_state.is_finished:
                     "results": clean_results, 
                     "methods": st.session_state.current_batch_methods,
                     "benchmark_settings": {
-                        "warmup_runs": st.session_state.selected_warmups,
-                        "repeat_count": st.session_state.selected_repeats,
+                        "warmup_runs": st.session_state.current_warmups,
+                        "repeat_count": st.session_state.current_repeats,
                         "run_order": st.session_state.current_run_order,
                         "task_count": len(task_queue),
                         "models": st.session_state.current_batch_models,
                         "input_sizes": st.session_state.current_batch_sizes,
                         "methods": st.session_state.current_batch_methods
                     },
-                    "environment": collect_environment_metadata(get_device_string(st.session_state.selected_device_mode)),
+                    "environment": collect_environment_metadata(get_device_string(st.session_state.current_device_mode)),
                     "started_at": st.session_state.batch_started_at,
                     "completed_at": st.session_state.batch_completed_at,
                     "total_execution_time": st.session_state.total_execution_time
