@@ -36,13 +36,35 @@ from captum.attr import visualization as viz
 MODEL_CACHE = {}
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+class ViTReshapeWrapper(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.cls_token = None
+    def forward(self, x):
+        self.cls_token = x[:, :1, :]
+        patches = x[:, 1:, :]
+        B, N, C = patches.shape
+        grid_size = int(N ** 0.5)
+        return patches.transpose(1, 2).reshape(B, C, grid_size, grid_size)
+
+class ViTInverseReshapeWrapper(torch.nn.Module):
+    def __init__(self, reshape_wrapper):
+        super().__init__()
+        self.reshape_wrapper = reshape_wrapper
+    def forward(self, x):
+        B, C, H, W = x.shape
+        patches = x.reshape(B, C, H * W).transpose(1, 2)
+        return torch.cat([self.reshape_wrapper.cls_token, patches], dim=1)
+
 GRAD_CAM_TARGET_LAYERS = {
     "resnet50": lambda model: model.layer4[-1],
     "convnext-t": lambda model: model.features[-1],
     "efficientnet-b0": lambda model: model.features[-1],
+    "swin-t": lambda model: model.permute,
     "regnet-y-8gf": lambda model: model.trunk_output.block4,
     "mobilenet-v3-large": lambda model: model.features[-1],
     "densenet121": lambda model: model.features.denseblock4,
+    "vit-b-16": lambda model: model.encoder.layers[-1].ln_1,
 }
 
 def sync_device(device):
@@ -74,6 +96,27 @@ def get_cached_model(model_name, device):
 def get_grad_cam_target_layer(model_name, model):
     if model_name not in GRAD_CAM_TARGET_LAYERS:
         raise ValueError(f"Grad_CAM is not configured for model '{model_name}'.")
+    
+    if model_name == "vit-b-16":
+        # Check if already wrapped
+        already_wrapped = False
+        reshape_layer = None
+        target_block = model.encoder.layers[-1]
+        if isinstance(target_block.ln_1, torch.nn.Sequential):
+            for m in target_block.ln_1:
+                if m.__class__.__name__ == "ViTReshapeWrapper":
+                    already_wrapped = True
+                    reshape_layer = m
+                    break
+        
+        if not already_wrapped:
+            orig_ln1 = target_block.ln_1
+            reshape_layer = ViTReshapeWrapper()
+            inv_reshape_layer = ViTInverseReshapeWrapper(reshape_layer)
+            target_block.ln_1 = torch.nn.Sequential(orig_ln1, reshape_layer, inv_reshape_layer)
+            
+        return reshape_layer
+
     return GRAD_CAM_TARGET_LAYERS[model_name](model)
 
 def normalize_method_name(method_name):
