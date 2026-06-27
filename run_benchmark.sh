@@ -60,4 +60,4 @@ export STREAMLIT_SERVER_HEADLESS=false
 
 # 5. Launch Streamlit UI
 echo "[INFO] Launching XAI Efficiency Benchmark UI..."
-python -m streamlit run gui/app.py --browser.gatherUsageStats=false
+python -m streamlit run gui/app.py --browser.gatherUsageStats=false --logger.level=error 2>&1 | grep -v "components.v1.html\|will be removed after"

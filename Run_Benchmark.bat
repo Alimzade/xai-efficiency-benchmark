@@ -63,7 +63,7 @@ if %errorlevel% neq 0 (
 :: --- LAUNCH ---
 echo [INFO] Launching UI...
 set STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
-python -m streamlit run gui/app.py --browser.gatherUsageStats=false
+python -m streamlit run gui/app.py --browser.gatherUsageStats=false --logger.level=error 2>nul
 
 if %errorlevel% neq 0 (
     echo.

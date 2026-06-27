@@ -1,4 +1,18 @@
+import logging
+import warnings
+# --- SILENCE KNOWN WARNINGS (targeted only) ---
+logging.getLogger("streamlit").setLevel(logging.ERROR)
+warnings.filterwarnings("ignore", category=UserWarning, module="captum.*")
+warnings.filterwarnings("ignore", message=".*components.v1.html.*")
+warnings.filterwarnings("ignore", message=".*use_container_width.*")
+warnings.filterwarnings("ignore", message=".*Passing.*palette.*without assigning.*hue.*")
+
 import streamlit as st
+# Silence sub-logger warnings that get reset during streamlit import
+logging.getLogger("streamlit.runtime.scriptrunner_utils.script_run_context").setLevel(logging.ERROR)
+logging.getLogger("streamlit.runtime.caching.cache_data_api").setLevel(logging.ERROR)
+logging.getLogger("streamlit.runtime.state.session_state_proxy").setLevel(logging.ERROR)
+
 import streamlit.components.v1 as components
 import os
 import time
@@ -18,10 +32,6 @@ from session_manager import SessionManager
 from benchmark_runner import collect_environment_metadata, run_benchmark_task, get_cpu_name
 from exporter import generate_pdf_report, generate_csv_report
 
-# --- SILENCE NOISY WARNINGS ---
-logging.getLogger("streamlit.runtime.scriptrunner_utils.script_run_context").setLevel(logging.ERROR)
-import warnings
-warnings.filterwarnings("ignore", category=UserWarning, module="captum.attr._utils.visualization")
 
 # --- Page Config ---
 st.set_page_config(page_title="XAI Efficiency Benchmark", page_icon="🔍", layout="wide")
@@ -749,7 +759,7 @@ def plot_method_runtime_log(df, title="Runtime Comparison (Log Scale)"):
     runtime_col = metric_col(df, ATTR_RUNTIME_COL, LEGACY_RUNTIME_COL)
     fig, ax = plt.subplots(figsize=(10, 6))
     summary = df.groupby("Method")[runtime_col].mean().sort_values().reset_index()
-    sns.barplot(data=summary, x=runtime_col, y="Method", palette="crest", ax=ax, edgecolor="black")
+    sns.barplot(data=summary, x=runtime_col, y="Method", hue="Method", palette="crest", ax=ax, edgecolor="black", legend=False)
     ax.set_xscale("log"); ax.set_title(title, fontsize=14, fontweight='bold', family='serif')
     ax.grid(True, ls="-", alpha=0.2); plt.tight_layout(); return fig
 
@@ -854,21 +864,29 @@ def render_environment_summary(environment):
     if not environment:
         return
         
-    gpu_names = ", ".join([d.get("name", "Unknown GPU") for d in environment.get("cuda_devices", [])]) or "None"
-    
     # Helper to clean strings and handle missing
     def clean_val(v):
         if v is None or str(v).strip() in ["", "nan", "None", ".", "unknown", "not available"]:
             return "-"
         return str(v)
-        
+
+    selected_device = environment.get("selected_device", "cpu")
+    is_gpu = selected_device.lower() in ("cuda", "mps")
+    
+    if is_gpu:
+        gpu_names = ", ".join([d.get("name", "Unknown GPU") for d in environment.get("cuda_devices", [])]) or "None"
+        device_label = "GPU(s)"
+        device_value = gpu_names
+    else:
+        device_label = "CPU"
+        device_value = environment.get("processor") or "Unknown CPU"
+    
     env_rows = [
         ("Git Commit", clean_val(environment.get("git_commit"))),
         ("Python", clean_val(environment.get("python_version"))),
         ("Platform", clean_val(environment.get("platform"))),
         ("Torch", clean_val(environment.get("torch_version"))),
-        ("Selected Device", clean_val(environment.get("selected_device"))),
-        ("GPU(s)", clean_val(gpu_names)),
+        (device_label, clean_val(device_value)),
     ]
     
     # Build HTML table with controlled column widths and style matching Config Metadata
@@ -1673,7 +1691,7 @@ def render_active_run_page():
             
             st.markdown('<div class="step-header">Batch Summary</div>', unsafe_allow_html=True)
             st.markdown(f"**Total Duration:** `{format_time(st.session_state.total_execution_time)}`")
-             st.caption(f"Started: {display_timestamp(st.session_state.batch_started_at)} | Completed: {display_timestamp(st.session_state.batch_completed_at)}")
+            st.caption(f"Started: {display_timestamp(st.session_state.batch_started_at)} | Completed: {display_timestamp(st.session_state.batch_completed_at)}")
             render_environment_summary(collect_environment_metadata(get_device_string(st.session_state.current_device_mode)))
             
             # --- EXPORT BUTTONS ---
