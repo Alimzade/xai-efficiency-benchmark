@@ -14,8 +14,8 @@ if [ ! -f "venv/bin/activate" ]; then
         if command -v apt-get >/dev/null 2>&1; then
             echo "[INFO] Detected Debian/Ubuntu. Attempting to install missing venv package..."
             PY_VERSION=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
-            echo "[INFO] Running: sudo apt-get update && sudo apt-get install -y python3-${PY_VERSION}-venv"
-            sudo apt-get update && sudo apt-get install -y "python3-${PY_VERSION}-venv"
+            echo "[INFO] Running: sudo apt-get update && sudo apt-get install -y python${PY_VERSION}-venv"
+            sudo apt-get update && sudo apt-get install -y "python${PY_VERSION}-venv"
             if [ $? -eq 0 ]; then
                 echo "[INFO] Installation successful. Retrying virtual environment creation..."
                 rm -rf venv
