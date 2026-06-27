@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# Set TMPDIR to a local directory to bypass /tmp RAM-disk size limits on Linux/macOS
+mkdir -p .pip_tmp
+export TMPDIR="$PWD/.pip_tmp"
+trap "rm -rf .pip_tmp" EXIT
+
 # 1. Check if the virtual environment exists and is Linux-compatible
 if [ ! -f "venv/bin/activate" ]; then
     echo "[INFO] Linux-compatible virtual environment not found. Preparing venv..."
