@@ -17,6 +17,7 @@ import streamlit.components.v1 as components
 import os
 import time
 import pandas as pd
+import numpy as np
 import torch
 import platform
 import matplotlib.pyplot as plt
@@ -578,7 +579,7 @@ METADATA_COLS = ["Timing Scope", "Memory Scope", "Model Cache"]
 PRESENTATION_COL_ORDER = [
     "Method",
     "Model",
-    "Input Size (px)",
+    "Resolution",
     "Original Resolution",
     "Prediction",
     "Device",
@@ -616,7 +617,7 @@ def presentation_df(df):
     duplicate_cols = [
         LEGACY_RUNTIME_COL, "Runtime Median (sec)", "Runtime Mean (sec)",
         "Runtime Std (sec)", "Runtime Min (sec)", "Runtime Max (sec)",
-        LEGACY_MEMORY_COL, "Resolution"
+        LEGACY_MEMORY_COL, "Input Size (px)"
     ] + METADATA_COLS
     df = df.drop(columns=[c for c in duplicate_cols if c in df.columns], errors="ignore")
     ordered_cols = [c for c in PRESENTATION_COL_ORDER if c in df.columns]
@@ -739,7 +740,7 @@ def get_base64(img):
     import base64; return base64.b64encode(buffered.getvalue()).decode()
 
 def style_dataframe(df):
-    df = add_input_size_column(normalize_metric_columns(df))
+    df = normalize_metric_columns(df.copy())
     subset_cols = [c for c in [
         ATTR_RUNTIME_COL, ATTR_MEMORY_COL,
         "Attribution Runtime Median (sec)", "Attribution Runtime Mean (sec)",
@@ -750,6 +751,8 @@ def style_dataframe(df):
     formatters = {c: "{:.4f}" if "sec" in c else "{:.2f}" for c in subset_cols}
     if "Input Size (px)" in df.columns:
         formatters["Input Size (px)"] = "{:.0f}"
+    if "Resolution" in df.columns and pd.api.types.is_numeric_dtype(df["Resolution"]):
+        formatters["Resolution"] = "{:.0f}"
     if "Samples" in df.columns:
         formatters["Samples"] = "{:.0f}"
     return df.style.background_gradient(cmap="coolwarm", subset=subset_cols).format(formatters, na_rep="")
@@ -757,19 +760,225 @@ def style_dataframe(df):
 def plot_method_runtime_log(df, title="Runtime Comparison (Log Scale)"):
     df = normalize_metric_columns(df)
     runtime_col = metric_col(df, ATTR_RUNTIME_COL, LEGACY_RUNTIME_COL)
+    
+    # Sort methods by median runtime
+    order = list(df.groupby("Method")[runtime_col].median().sort_values(ascending=True).index)
+    
+    stats = []
+    for method in order:
+        vals = df[df["Method"] == method][runtime_col].values
+        vals = vals[vals > 0]  # Positive values only for log scale
+        if len(vals) == 0:
+            continue
+        mean_val = float(np.mean(vals))
+        std_val = float(np.std(vals))
+        min_val = float(np.min(vals))
+        max_val = float(np.max(vals))
+        
+        stats.append({
+            "label": method,
+            "med": mean_val,
+            "q1": max(min_val, mean_val - std_val),
+            "q3": min(max_val, mean_val + std_val),
+            "whislo": min_val,
+            "whishi": max_val,
+            "fliers": []
+        })
+        
     fig, ax = plt.subplots(figsize=(10, 6))
-    summary = df.groupby("Method")[runtime_col].mean().sort_values().reset_index()
-    sns.barplot(data=summary, x=runtime_col, y="Method", hue="Method", palette="crest", ax=ax, edgecolor="black", legend=False)
-    ax.set_xscale("log"); ax.set_title(title, fontsize=14, fontweight='bold', family='serif')
-    ax.grid(True, ls="-", alpha=0.2); plt.tight_layout(); return fig
+    if stats:
+        bp = ax.bxp(stats, vert=False, patch_artist=True, showmeans=False)
+        
+        # Style elements to match the requested look
+        for patch in bp['boxes']:
+            patch.set_facecolor('#8ecae6')
+            patch.set_edgecolor('black')
+            patch.set_linewidth(1.0)
+            
+        for line in bp['medians']:
+            line.set_color('black')
+            line.set_linewidth(1.5)
+            
+        for line in bp['whiskers']:
+            line.set_color('black')
+            line.set_linestyle('--')
+            
+        for line in bp['caps']:
+            line.set_color('black')
+            
+        def format_label(val):
+            if val == 0: return "0.00"
+            if val >= 10: return f"{val:.1f}"
+            if val >= 0.1: return f"{val:.2f}"
+            if val >= 0.001: return f"{val:.3f}"
+            return f"{val:.4f}"
+            
+        # Draw labels above whiskers and mean
+        for i, s in enumerate(stats):
+            y = i + 1
+            ax.text(s["whislo"], y + 0.12, format_label(s["whislo"]), ha='center', va='bottom', fontsize=7, color='black', alpha=0.85)
+            ax.text(s["med"], y + 0.12, format_label(s["med"]), ha='center', va='bottom', fontsize=7, color='black', alpha=0.85)
+            ax.text(s["whishi"], y + 0.12, format_label(s["whishi"]), ha='center', va='bottom', fontsize=7, color='black', alpha=0.85)
+
+    ax.set_xscale("log")
+    ax.set_title(title, fontsize=14, fontweight='bold', family='serif')
+    ax.set_xlabel("Runtime (log scale, seconds)")
+    ax.set_ylabel("XAI Method")
+    ax.grid(True, ls="-", alpha=0.2)
+    plt.tight_layout()
+    return fig
+
+def plot_method_memory(df, title="Peak Memory Overhead"):
+    df = normalize_metric_columns(df)
+    memory_col = metric_col(df, ATTR_MEMORY_COL, LEGACY_MEMORY_COL)
+    
+    # Sort methods by median memory
+    order = list(df.groupby("Method")[memory_col].median().sort_values(ascending=True).index)
+    
+    stats = []
+    for method in order:
+        vals = df[df["Method"] == method][memory_col].values
+        vals = vals[vals >= 0]
+        if len(vals) == 0:
+            continue
+        mean_val = float(np.mean(vals))
+        std_val = float(np.std(vals))
+        min_val = float(np.min(vals))
+        max_val = float(np.max(vals))
+        
+        stats.append({
+            "label": method,
+            "med": mean_val,
+            "q1": max(min_val, mean_val - std_val),
+            "q3": min(max_val, mean_val + std_val),
+            "whislo": min_val,
+            "whishi": max_val,
+            "fliers": []
+        })
+        
+    fig, ax = plt.subplots(figsize=(10, 6))
+    if stats:
+        bp = ax.bxp(stats, vert=False, patch_artist=True, showmeans=False)
+        
+        # Style elements
+        for patch in bp['boxes']:
+            patch.set_facecolor('#ffb5a7')
+            patch.set_edgecolor('black')
+            patch.set_linewidth(1.0)
+            
+        for line in bp['medians']:
+            line.set_color('black')
+            line.set_linewidth(1.5)
+            
+        for line in bp['whiskers']:
+            line.set_color('black')
+            line.set_linestyle('--')
+            
+        for line in bp['caps']:
+            line.set_color('black')
+            
+        def format_label(val):
+            if val == 0: return "0.0"
+            if val >= 10: return f"{val:.1f}"
+            return f"{val:.2f}"
+            
+        # Draw labels above whiskers and mean
+        for i, s in enumerate(stats):
+            y = i + 1
+            ax.text(s["whislo"], y + 0.12, format_label(s["whislo"]), ha='center', va='bottom', fontsize=7, color='black', alpha=0.85)
+            ax.text(s["med"], y + 0.12, format_label(s["med"]), ha='center', va='bottom', fontsize=7, color='black', alpha=0.85)
+            ax.text(s["whishi"], y + 0.12, format_label(s["whishi"]), ha='center', va='bottom', fontsize=7, color='black', alpha=0.85)
+
+    ax.set_title(title, fontsize=14, fontweight='bold', family='serif')
+    ax.set_xlabel("Peak Attribution Memory (MB)")
+    ax.set_ylabel("XAI Method")
+    ax.grid(True, ls="-", alpha=0.2)
+    plt.tight_layout()
+    return fig
+
+
 
 def plot_model_comparison_grouped(df, title="Architecture Efficiency Comparison"):
     df = normalize_metric_columns(df)
     runtime_col = metric_col(df, ATTR_RUNTIME_COL, LEGACY_RUNTIME_COL)
     fig, ax = plt.subplots(figsize=(12, 7))
-    sns.barplot(data=df, x="Method", y=runtime_col, hue="Model", palette="colorblind", ax=ax, edgecolor="black")
+    
+    # Sort methods (X-axis) by mean runtime (small to big)
+    methods_order = list(df.groupby("Method")[runtime_col].mean().sort_values(ascending=True).index)
+    # Sort models (Hue/Legend) by mean runtime (small to big)
+    hue_order = list(df.groupby("Model")[runtime_col].mean().sort_values(ascending=True).index)
+    
+    sns.barplot(
+        data=df, 
+        x="Method", 
+        order=methods_order,
+        y=runtime_col, 
+        hue="Model", 
+        hue_order=hue_order,
+        palette="colorblind", 
+        ax=ax, 
+        edgecolor="black",
+        errorbar="sd"
+    )
+    ax.set_yscale("log")
+    ax.set_ylabel("Mean Runtime (log scale, seconds)")
+    ax.set_xlabel("XAI Method")
+    
+    # Put values on top of the bars dynamically based on height with a background mask
+    import math
+    bg_color = ax.get_facecolor()
+    for container in ax.containers:
+        labels = []
+        for rect in container:
+            height = rect.get_height()
+            if math.isnan(height) or height <= 0:
+                labels.append("")
+            elif height < 0.1:
+                labels.append(f"{height:.3f}s")
+            else:
+                labels.append(f"{height:.2f}s")
+        bar_labels = ax.bar_label(container, labels=labels, padding=3, fontsize=8)
+        for label in bar_labels:
+            label.set_bbox(dict(facecolor=bg_color, edgecolor='none', pad=1, alpha=0.85))
+            
     ax.set_title(title, fontsize=14, fontweight='bold', family='serif')
-    plt.xticks(rotation=45); ax.legend(loc='upper left', bbox_to_anchor=(1, 1)); plt.tight_layout(); return fig
+    ax.legend(title="Model Architecture", loc='upper left', bbox_to_anchor=(1, 1))
+    ax.grid(True, ls="-", alpha=0.2)
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    return fig
+
+def plot_model_memory_comparison_grouped(df, title="Architecture Peak Memory Comparison"):
+    df = normalize_metric_columns(df)
+    memory_col = metric_col(df, ATTR_MEMORY_COL, LEGACY_MEMORY_COL)
+    fig, ax = plt.subplots(figsize=(12, 7))
+    
+    # Sort methods (X-axis) by mean memory (small to big)
+    methods_order = list(df.groupby("Method")[memory_col].mean().sort_values(ascending=True).index)
+    # Sort models (Hue/Legend) by mean memory (small to big)
+    hue_order = list(df.groupby("Model")[memory_col].mean().sort_values(ascending=True).index)
+    
+    sns.barplot(
+        data=df, 
+        x="Method", 
+        order=methods_order,
+        y=memory_col, 
+        hue="Model", 
+        hue_order=hue_order,
+        palette="colorblind", 
+        ax=ax, 
+        edgecolor="black",
+        errorbar="sd"
+    )
+    ax.set_ylabel("Mean Peak Memory (MB)")
+    ax.set_xlabel("XAI Method")
+    ax.set_title(title, fontsize=14, fontweight='bold', family='serif')
+    ax.legend(title="Model Architecture", loc='upper left', bbox_to_anchor=(1, 1))
+    ax.grid(True, ls="-", alpha=0.2)
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    return fig
+
 
 def image_size_summary(df):
     df = add_input_size_column(normalize_metric_columns(df))
@@ -784,32 +993,111 @@ def image_size_summary(df):
             "Std Across Images (sec)": (runtime_col, "std"),
             "Samples": (runtime_col, "count"),
             "Mean Peak Attribution Memory (MB)": (memory_col, "mean"),
+            "Std Peak Memory (MB)": (memory_col, "std"),
         }
     ).reset_index()
     summary["Std Across Images (sec)"] = summary["Std Across Images (sec)"].fillna(0)
+    summary["Std Peak Memory (MB)"] = summary["Std Peak Memory (MB)"].fillna(0)
     summary["Input Size (px)"] = summary["Input Size (px)"].astype(int)
-    return summary.sort_values(["Model", "Method", "Input Size (px)"])
+    
+    # Rename Column to Resolution
+    summary = summary.rename(columns={"Input Size (px)": "Resolution"})
+    return summary.sort_values(["Model", "Method", "Resolution"])
 
-def plot_image_size_scaling(summary_df):
+def plot_image_size_runtime_scaling(summary_df):
     fig, ax = plt.subplots(figsize=(10, 6))
-    for (model_name, method_name), group in summary_df.groupby(["Model", "Method"]):
-        group = group.sort_values("Input Size (px)")
+    
+    # Calculate group offsets to prevent overlapping (dodging)
+    groups = list(summary_df.groupby(["Model", "Method"]).groups.keys())
+    num_groups = len(groups)
+    dodge_step = 3.0  # offset step in pixels
+    
+    markers = ["o", "s", "^", "D", "v", "<", ">", "p", "*", "h"]
+    linestyles = ["-", "--", "-.", ":"]
+    
+    for i, (model_name, method_name) in enumerate(groups):
+        group = summary_df[(summary_df["Model"] == model_name) & (summary_df["Method"] == method_name)]
+        group = group.sort_values("Resolution")
+        
+        # Calculate horizontal offset for this group
+        offset = (i - (num_groups - 1) / 2) * dodge_step
+        x_vals = group["Resolution"] + offset
+        
         label = f"{model_name} / {method_name}"
+        marker = markers[i % len(markers)]
+        linestyle = linestyles[i % len(linestyles)]
+        
         ax.errorbar(
-            group["Input Size (px)"],
+            x_vals,
             group["Mean Attribution Runtime (sec)"],
             yerr=group["Std Across Images (sec)"],
-            marker="o",
+            marker=marker,
+            linestyle=linestyle,
+            linewidth=1.5,
             capsize=4,
+            alpha=0.85,
             label=label
         )
-    ax.set_xlabel("Input Size (px)")
+        
+    unique_resolutions = sorted(summary_df["Resolution"].unique())
+    ax.set_xticks(unique_resolutions)
+    ax.set_xticklabels([str(r) for r in unique_resolutions])
+    
+    ax.set_xlabel("Resolution (px)")
     ax.set_ylabel("Mean Attribution Runtime (sec)")
-    ax.set_title("Image Size Scaling", fontsize=14, fontweight='bold')
+    ax.set_title("Image Size Runtime Scaling", fontsize=14, fontweight='bold')
     ax.grid(True, alpha=0.25)
     ax.legend(loc='upper left', bbox_to_anchor=(1, 1))
     plt.tight_layout()
     return fig
+
+def plot_image_size_memory_scaling(summary_df):
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    # Calculate group offsets to prevent overlapping (dodging)
+    groups = list(summary_df.groupby(["Model", "Method"]).groups.keys())
+    num_groups = len(groups)
+    dodge_step = 3.0  # offset step in pixels
+    
+    markers = ["o", "s", "^", "D", "v", "<", ">", "p", "*", "h"]
+    linestyles = ["-", "--", "-.", ":"]
+    
+    for i, (model_name, method_name) in enumerate(groups):
+        group = summary_df[(summary_df["Model"] == model_name) & (summary_df["Method"] == method_name)]
+        group = group.sort_values("Resolution")
+        
+        # Calculate horizontal offset for this group
+        offset = (i - (num_groups - 1) / 2) * dodge_step
+        x_vals = group["Resolution"] + offset
+        
+        label = f"{model_name} / {method_name}"
+        marker = markers[i % len(markers)]
+        linestyle = linestyles[i % len(linestyles)]
+        
+        ax.errorbar(
+            x_vals,
+            group["Mean Peak Attribution Memory (MB)"],
+            yerr=group["Std Peak Memory (MB)"],
+            marker=marker,
+            linestyle=linestyle,
+            linewidth=1.5,
+            capsize=4,
+            alpha=0.85,
+            label=label
+        )
+        
+    unique_resolutions = sorted(summary_df["Resolution"].unique())
+    ax.set_xticks(unique_resolutions)
+    ax.set_xticklabels([str(r) for r in unique_resolutions])
+    
+    ax.set_xlabel("Resolution (px)")
+    ax.set_ylabel("Mean Peak Attribution Memory (MB)")
+    ax.set_title("Image Size Memory Scaling", fontsize=14, fontweight='bold')
+    ax.grid(True, alpha=0.25)
+    ax.legend(loc='upper left', bbox_to_anchor=(1, 1))
+    plt.tight_layout()
+    return fig
+
 
 def method_detail_summary(df):
     df = add_input_size_column(normalize_metric_columns(df))
@@ -831,7 +1119,7 @@ def method_detail_summary(df):
 def fastest_slowest_rows(df, count=5):
     df = presentation_df(df)
     runtime_col = metric_col(df, ATTR_RUNTIME_COL, LEGACY_RUNTIME_COL)
-    cols = [c for c in ["Method", "Model", "Input Size (px)", "Resolution", "Prediction", runtime_col, ATTR_MEMORY_COL] if c in df.columns]
+    cols = [c for c in ["Method", "Model", "Resolution", "Prediction", runtime_col, ATTR_MEMORY_COL] if c in df.columns]
     fastest = df.nsmallest(count, runtime_col)[cols]
     slowest = df.nlargest(count, runtime_col)[cols]
     return fastest, slowest
@@ -847,18 +1135,210 @@ def plot_runtime_distribution(df):
     plt.tight_layout()
     return fig
 
-def plot_runtime_memory_scatter(df):
+def plot_runtime_memory_scatter(df, figsize=(9, 6)):
     df = normalize_metric_columns(df)
     runtime_col = metric_col(df, ATTR_RUNTIME_COL, LEGACY_RUNTIME_COL)
     memory_col = metric_col(df, ATTR_MEMORY_COL, LEGACY_MEMORY_COL)
-    fig, ax = plt.subplots(figsize=(9, 6))
-    sns.scatterplot(data=df, x=runtime_col, y=memory_col, hue="Method", style="Model", s=90, ax=ax)
+    
+    # Group by configuration (Method, Model, Resolution) and average the metrics (across all images)
+    group_cols = ["Method", "Model", "Resolution"]
+    df_config = df.groupby(group_cols).agg({runtime_col: "mean", memory_col: "mean"}).reset_index()
+    
+    # Combine Model and Resolution into a single column for marker style grouping
+    df_config["Model (Resolution)"] = df_config["Model"] + " (" + df_config["Resolution"] + ")"
+    
+    fig, ax = plt.subplots(figsize=figsize)
+    # Style represents Model (Resolution), Hue represents Method. Constant size (s=110)
+    sns.scatterplot(
+        data=df_config, 
+        x=runtime_col, 
+        y=memory_col, 
+        hue="Method", 
+        style="Model (Resolution)", 
+        s=110, 
+        ax=ax, 
+        edgecolor="black"
+    )
     ax.set_title("Runtime vs Peak Attribution Memory", fontsize=14, fontweight='bold')
-    ax.set_xlabel("Attribution Runtime (sec)")
-    ax.set_ylabel("Peak Attribution Memory (MB)")
-    ax.legend(loc='upper left', bbox_to_anchor=(1, 1))
+    ax.set_xlabel("Mean Attribution Runtime (sec)")
+    ax.set_ylabel("Mean Peak Attribution Memory (MB)")
+    
+    # Extract legend handles and insert an empty spacer row between different categories
+    handles, labels = ax.get_legend_handles_labels()
+    new_handles = []
+    new_labels = []
+    from matplotlib.patches import Patch
+    
+    for h, l in zip(handles, labels):
+        # Prepend a blank row when moving to the Model (Resolution) section
+        if l in ["Model (Resolution)", "Model", "Input Size (px)"] and len(new_labels) > 0:
+            new_handles.append(Patch(color='none', label=''))
+            new_labels.append('')
+        new_handles.append(h)
+        new_labels.append(l)
+        
+    ax.legend(new_handles, new_labels, loc='upper left', bbox_to_anchor=(1, 1), labelspacing=0.65)
+    ax.grid(True, ls="-", alpha=0.15)
     plt.tight_layout()
     return fig
+
+def render_analytics_sections(fdf, result_groups):
+    """Render adaptive, collapsible analytics sections based on which dimensions vary."""
+    fdf = normalize_metric_columns(fdf)
+    runtime_col = metric_col(fdf, ATTR_RUNTIME_COL, LEGACY_RUNTIME_COL)
+    memory_col = metric_col(fdf, ATTR_MEMORY_COL, LEGACY_MEMORY_COL)
+    
+    n_methods = fdf["Method"].nunique()
+    n_models = fdf["Model"].nunique()
+    n_resolutions = fdf["Resolution"].nunique() if "Resolution" in fdf.columns else 1
+    
+    # If nothing varies, the per-image results table is sufficient
+    if n_methods <= 1 and n_models <= 1 and n_resolutions <= 1:
+        return
+    
+    with st.expander("📊 Performance Analysis", expanded=True):
+        # 1. Configuration Averages Table at the very top
+        group_cols = ["Method", "Model", "Resolution"]
+        summary_df = fdf.groupby(group_cols).agg(
+            **{
+                "Mean Attribution Runtime (sec)": (runtime_col, "mean"),
+                "Mean Peak Attribution Memory (MB)": (memory_col, "mean"),
+            }
+        ).reset_index()
+        with st.expander("📋 Configuration Averages", expanded=True):
+            st.table(style_dataframe(summary_df))
+        
+            # 2. Side-by-side Configuration Charts of matching height (12, 7)
+            cs1, cs2 = st.columns(2)
+            with cs1:
+                # Architecture & Resolution Efficiency Chart (Log Scale with values)
+                fdf_plot = fdf.copy()
+                fdf_plot["Model_Size"] = fdf_plot["Model"] + " (" + fdf_plot["Resolution"] + ")"
+                
+                # Build custom palette: different base color per model, shades per resolution (larger is darker)
+                import colorsys
+                import matplotlib.colors as mcolors
+                import re
+                
+                def parse_res_num(res_str):
+                    match = re.search(r'\d+', str(res_str))
+                    return int(match.group()) if match else 0
+                
+                base_colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
+                unique_models = sorted(fdf_plot["Model"].unique())
+                model_to_base = {model: base_colors[idx % len(base_colors)] for idx, model in enumerate(unique_models)}
+                
+                custom_palette = {}
+                hue_order = []
+                for model in unique_models:
+                    model_sizes = fdf_plot[fdf_plot["Model"] == model]["Model_Size"].unique()
+                    sorted_sizes = sorted(model_sizes, key=parse_res_num)
+                    hue_order.extend(sorted_sizes)
+                    V = len(sorted_sizes)
+                    base_color = model_to_base[model]
+                    h, l, s = colorsys.rgb_to_hls(*mcolors.to_rgb(base_color))
+                    
+                    for i, ms in enumerate(sorted_sizes):
+                        mult = 1.35 - (i / (V - 1)) * 0.7 if V > 1 else 1.0
+                        new_l = max(0.1, min(0.9, l * mult))
+                        new_rgb = colorsys.hls_to_rgb(h, new_l, s)
+                        custom_palette[ms] = mcolors.to_hex(new_rgb)
+                
+                # Order X-axis Methods from fastest to slowest
+                methods_order = list(fdf_plot.groupby("Method")[runtime_col].mean().sort_values(ascending=True).index)
+                
+                fig_bar, ax_bar = plt.subplots(figsize=(12, 7))
+                sns.barplot(
+                    data=fdf_plot, 
+                    x="Method", 
+                    order=methods_order,
+                    y=runtime_col, 
+                    hue="Model_Size", 
+                    hue_order=hue_order,
+                    palette=custom_palette, 
+                    ax=ax_bar, 
+                    edgecolor="black", 
+                    errorbar="sd"
+                )
+                
+                # Apply log scale
+                ax_bar.set_yscale("log")
+                ax_bar.set_ylabel("Mean Attribution Runtime (sec, log scale)")
+                
+                # Put values on top of the bars dynamically based on height with a background mask
+                import math
+                bg_color = ax_bar.get_facecolor()
+                for container in ax_bar.containers:
+                    labels = []
+                    for rect in container:
+                        height = rect.get_height()
+                        if math.isnan(height) or height <= 0:
+                            labels.append("")
+                        elif height < 0.1:
+                            labels.append(f"{height:.3f}s")
+                        else:
+                            labels.append(f"{height:.2f}s")
+                    bar_labels = ax_bar.bar_label(container, labels=labels, padding=3, fontsize=8)
+                    for label in bar_labels:
+                        label.set_bbox(dict(facecolor=bg_color, edgecolor='none', pad=1, alpha=0.9))
+                    
+                ax_bar.set_title("Architecture & Resolution Efficiency", fontsize=14, fontweight='bold')
+                plt.xticks(rotation=45)
+                ax_bar.legend(loc='upper left', bbox_to_anchor=(1, 1))
+                plt.tight_layout()
+                st.pyplot(fig_bar)
+                
+            with cs2:
+                # Runtime vs Memory Scatter Plot (matching height 12, 7)
+                st.pyplot(plot_runtime_memory_scatter(fdf, figsize=(12, 7)))
+            
+        st.markdown('<div style="margin-top: 1.5rem; border-top: 1px solid var(--xai-border); padding-top: 1rem;"></div>', unsafe_allow_html=True)
+        st.subheader("Detailed Comparisons")
+        
+        # 3. Nested Collapsible Sections for varying dimensions
+        
+        # --- Method Comparison: multiple XAI methods were benchmarked ---
+        if n_methods > 1:
+            with st.expander("📊 XAI Method Comparison", expanded=False):
+                st.table(style_dataframe(method_detail_summary(fdf)))
+                cm1, cm2 = st.columns(2)
+                with cm1:
+                    st.pyplot(plot_method_runtime_log(fdf))
+                with cm2:
+                    st.pyplot(plot_method_memory(fdf))
+        
+        # --- Model Comparison: multiple architectures were benchmarked ---
+        if n_models > 1:
+            with st.expander("🏗️ Model Comparison", expanded=False):
+                model_summary = fdf.groupby("Model").agg(
+                    **{
+                        "Mean Attribution Runtime (sec)": (runtime_col, "mean"),
+                        "Mean Peak Attribution Memory (MB)": (memory_col, "mean"),
+                        "Methods": ("Method", "nunique"),
+                        "Samples": (runtime_col, "count"),
+                    }
+                ).reset_index().sort_values("Mean Attribution Runtime (sec)")
+                st.table(style_dataframe(model_summary))
+                
+                mc1, mc2 = st.columns(2)
+                with mc1:
+                    st.pyplot(plot_model_comparison_grouped(fdf))
+                with mc2:
+                    st.pyplot(plot_model_memory_comparison_grouped(fdf))
+        
+        # --- Resolution Comparison: multiple input resolutions were benchmarked ---
+        if n_resolutions > 1:
+            size_summary_df = image_size_summary(fdf)
+            if not size_summary_df.empty:
+                with st.expander("📐 Resolution Comparison", expanded=False):
+                    st.table(style_dataframe(size_summary_df))
+                    rc1, rc2 = st.columns(2)
+                    with rc1:
+                        st.pyplot(plot_image_size_runtime_scaling(size_summary_df))
+                    with rc2:
+                        st.pyplot(plot_image_size_memory_scaling(size_summary_df))
+    
+    st.divider()
 
 def render_environment_summary(environment):
     if not environment:
@@ -1172,7 +1652,9 @@ def render_result_group(group, selected_methods, expanded=True):
                     if res: arch_results.append(res)
             
             if arch_results:
-                st.table(style_dataframe(presentation_df(pd.DataFrame(arch_results))))
+                raw_df = presentation_df(pd.DataFrame(arch_results))
+                display_cols = [c for c in ["Method", "Resolution", "Prediction", ATTR_RUNTIME_COL, ATTR_MEMORY_COL] if c in raw_df.columns]
+                st.table(style_dataframe(raw_df[display_cols]))
 
 @st.dialog("Image Viewer", width="large")
 def show_lightbox(img):
@@ -1685,16 +2167,14 @@ def render_active_run_page():
             
         if all_r:
             fdf = normalize_metric_columns(pd.DataFrame(all_r))
-            fdf["Model_Size"] = fdf["Model"] + " (" + fdf["Resolution"] + ")"
-            runtime_col = metric_col(fdf, ATTR_RUNTIME_COL, LEGACY_RUNTIME_COL)
-            memory_col = metric_col(fdf, ATTR_MEMORY_COL, LEGACY_MEMORY_COL)
+            result_groups = sorted_result_groups(st.session_state.last_run_results)
             
-            st.markdown('<div class="step-header">Batch Summary</div>', unsafe_allow_html=True)
-            st.markdown(f"**Total Duration:** `{format_time(st.session_state.total_execution_time)}`")
-            st.caption(f"Started: {display_timestamp(st.session_state.batch_started_at)} | Completed: {display_timestamp(st.session_state.batch_completed_at)}")
-            render_environment_summary(collect_environment_metadata(get_device_string(st.session_state.current_device_mode)))
-            
-            # --- EXPORT BUTTONS ---
+            with st.expander("📊 Batch Summary", expanded=True):
+                st.markdown(f"**Total Duration:** `{format_time(st.session_state.total_execution_time)}`")
+                st.caption(f"Started: {display_timestamp(st.session_state.batch_started_at)} | Completed: {display_timestamp(st.session_state.batch_completed_at)}")
+                render_environment_summary(collect_environment_metadata(get_device_string(st.session_state.current_device_mode)))
+                
+            # --- EXPORT & NAVIGATION BUTTONS (Outside expander) ---
             ex1, ex2, ex3 = st.columns([1, 1, 3])
             with ex1:
                 csv_path = os.path.join(sm.base_dir, st.session_state.current_batch_id, f"{st.session_state.current_batch_id}.csv")
@@ -1724,43 +2204,7 @@ def render_active_run_page():
                     st.session_state.current_page = "Configure"
                     rerun_app()
 
-            cs1, cs2 = st.columns(2)
-            with cs1:
-                st.subheader("Configuration Averages")
-                group_cols = ["Model", "Resolution"]
-                if "Original Resolution" in fdf.columns: group_cols.append("Original Resolution")
-                summary_df = fdf.groupby(group_cols).agg({runtime_col: "mean", memory_col: "mean"}).reset_index()
-                st.table(style_dataframe(summary_df))
-                fig1, ax1 = plt.subplots(figsize=(12, 7))
-                sns.barplot(data=fdf, x="Method", y=runtime_col, hue="Model_Size", palette="colorblind", ax=ax1, edgecolor="black")
-                ax1.set_title("Architecture & Resolution Efficiency", fontsize=14, fontweight='bold')
-                plt.xticks(rotation=45); ax1.legend(loc='upper left', bbox_to_anchor=(1, 1)); plt.tight_layout()
-                st.pyplot(fig1)
-            with cs2:
-                st.subheader("Method Averages"); st.table(style_dataframe(fdf.groupby("Method").agg({runtime_col: "mean", memory_col: "mean"}).reset_index()))
-                st.pyplot(plot_method_runtime_log(fdf))
-            st.subheader("Method Detail")
-            st.table(style_dataframe(method_detail_summary(fdf)))
-            fs1, fs2 = st.columns(2)
-            fastest_df, slowest_df = fastest_slowest_rows(fdf)
-            with fs1:
-                st.subheader("Fastest Runs")
-                st.table(style_dataframe(fastest_df))
-            with fs2:
-                st.subheader("Slowest Runs")
-                st.table(style_dataframe(slowest_df))
-            dist1, dist2 = st.columns(2)
-            with dist1:
-                st.pyplot(plot_runtime_distribution(fdf))
-            with dist2:
-                st.pyplot(plot_runtime_memory_scatter(fdf))
-            size_summary_df = image_size_summary(fdf)
-            if not size_summary_df.empty:
-                st.subheader("Image Size Scaling")
-                st.table(style_dataframe(size_summary_df))
-                st.pyplot(plot_image_size_scaling(size_summary_df))
-
-            st.divider()
+            render_analytics_sections(fdf, result_groups)
 
         st.markdown('<div class="step-header">Detailed Per-Image Attribution Heatmaps and Results</div>', unsafe_allow_html=True)
         render_result_view_controls("current_final_results")
@@ -1848,42 +2292,7 @@ def render_history_page():
                             st.rerun()
                         st.markdown('<div class="delete-marker" style="display: none;"></div>', unsafe_allow_html=True)
 
-                    hc1, hc2 = st.columns(2)
-                    with hc1:
-                        st.subheader("Configuration Averages")
-                        group_cols = ["Model", "Resolution"]
-                        if "Original Resolution" in hdf.columns: group_cols.append("Original Resolution")
-                        h_summ = hdf.groupby(group_cols).agg({h_runtime_col: "mean", h_memory_col: "mean"}).reset_index()
-                        st.table(style_dataframe(h_summ))
-                        fig_h, ax_h = plt.subplots(figsize=(12, 7))
-                        sns.barplot(data=hdf, x="Method", y=h_runtime_col, hue="Model_Size", palette="colorblind", ax=ax_h, edgecolor="black")
-                        plt.xticks(rotation=45); ax_h.legend(loc='upper left', bbox_to_anchor=(1, 1)); plt.tight_layout()
-                        st.pyplot(fig_h)
-                    with hc2:
-                        st.subheader("Method Averages"); st.table(style_dataframe(hdf.groupby("Method").agg({h_runtime_col: "mean", h_memory_col: "mean"}).reset_index()))
-                        st.pyplot(plot_method_runtime_log(hdf))
-                    st.subheader("Method Detail")
-                    st.table(style_dataframe(method_detail_summary(hdf)))
-                    h_fs1, h_fs2 = st.columns(2)
-                    h_fastest_df, h_slowest_df = fastest_slowest_rows(hdf)
-                    with h_fs1:
-                        st.subheader("Fastest Runs")
-                        st.table(style_dataframe(h_fastest_df))
-                    with h_fs2:
-                        st.subheader("Slowest Runs")
-                        st.table(style_dataframe(h_slowest_df))
-                    h_dist1, h_dist2 = st.columns(2)
-                    with h_dist1:
-                        st.pyplot(plot_runtime_distribution(hdf))
-                    with h_dist2:
-                        st.pyplot(plot_runtime_memory_scatter(hdf))
-                    h_size_summary_df = image_size_summary(hdf)
-                    if not h_size_summary_df.empty:
-                        st.subheader("Image Size Scaling")
-                        st.table(style_dataframe(h_size_summary_df))
-                        st.pyplot(plot_image_size_scaling(h_size_summary_df))
-                        
-                    st.divider()
+                    render_analytics_sections(hdf, meta["results"])
 
                 # Per-image results
                 st.markdown('<div class="step-header">Detailed Per-Image Attribution Heatmaps and Results</div>', unsafe_allow_html=True)
