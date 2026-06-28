@@ -557,7 +557,7 @@ st.markdown("""
 st.markdown("""
     <div class="app-title">
         <h1>XAI Efficiency Benchmark</h1>
-        <p>Compare attribution runtime, peak memory, and image-size behavior across models and methods.</p>
+        <p>Compare attribution runtime, peak memory, and image-size behavior across models, methods and hardwares.</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -749,12 +749,10 @@ def style_dataframe(df):
         "Std Across Images (sec)", "Mean Peak Attribution Memory (MB)"
     ] if c in df.columns]
     formatters = {c: "{:.4f}" if "sec" in c else "{:.2f}" for c in subset_cols}
-    if "Input Size (px)" in df.columns:
-        formatters["Input Size (px)"] = "{:.0f}"
-    if "Resolution" in df.columns and pd.api.types.is_numeric_dtype(df["Resolution"]):
-        formatters["Resolution"] = "{:.0f}"
-    if "Samples" in df.columns:
-        formatters["Samples"] = "{:.0f}"
+    integer_cols = ["Input Size (px)", "Resolution", "Samples", "Methods", "Resolutions", "Images", "Repeats", "Total Attribution Runs"]
+    for col in integer_cols:
+        if col in df.columns and pd.api.types.is_numeric_dtype(df[col]):
+            formatters[col] = "{:.0f}"
     return df.style.background_gradient(cmap="coolwarm", subset=subset_cols).format(formatters, na_rep="")
 
 def plot_method_runtime_log(df, title="Runtime Comparison (Log Scale)"):
@@ -987,7 +985,7 @@ def image_size_summary(df):
     if "Input Size (px)" not in df.columns or df["Input Size (px)"].nunique() < 2:
         return pd.DataFrame()
 
-    summary = df.groupby(["Model", "Method", "Input Size (px)"]).agg(
+    summary = df.groupby(["Input Size (px)"]).agg(
         **{
             "Mean Attribution Runtime (sec)": (runtime_col, "mean"),
             "Std Across Images (sec)": (runtime_col, "std"),
@@ -1002,99 +1000,51 @@ def image_size_summary(df):
     
     # Rename Column to Resolution
     summary = summary.rename(columns={"Input Size (px)": "Resolution"})
-    return summary.sort_values(["Model", "Method", "Resolution"])
+    return summary.sort_values("Resolution")
 
 def plot_image_size_runtime_scaling(summary_df):
     fig, ax = plt.subplots(figsize=(10, 6))
-    
-    # Calculate group offsets to prevent overlapping (dodging)
-    groups = list(summary_df.groupby(["Model", "Method"]).groups.keys())
-    num_groups = len(groups)
-    dodge_step = 3.0  # offset step in pixels
-    
-    markers = ["o", "s", "^", "D", "v", "<", ">", "p", "*", "h"]
-    linestyles = ["-", "--", "-.", ":"]
-    
-    for i, (model_name, method_name) in enumerate(groups):
-        group = summary_df[(summary_df["Model"] == model_name) & (summary_df["Method"] == method_name)]
-        group = group.sort_values("Resolution")
-        
-        # Calculate horizontal offset for this group
-        offset = (i - (num_groups - 1) / 2) * dodge_step
-        x_vals = group["Resolution"] + offset
-        
-        label = f"{model_name} / {method_name}"
-        marker = markers[i % len(markers)]
-        linestyle = linestyles[i % len(linestyles)]
-        
-        ax.errorbar(
-            x_vals,
-            group["Mean Attribution Runtime (sec)"],
-            yerr=group["Std Across Images (sec)"],
-            marker=marker,
-            linestyle=linestyle,
-            linewidth=1.5,
-            capsize=4,
-            alpha=0.85,
-            label=label
-        )
-        
-    unique_resolutions = sorted(summary_df["Resolution"].unique())
-    ax.set_xticks(unique_resolutions)
-    ax.set_xticklabels([str(r) for r in unique_resolutions])
+    summary_df = summary_df.sort_values("Resolution")
+    ax.errorbar(
+        summary_df["Resolution"],
+        summary_df["Mean Attribution Runtime (sec)"],
+        yerr=summary_df["Std Across Images (sec)"],
+        marker="o",
+        linestyle="-",
+        linewidth=2,
+        capsize=4,
+        color="#1f77b4"
+    )
+    ax.set_xticks(summary_df["Resolution"])
+    ax.set_xticklabels([str(r) for r in summary_df["Resolution"]])
     
     ax.set_xlabel("Resolution (px)")
     ax.set_ylabel("Mean Attribution Runtime (sec)")
-    ax.set_title("Image Size Runtime Scaling", fontsize=14, fontweight='bold')
+    ax.set_title("Overall Runtime Scaling by Resolution", fontsize=14, fontweight='bold')
     ax.grid(True, alpha=0.25)
-    ax.legend(loc='upper left', bbox_to_anchor=(1, 1))
     plt.tight_layout()
     return fig
 
 def plot_image_size_memory_scaling(summary_df):
     fig, ax = plt.subplots(figsize=(10, 6))
-    
-    # Calculate group offsets to prevent overlapping (dodging)
-    groups = list(summary_df.groupby(["Model", "Method"]).groups.keys())
-    num_groups = len(groups)
-    dodge_step = 3.0  # offset step in pixels
-    
-    markers = ["o", "s", "^", "D", "v", "<", ">", "p", "*", "h"]
-    linestyles = ["-", "--", "-.", ":"]
-    
-    for i, (model_name, method_name) in enumerate(groups):
-        group = summary_df[(summary_df["Model"] == model_name) & (summary_df["Method"] == method_name)]
-        group = group.sort_values("Resolution")
-        
-        # Calculate horizontal offset for this group
-        offset = (i - (num_groups - 1) / 2) * dodge_step
-        x_vals = group["Resolution"] + offset
-        
-        label = f"{model_name} / {method_name}"
-        marker = markers[i % len(markers)]
-        linestyle = linestyles[i % len(linestyles)]
-        
-        ax.errorbar(
-            x_vals,
-            group["Mean Peak Attribution Memory (MB)"],
-            yerr=group["Std Peak Memory (MB)"],
-            marker=marker,
-            linestyle=linestyle,
-            linewidth=1.5,
-            capsize=4,
-            alpha=0.85,
-            label=label
-        )
-        
-    unique_resolutions = sorted(summary_df["Resolution"].unique())
-    ax.set_xticks(unique_resolutions)
-    ax.set_xticklabels([str(r) for r in unique_resolutions])
+    summary_df = summary_df.sort_values("Resolution")
+    ax.errorbar(
+        summary_df["Resolution"],
+        summary_df["Mean Peak Attribution Memory (MB)"],
+        yerr=summary_df["Std Peak Memory (MB)"],
+        marker="o",
+        linestyle="-",
+        linewidth=2,
+        capsize=4,
+        color="#d62728"
+    )
+    ax.set_xticks(summary_df["Resolution"])
+    ax.set_xticklabels([str(r) for r in summary_df["Resolution"]])
     
     ax.set_xlabel("Resolution (px)")
     ax.set_ylabel("Mean Peak Attribution Memory (MB)")
-    ax.set_title("Image Size Memory Scaling", fontsize=14, fontweight='bold')
+    ax.set_title("Overall Memory Scaling by Resolution", fontsize=14, fontweight='bold')
     ax.grid(True, alpha=0.25)
-    ax.legend(loc='upper left', bbox_to_anchor=(1, 1))
     plt.tight_layout()
     return fig
 
@@ -1191,7 +1141,48 @@ def render_analytics_sections(fdf, result_groups):
     n_methods = fdf["Method"].nunique()
     n_models = fdf["Model"].nunique()
     n_resolutions = fdf["Resolution"].nunique() if "Resolution" in fdf.columns else 1
-    
+
+    # ── Shared workload metric card helper ────────────────────────────────
+    def _stat_card(label, value, is_result=False, suffix=""):
+        if is_result:
+            bg, border = "rgba(16,185,129,0.08)", "1.5px solid rgba(16,185,129,0.45)"
+            lbl_clr, val_clr = "#6ee7b7", "#34d399"
+            suffix_html = f'<div style="font-size:0.62rem;color:#6ee7b7;opacity:0.7;margin-top:2px;">{suffix}</div>' if suffix else ""
+        else:
+            bg, border = "rgba(99,102,241,0.07)", "1.5px solid rgba(99,102,241,0.35)"
+            lbl_clr, val_clr = "#a5b4fc", "inherit"
+            suffix_html = ""
+        return (
+            f'<div style="flex:1;background:{bg};border:{border};border-radius:8px;'
+            f'padding:8px 12px 6px 12px;text-align:center;min-width:0;">'
+            f'<div style="font-size:0.68rem;color:{lbl_clr};letter-spacing:0.07em;'
+            f'text-transform:uppercase;margin-bottom:2px;">{label}</div>'
+            f'<div style="font-size:1.35rem;font-weight:700;line-height:1.1;color:{val_clr};">{value}</div>'
+            + suffix_html + '</div>'
+        )
+
+    def _sep(symbol):
+        clr = "#34d399" if symbol == "=" else "#6366f1"
+        return (
+            f'<span style="font-size:1.2rem;font-weight:500;color:{clr};'
+            f'flex-shrink:0;padding:0 1px;opacity:0.8;">{symbol}</span>'
+        )
+
+    def _cards_row(*items):
+        """items: list of (label, value) or (label, value, is_result) or (label, value, is_result, suffix) or (sep_symbol,)"""
+        html = '<div style="display:flex;align-items:center;gap:6px;width:100%;margin-bottom:12px;">'
+        for item in items:
+            if len(item) == 1:
+                html += _sep(item[0])
+            else:
+                label, value = item[0], item[1]
+                is_result = item[2] if len(item) > 2 else False
+                suffix = item[3] if len(item) > 3 else ""
+                html += _stat_card(label, value, is_result, suffix)
+        html += "</div>"
+        return html
+    # ─────────────────────────────────────────────────────────────────────
+
     # If nothing varies, the per-image results table is sufficient
     if n_methods <= 1 and n_models <= 1 and n_resolutions <= 1:
         return
@@ -1206,6 +1197,18 @@ def render_analytics_sections(fdf, result_groups):
             }
         ).reset_index()
         with st.expander("📋 Configuration Averages", expanded=True):
+            _c_images  = int(fdf["Image Index"].nunique()) if "Image Index" in fdf.columns else 1
+            _c_repeats = int(fdf["Measured Runs"].iloc[0]) if "Measured Runs" in fdf.columns else 1
+            _c_config  = _c_images * _c_repeats
+            _c_total   = n_models * n_methods * n_resolutions * _c_images * _c_repeats
+            st.html(_cards_row(
+                ("Images", _c_images),
+                ("×",),
+                ("Repeats", _c_repeats),
+                ("=",),
+                ("Runs per Config", _c_config, True, "per configuration"),
+                ("Total Runs", _c_total, True, "grand total"),
+            ))
             st.table(style_dataframe(summary_df))
         
             # 2. Side-by-side Configuration Charts of matching height (12, 7)
@@ -1300,6 +1303,22 @@ def render_analytics_sections(fdf, result_groups):
         # --- Method Comparison: multiple XAI methods were benchmarked ---
         if n_methods > 1:
             with st.expander("📊 XAI Method Comparison", expanded=False):
+                _m_models      = int(fdf["Model"].nunique())
+                _m_resolutions = int(fdf["Resolution"].nunique())
+                _m_images      = int(fdf["Image Index"].nunique()) if "Image Index" in fdf.columns else 1
+                _m_repeats     = int(fdf["Measured Runs"].iloc[0]) if "Measured Runs" in fdf.columns else 1
+                _m_total       = _m_models * _m_resolutions * _m_images * _m_repeats
+                st.html(_cards_row(
+                    ("Models", _m_models),
+                    ("×",),
+                    ("Resolutions", _m_resolutions),
+                    ("×",),
+                    ("Images", _m_images),
+                    ("×",),
+                    ("Repeats", _m_repeats),
+                    ("=",),
+                    ("Total Runs", _m_total, True, "per method"),
+                ))
                 st.table(style_dataframe(method_detail_summary(fdf)))
                 cm1, cm2 = st.columns(2)
                 with cm1:
@@ -1310,12 +1329,28 @@ def render_analytics_sections(fdf, result_groups):
         # --- Model Comparison: multiple architectures were benchmarked ---
         if n_models > 1:
             with st.expander("🏗️ Model Comparison", expanded=False):
+                unique_methods     = int(fdf["Method"].nunique())
+                unique_resolutions = int(fdf["Resolution"].nunique())
+                unique_images      = int(fdf["Image Index"].nunique()) if "Image Index" in fdf.columns else 1
+                repeats            = int(fdf["Measured Runs"].iloc[0]) if "Measured Runs" in fdf.columns else 1
+                total_runs         = unique_methods * unique_resolutions * unique_images * repeats
+                st.html(_cards_row(
+                    ("Methods", unique_methods),
+                    ("×",),
+                    ("Resolutions", unique_resolutions),
+                    ("×",),
+                    ("Images", unique_images),
+                    ("×",),
+                    ("Repeats", repeats),
+                    ("=",),
+                    ("Total Runs", total_runs, True, "per model"),
+                ))
+                
+                # Performance comparison table
                 model_summary = fdf.groupby("Model").agg(
                     **{
                         "Mean Attribution Runtime (sec)": (runtime_col, "mean"),
                         "Mean Peak Attribution Memory (MB)": (memory_col, "mean"),
-                        "Methods": ("Method", "nunique"),
-                        "Samples": (runtime_col, "count"),
                     }
                 ).reset_index().sort_values("Mean Attribution Runtime (sec)")
                 st.table(style_dataframe(model_summary))
@@ -1331,6 +1366,22 @@ def render_analytics_sections(fdf, result_groups):
             size_summary_df = image_size_summary(fdf)
             if not size_summary_df.empty:
                 with st.expander("📐 Resolution Comparison", expanded=False):
+                    _r_models  = int(fdf["Model"].nunique())
+                    _r_methods = int(fdf["Method"].nunique())
+                    _r_images  = int(fdf["Image Index"].nunique()) if "Image Index" in fdf.columns else 1
+                    _r_repeats = int(fdf["Measured Runs"].iloc[0]) if "Measured Runs" in fdf.columns else 1
+                    _r_total   = _r_models * _r_methods * _r_images * _r_repeats
+                    st.html(_cards_row(
+                        ("Models", _r_models),
+                        ("×",),
+                        ("Methods", _r_methods),
+                        ("×",),
+                        ("Images", _r_images),
+                        ("×",),
+                        ("Repeats", _r_repeats),
+                        ("=",),
+                        ("Total Runs", _r_total, True, "per resolution"),
+                    ))
                     st.table(style_dataframe(size_summary_df))
                     rc1, rc2 = st.columns(2)
                     with rc1:
@@ -1831,6 +1882,16 @@ if fragment_api:
 
 # --- PAGE 1: CONFIGURE ---
 def render_configure_page():
+    if st.session_state.get("stop_requested") and st.session_state.get("sh_models"):
+        st.session_state.selected_models = st.session_state.sh_models
+        st.session_state.selected_methods = st.session_state.sh_methods
+        st.session_state.input_size_str = st.session_state.sh_input_size_str
+        st.session_state.selected_repeats = st.session_state.sh_repeats
+        st.session_state.selected_warmups = st.session_state.sh_warmups
+        st.session_state.selected_run_order = st.session_state.sh_run_order
+        st.session_state.selected_device_mode = st.session_state.sh_device_mode
+        st.session_state.stop_requested = False
+
     st.markdown('<div style="margin-top: 1.5rem;"></div>', unsafe_allow_html=True)
 
     # Row 1
@@ -1869,8 +1930,11 @@ def render_configure_page():
                 help="Only applicable to CNN-based architectures."
             )
             st.markdown('<div style="margin-top: -15px; margin-bottom: 15px; font-size: 0.85em; color: gray;">Separate by commas (e.g., 224, 448, 512).</div>', unsafe_allow_html=True)
-            if parse_input_sizes(st.session_state.input_size_str) == [224] and st.session_state.input_size_str.strip() not in ["", "224"]:
+            parsed_sizes = parse_input_sizes(st.session_state.input_size_str)
+            if parsed_sizes == [224] and st.session_state.input_size_str.strip() not in ["", "224"]:
                 st.error("Invalid size format. Using 224.")
+            elif any(s < 32 for s in parsed_sizes):
+                st.error("⚠️ Input size must be at least 32px. CNN models will crash at lower resolutions.")
     with row2_right:
         st.number_input(
             "Measured repeats",
@@ -2030,8 +2094,18 @@ def render_configure_page():
         st.session_state.current_batch_sizes = []
         
         if not img_sources or not st.session_state.selected_models or not st.session_state.selected_methods:
-            st.error("Select at least one image, model, and XAI method.")
+            st.error("Select at least one image, model, input size, and XAI method.")
+        elif any(s < 32 for s in selected_sizes):
+            st.error("Cannot start benchmark: All input sizes must be at least 32px to prevent model architecture crashes.")
         else:
+            st.session_state.sh_models = list(st.session_state.selected_models)
+            st.session_state.sh_methods = list(st.session_state.selected_methods)
+            st.session_state.sh_input_size_str = st.session_state.input_size_str
+            st.session_state.sh_repeats = st.session_state.selected_repeats
+            st.session_state.sh_warmups = st.session_state.selected_warmups
+            st.session_state.sh_run_order = st.session_state.selected_run_order
+            st.session_state.sh_device_mode = st.session_state.selected_device_mode
+
             st.session_state.current_batch_id = sm.start_batch()
             st.session_state.last_run_batch_id = st.session_state.current_batch_id
             st.session_state.current_run_order = st.session_state.selected_run_order
@@ -2125,7 +2199,7 @@ def render_active_run_page():
         status_col, timer_col = st.columns([5, 1])
         with status_col:
             st.markdown(
-                f"<div class='status-pulse'>🚀 STEP {idx + 1}/{total_steps}: Running {cur_met} on {cur_mod} @ {cur_size}px (Image {img_i + 1}, {st.session_state.current_run_order} order)</div>",
+                f"<div class='status-pulse'>STEP {idx + 1}/{total_steps}: {cur_met} on {cur_mod} @ {cur_size}px (Image {img_i + 1}, {st.session_state.current_run_order} order)</div>",
                 unsafe_allow_html=True
             )
         with timer_col:
@@ -2163,7 +2237,12 @@ def render_active_run_page():
 
         all_r = []
         for g in sorted_result_groups(st.session_state.last_run_results):
-            for m in g["models"]: all_r.extend(m["results"])
+            img_idx = g["img_idx"]
+            for m in g["models"]:
+                for r in m["results"]:
+                    r_copy = r.copy()
+                    r_copy["Image Index"] = img_idx
+                    all_r.append(r_copy)
             
         if all_r:
             fdf = normalize_metric_columns(pd.DataFrame(all_r))
@@ -2202,6 +2281,19 @@ def render_active_run_page():
                 if st.button("⬅️ Setup Another Run", key="back_from_run_btn", use_container_width=True):
                     st.session_state.is_finished = False
                     st.session_state.current_page = "Configure"
+                    st.session_state.selected_models = ["resnet50"]
+                    st.session_state.selected_methods = ["Saliency", "Integrated_Gradients"]
+                    st.session_state.input_size_str = "224"
+                    st.session_state.selected_repeats = 5
+                    st.session_state.selected_warmups = 1
+                    st.session_state.selected_run_order = "Balanced"
+                    st.session_state.selected_device_mode = default_device_mode
+                    st.session_state.last_run_results = []
+                    st.session_state.completed_batch_id = ""
+                    st.session_state.last_run_batch_id = ""
+                    st.session_state.current_batch_methods = []
+                    st.session_state.current_batch_models = []
+                    st.session_state.current_batch_sizes = []
                     rerun_app()
 
             render_analytics_sections(fdf, result_groups)
@@ -2243,7 +2335,12 @@ def render_history_page():
                 
                 all_h_r = []
                 for g in meta["results"]:
-                    for m in g["models"]: all_h_r.extend(m["results"])
+                    img_idx = g["img_idx"]
+                    for m in g["models"]:
+                        for r in m["results"]:
+                            r_copy = r.copy()
+                            r_copy["Image Index"] = img_idx
+                            all_h_r.append(r_copy)
                 
                 if all_h_r:
                     hdf = normalize_metric_columns(pd.DataFrame(all_h_r))
@@ -2393,10 +2490,12 @@ def render_history_page():
                                             combined_resolutions.add(str(r.get("Resolution")))
                                             
                     for group in results:
+                        img_idx = group["img_idx"]
                         for model_entry in group["models"]:
                             for r in model_entry["results"]:
                                 r_copy = r.copy()
                                 r_copy["Batch"] = bid
+                                r_copy["Image Index"] = img_idx
                                 all_combined_results.append(r_copy)
                 except Exception as e:
                     st.warning(f"Failed to load batch {bid}: {str(e)}")

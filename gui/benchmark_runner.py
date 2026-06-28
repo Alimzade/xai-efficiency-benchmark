@@ -388,11 +388,31 @@ def run_benchmark_task(config, session_dir):
 
         except Exception as e:
             results.append({
-                "Method": method_name, "Model": model_name, "Resolution": img_dims,
+                "Method": method_name, "Model": model_name, "Resolution": img_dims if 'img_dims' in locals() else f"{target_size} x {target_size}",
+                "Input Size (px)": target_size,
                 "Original Resolution": original_dims,
                 "Prediction": predicted_class if 'predicted_class' in locals() else "N/A",
                 "Device": device_info,
-                "Runtime (sec)": 0.0, "Peak Memory (MB)": 0.0, "Status": f"Error: {str(e)}"
+                "Model Cache": "reused" if was_model_cached else "loaded",
+                "Timing Scope": "attribution_only",
+                "Runtime (sec)": 0.0,
+                "Attribution Runtime (sec)": 0.0,
+                "Runtime Median (sec)": 0.0,
+                "Attribution Runtime Median (sec)": 0.0,
+                "Runtime Mean (sec)": 0.0,
+                "Attribution Runtime Mean (sec)": 0.0,
+                "Runtime Std (sec)": 0.0,
+                "Attribution Runtime Std (sec)": 0.0,
+                "Runtime Min (sec)": 0.0,
+                "Attribution Runtime Min (sec)": 0.0,
+                "Runtime Max (sec)": 0.0,
+                "Attribution Runtime Max (sec)": 0.0,
+                "Warmup Runs": warmup_runs,
+                "Measured Runs": repeat_count,
+                "Memory Scope": "attribution_peak",
+                "Peak Memory (MB)": 0.0,
+                "Peak Attribution Memory (MB)": 0.0,
+                "Status": f"Error: {str(e)}"
             })
 
     # 6. Save Results

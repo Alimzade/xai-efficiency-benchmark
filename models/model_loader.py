@@ -1,4 +1,5 @@
 import torch
+import torch.nn as nn
 from torchvision import models, transforms
 from torchvision.models import (
     ResNet50_Weights,
@@ -22,6 +23,53 @@ MODEL_ZOO = {
     'densenet121': (models.densenet121, DenseNet121_Weights.IMAGENET1K_V1),  # DenseNet
     'vit-b-16': (models.vit_b_16, ViT_B_16_Weights.IMAGENET1K_V1)  # Vision Transformer
 }
+
+from torchvision.models.resnet import Bottleneck, BasicBlock
+
+# Patch forward methods and replace relu modules for DeepLift compatibility
+def _patched_bottleneck_forward(self, x):
+    identity = x
+
+    out = self.conv1(x)
+    out = self.bn1(out)
+    out = self.relu1(out)
+
+    out = self.conv2(out)
+    out = self.bn2(out)
+    out = self.relu2(out)
+
+    out = self.conv3(out)
+    out = self.bn3(out)
+
+    if self.downsample is not None:
+        identity = self.downsample(x)
+
+    out += identity
+    out = self.relu3(out)
+
+    return out
+
+def _patched_basicblock_forward(self, x):
+    identity = x
+
+    out = self.conv1(x)
+    out = self.bn1(out)
+    out = self.relu1(out)
+
+    out = self.conv2(out)
+    out = self.bn2(out)
+
+    if self.downsample is not None:
+        identity = self.downsample(x)
+
+    out += identity
+    out = self.relu2(out)
+
+    return out
+
+# Set the classes' forward methods to the patched versions globally:
+Bottleneck.forward = _patched_bottleneck_forward
+BasicBlock.forward = _patched_basicblock_forward
 
 def load_model(model_name='resnet50', device=None):
     """
@@ -47,6 +95,23 @@ def load_model(model_name='resnet50', device=None):
         raise ValueError(f"Model '{model_name}' is not implemented. Available models: {available_models}")
     
     model.eval()
+    
+    # For ResNet architectures, Bottleneck and BasicBlock reuse self.relu module
+    # multiple times, which crashes Captum's DeepLift. We replace them with separate instances.
+    for module in model.modules():
+        if isinstance(module, Bottleneck):
+            module.relu1 = torch.nn.ReLU(inplace=False)
+            module.relu2 = torch.nn.ReLU(inplace=False)
+            module.relu3 = torch.nn.ReLU(inplace=False)
+        elif isinstance(module, BasicBlock):
+            module.relu1 = torch.nn.ReLU(inplace=False)
+            module.relu2 = torch.nn.ReLU(inplace=False)
+            
+    # DeepLift/DeepLiftShap require out-of-place activations (e.g. ReLU(inplace=False))
+    for module in model.modules():
+        if hasattr(module, 'inplace'):
+            module.inplace = False
+            
     return model
 
 # Models that strictly require a fixed size (224x224) due to positional embeddings or window constraints
