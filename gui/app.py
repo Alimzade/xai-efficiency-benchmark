@@ -713,11 +713,13 @@ def current_image_sources():
     images_dir = os.path.join(PROJECT_ROOT, "gui", "images")
     if os.path.exists(images_dir) and os.path.isdir(images_dir):
         try:
+            active_files = st.session_state.get("active_local_filenames")
             for f in sorted(os.listdir(images_dir)):
-                if f.lower().endswith((".jpg", ".jpeg", ".png")):
-                    local_images.append(os.path.join(images_dir, f))
-        except Exception:
-            pass
+                if f.lower().endswith((".jpg", ".jpeg", ".png", ".webp", ".gif")):
+                    if active_files is None or f in active_files:
+                        local_images.append(os.path.join(images_dir, f))
+        except Exception as e:
+            st.error(f"Error loading local images: {str(e)}")
             
     return local_images + list(uploaded_files) + url_list
 
@@ -1929,8 +1931,7 @@ def plot_combined_batches_memory(df):
     return fig
 
 # --- IMAGE PREVIEW FRAGMENT ---
-def render_image_preview_gallery():
-    img_sources = current_image_sources()
+def render_image_preview_gallery(img_sources):
     if img_sources:
         num_imgs = len(img_sources)
         if st.session_state.img_idx >= num_imgs:
@@ -1939,16 +1940,19 @@ def render_image_preview_gallery():
         try:
             if hasattr(current_src, 'name'):
                 img_view = Image.open(current_src)
+                src_name = f"Uploaded: {current_src.name}"
             elif isinstance(current_src, str) and (current_src.startswith("http://") or current_src.startswith("https://")):
                 response = requests.get(current_src)
                 img_view = Image.open(BytesIO(response.content))
+                src_name = "URL Link"
             else:
                 img_view = Image.open(current_src)
+                src_name = f"Local: {os.path.basename(current_src)}"
             st.session_state.current_img_base64 = get_base64(img_view)
             
             html_content = f"""
             <div class="compact-preview">
-                <div style='text-align: center; color: #94a3b8; font-size: 0.8em; margin-bottom: 2px;'>Resolution: {img_view.size[0]}x{img_view.size[1]} px</div>
+                <div style='text-align: center; color: #94a3b8; font-size: 0.8em; margin-bottom: 2px;'>Resolution: {img_view.size[0]}x{img_view.size[1]} px | {src_name}</div>
                 <div class="preview-image-frame"><img src="data:image/png;base64,{st.session_state.current_img_base64}" alt="Selected input preview"></div>
             </div>
             """
@@ -1962,19 +1966,48 @@ def render_image_preview_gallery():
         with n1:
             if st.button("⬅️ Prev", key="prev_btn", use_container_width=True):
                 st.session_state.img_idx = (st.session_state.img_idx - 1) % num_imgs
-                rerun_fragment()
+                rerun_app()
         with n2:
             st.markdown(f"<div style='text-align: center; padding-top: 5px; font-weight: bold;'>{st.session_state.img_idx + 1}/{num_imgs}</div>", unsafe_allow_html=True)
         with n3:
             if st.button("Next ➡️", key="next_btn", use_container_width=True):
                 st.session_state.img_idx = (st.session_state.img_idx + 1) % num_imgs
-                rerun_fragment()
+                rerun_app()
 
-if fragment_api:
-    render_image_preview_gallery = fragment_api(render_image_preview_gallery)
+
+
+def keep_local_images_expanded():
+    st.session_state.local_images_expanded = True
 
 # --- PAGE 1: CONFIGURE ---
 def render_configure_page():
+    # Detect and initialize auto-loaded folder images state (Safe from widget lock here!)
+    local_all = []
+    images_dir = os.path.join(PROJECT_ROOT, "gui", "images")
+    if os.path.exists(images_dir) and os.path.isdir(images_dir):
+        try:
+            for f in sorted(os.listdir(images_dir)):
+                if f.lower().endswith((".jpg", ".jpeg", ".png", ".webp", ".gif")):
+                    local_all.append(f)
+            
+            if local_all:
+                if 'active_local_filenames' not in st.session_state:
+                    st.session_state.active_local_filenames = local_all.copy()
+                    st.session_state.previous_local_all = local_all.copy()
+                else:
+                    prev_all = st.session_state.get("previous_local_all", [])
+                    new_files = [f for f in local_all if f not in prev_all]
+                    if new_files:
+                        st.session_state.active_local_filenames = list(set(st.session_state.active_local_filenames + new_files))
+                    st.session_state.previous_local_all = local_all.copy()
+                
+                # Filter out deleted files
+                st.session_state.active_local_filenames = [
+                    f for f in st.session_state.active_local_filenames if f in local_all
+                ]
+        except Exception as e:
+            st.error(f"Error initializing local images: {str(e)}")
+
     if st.session_state.get("stop_requested") and st.session_state.get("sh_models"):
         st.session_state.selected_models = st.session_state.sh_models
         st.session_state.selected_methods = st.session_state.sh_methods
@@ -2093,10 +2126,54 @@ def render_configure_page():
     with col_input:
         uploaded_files = st.file_uploader(
             "Drag and drop images",
-            type=["jpg", "jpeg", "png"],
+            type=["jpg", "jpeg", "png", "webp", "gif"],
             accept_multiple_files=True,
             key="uploaded_files"
         )
+        
+        # Auto-loaded folder images expander
+        if local_all:
+            active_count = len(st.session_state.active_local_filenames)
+            expanded_val = st.session_state.get("local_images_expanded", False)
+            with st.expander(f"Auto-Loaded Images ({active_count}/{len(local_all)})", expanded=expanded_val):
+                st.session_state.local_images_expanded = False  # Reset state after rendering
+                st.markdown('<div style="font-size: 0.85em; color: var(--xai-muted); margin-bottom: 8px;">Images loaded automatically from <code>gui/images/</code>. Select or remove images to customize the benchmark workload.</div>', unsafe_allow_html=True)
+                st.multiselect(
+                    "Included Images",
+                    options=local_all,
+                    default=local_all,
+                    key="active_local_filenames",
+                    label_visibility="collapsed",
+                    on_change=keep_local_images_expanded
+                )
+                
+                st.markdown('<div style="margin-top: 10px;"></div>', unsafe_allow_html=True)
+                del_col_select, del_col_btn = st.columns([3.2, 0.8])
+                with del_col_select:
+                    file_to_del = st.selectbox(
+                        "Delete file from disk:",
+                        options=["-- Choose file to delete from disk --"] + local_all,
+                        key="local_file_to_delete",
+                        label_visibility="collapsed",
+                        on_change=keep_local_images_expanded
+                    )
+                with del_col_btn:
+                    if file_to_del != "-- Choose file to delete from disk --":
+                        if st.button("🗑️ Delete", key="delete_local_file_btn", help="Permanently delete this file from your local disk.", use_container_width=True):
+                            path = os.path.join(images_dir, file_to_del)
+                            if os.path.exists(path):
+                                try:
+                                    os.remove(path)
+                                    st.session_state.local_images_expanded = True  # Keep expander open on rerun!
+                                    st.toast(f"Deleted {file_to_del} from disk.", icon="🗑️")
+                                    if file_to_del in st.session_state.active_local_filenames:
+                                        st.session_state.active_local_filenames.remove(file_to_del)
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Error: {str(e)}")
+                    else:
+                        st.button("🗑️ Delete", disabled=True, use_container_width=True)
+        
         with st.expander("Paste Image URLs", expanded=False):
             st.text_area(
                 "Input URLs here",
@@ -2105,7 +2182,7 @@ def render_configure_page():
                 key="persisted_urls"
             )
     with col_preview:
-        render_image_preview_gallery()
+        render_image_preview_gallery(current_image_sources())
 
     # Dynamic CSS to replace default file list icons with actual image thumbnails
     if uploaded_files:
@@ -2289,6 +2366,27 @@ def render_active_run_page():
         cur_size = current_task.get("target_size", "?")
         img_i = current_task.get("img_i", 0)
 
+        # Render the summary bar of the active run configuration at the top (visually stable anchor)
+        st.markdown(f"""
+            <div class="run-summary-bar" style="margin-top: 15px; margin-bottom: 8px;">
+                <span class="run-summary-item">Models <strong>{len(st.session_state.current_batch_models)}</strong></span>
+                <span class="run-summary-separator">|</span>
+                <span class="run-summary-item">Size variations <strong>{len(st.session_state.current_batch_sizes)}</strong></span>
+                <span class="run-summary-separator">|</span>
+                <span class="run-summary-item">Methods <strong>{len(st.session_state.current_batch_methods)}</strong></span>
+                <span class="run-summary-separator">|</span>
+                <span class="run-summary-item">Images <strong>{len(st.session_state.prepared_img_sources)}</strong></span>
+                <span class="run-summary-separator">|</span>
+                <span class="run-summary-item">Repeats/config <strong>{st.session_state.current_repeats}</strong></span>
+                <span class="run-summary-separator">|</span>
+                <span class="run-summary-item">Warmups/config <strong>{st.session_state.current_warmups}</strong></span>
+            </div>
+            """, unsafe_allow_html=True)
+
+        # Progress bar (loading line)
+        st.progress(idx / total_steps if total_steps else 0)
+        
+        # Step status details and live elapsed timer below the loading line
         status_col, timer_col = st.columns([5, 1])
         with status_col:
             st.markdown(
@@ -2298,7 +2396,6 @@ def render_active_run_page():
         with timer_col:
             render_live_elapsed_timer(st.session_state.batch_start_time)
             
-        st.progress(idx / total_steps if total_steps else 0)
         st.divider()
         
         if st.button("🛑 Stop Benchmark", use_container_width=True):
