@@ -16,13 +16,231 @@ logging.getLogger("streamlit.runtime.state.session_state_proxy").setLevel(loggin
 import streamlit.components.v1 as components
 import os
 import time
+
+# --- Page Config ---
+st.set_page_config(page_title="XAI Efficiency Benchmark", page_icon="🔍", layout="wide")
+
+# --- INITIALIZATION SPLASH SCREEN ---
+if 'initialized' not in st.session_state:
+    st.session_state.initialized = False
+
+if not st.session_state.initialized:
+    def render_splash(step):
+        def get_status(item_step, active_step):
+            if item_step < active_step:
+                return '<div class="task-icon check-glow">✓</div>', 'color: #34d399; font-weight: 500; opacity: 1;'
+            elif item_step == active_step:
+                return '<div class="task-icon"><div class="pulse-loader"></div></div>', 'color: #38bdf8; font-weight: 600; opacity: 1;'
+            else:
+                return '<div class="task-icon pending"></div>', 'color: #475569; opacity: 0.4;'
+        status1, style1 = get_status(1, step)
+        status2, style2 = get_status(2, step)
+        status3, style3 = get_status(3, step)
+        status4, style4 = get_status(4, step)
+        
+        opacity = 1 if step == 5 else 0
+        launching_html = f"""<div style="margin-top: 1.5rem; border-top: 1px solid rgba(255, 255, 255, 0.06); padding-top: 1rem; opacity: {opacity}; transition: opacity 0.3s ease;">
+    <div class="flicker-text">Starting Benchmark...</div>
+</div>"""
+
+        html = f"""<style>
+html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"], [data-testid="stMainBlockContainer"] {{
+    overflow: hidden !important;
+    height: 100vh !important;
+}}
+[data-testid="stMainBlockContainer"] {{
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 !important;
+}}
+.splash-container {{
+    max-width: 680px;
+    width: 100%;
+    margin: auto !important;
+    padding: 2.2rem 2.5rem;
+    background: linear-gradient(135deg, rgba(17, 24, 39, 0.75) 0%, rgba(15, 23, 42, 0.85) 100%);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    box-shadow: 0 0 50px rgba(45, 212, 191, 0.03), 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: #f1f5f9;
+    text-align: center;
+}}
+.splash-title {{
+    font-size: 2.2rem;
+    font-weight: 800;
+    margin-bottom: 0.15rem;
+    background: linear-gradient(90deg, #2dd4bf, #60a5fa);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: -0.02em;
+}}
+.splash-subtitle {{
+    font-size: 1rem;
+    color: #64748b;
+    margin-bottom: 1.25rem;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}}
+.splash-tasks {{
+    text-align: left;
+    margin: 1.5rem auto;
+    max-width: 540px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    border-radius: 12px;
+    padding: 1.5rem;
+}}
+.task-item {{
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 14px;
+    font-size: 0.92rem;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+}}
+.task-item:last-child {{
+    margin-bottom: 0;
+}}
+.task-icon {{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+}}
+.task-icon.check-glow {{
+    color: #34d399;
+    background: rgba(52, 211, 153, 0.12);
+    border-radius: 50%;
+    font-size: 0.85rem;
+    font-weight: bold;
+    box-shadow: 0 0 8px rgba(52, 211, 153, 0.2);
+}}
+.task-icon.pending {{
+    border: 1.5px solid rgba(148, 163, 184, 0.2);
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+}}
+.pulse-loader {{
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid #38bdf8;
+    border-radius: 50%;
+    border-top-color: transparent;
+    animation: spin 1s linear infinite;
+    box-shadow: 0 0 8px rgba(56, 189, 248, 0.3);
+}}
+.flicker-text {{
+    font-size: 0.95rem;
+    color: #2dd4bf;
+    font-weight: 600;
+    text-align: center;
+    letter-spacing: 0.02em;
+    animation: flicker 1.8s infinite ease-in-out;
+}}
+@keyframes flicker {{
+    0%, 100% {{ opacity: 1; filter: drop-shadow(0 0 3px rgba(45, 212, 191, 0.4)); }}
+    50% {{ opacity: 0.25; filter: drop-shadow(0 0 0px transparent); }}
+}}
+@keyframes spin {{
+    0% {{ transform: rotate(0deg); }}
+    100% {{ transform: rotate(360deg); }}
+}}
+</style>
+<div class="splash-container">
+    <div class="splash-title">XAI Efficiency Benchmark</div>
+    <div class="splash-subtitle">Initializing System Environment</div>
+    <div class="splash-tasks">
+        <div class="task-item" style="{style1}">
+            {status1}
+            <span><b>Loading AI Engine</b>: Importing PyTorch, NumPy, & Pandas...</span>
+        </div>
+        <div class="task-item" style="{style2}">
+            {status2}
+            <span><b>Loading XAI Suite</b>: Initializing Captum explainability algorithms...</span>
+        </div>
+        <div class="task-item" style="{style3}">
+            {status3}
+            <span><b>Hardware Check</b>: Detecting GPU (CUDA/MPS) acceleration...</span>
+        </div>
+        <div class="task-item" style="{style4}">
+            {status4}
+            <span><b>Workspace Setup</b>: Creating cache and session database...</span>
+        </div>
+    </div>
+    {launching_html}
+</div>"""
+        return html
+
+    placeholder = st.empty()
+
+    # --- STEP 1: LOAD FRAMEWORKS ---
+    placeholder.markdown(render_splash(1), unsafe_allow_html=True)
+    import pandas as pd
+    import numpy as np
+    import torch
+    import platform
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+
+    # --- STEP 2: LOAD XAI CORE ---
+    placeholder.markdown(render_splash(2), unsafe_allow_html=True)
+    from captum.attr import (
+        DeepLift,
+        DeepLiftShap,
+        GradientShap,
+        GuidedBackprop,
+        InputXGradient,
+        IntegratedGradients,
+        LayerAttribution,
+        LayerGradCam,
+        Saliency,
+    )
+
+    # --- STEP 3: SYSTEM CHECK ---
+    placeholder.markdown(render_splash(3), unsafe_allow_html=True)
+    has_cuda = torch.cuda.is_available()
+    has_mps = hasattr(torch.backends, "mps") and torch.backends.mps.is_available()
+    time.sleep(0.1)
+
+    # --- STEP 4: WORKSPACE CHECK ---
+    placeholder.markdown(render_splash(4), unsafe_allow_html=True)
+    import json
+    import random
+    from datetime import datetime
+    from PIL import Image
+    import requests
+    from io import BytesIO
+    from session_manager import SessionManager
+    from benchmark_runner import collect_environment_metadata, run_benchmark_task, get_cpu_name
+    from exporter import generate_pdf_report, generate_csv_report
+    
+    sm = SessionManager()
+    time.sleep(0.1)
+
+    # --- STEP 5: FINAL LAUNCH TRANSITION ---
+    placeholder.markdown(render_splash(5), unsafe_allow_html=True)
+    time.sleep(0.12)
+
+    st.session_state.initialized = True
+    st.rerun()
+
+# --- MAIN SCRIPTS TOP-LEVEL IMPORTS (Instantaneous on rerun!) ---
 import pandas as pd
 import numpy as np
 import torch
 import platform
 import matplotlib.pyplot as plt
 import seaborn as sns
-import logging
 import json
 import random
 from datetime import datetime
@@ -34,10 +252,6 @@ from benchmark_runner import collect_environment_metadata, run_benchmark_task, g
 from exporter import generate_pdf_report, generate_csv_report
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-
-# --- Page Config ---
-st.set_page_config(page_title="XAI Efficiency Benchmark", page_icon="🔍", layout="wide")
 
 # CSS
 st.markdown("""
@@ -794,14 +1008,16 @@ def plot_method_runtime_log(df, title="Runtime Comparison (Log Scale)"):
         std_val = float(np.std(vals))
         min_val = float(np.min(vals))
         max_val = float(np.max(vals))
+        q1_val = float(np.percentile(vals, 25))
+        q3_val = float(np.percentile(vals, 75))
         
         stats.append({
             "label": method,
             "med": mean_val,
-            "q1": max(min_val, mean_val - std_val),
-            "q3": min(max_val, mean_val + std_val),
-            "whislo": min_val,
-            "whishi": max_val,
+            "q1": q1_val,
+            "q3": q3_val,
+            "whislo": max(min_val, mean_val - std_val),
+            "whishi": min(max_val, mean_val + std_val),
             "fliers": []
         })
         
@@ -833,14 +1049,13 @@ def plot_method_runtime_log(df, title="Runtime Comparison (Log Scale)"):
             if val >= 0.001: return f"{val:.3f}"
             return f"{val:.4f}"
             
-        # Draw labels: whiskers below, mean above
         for i, s in enumerate(stats):
             y = i + 1
-            ax.text(s["med"], y + 0.22, format_label(s["med"]), ha='center', va='bottom', fontsize=8, color='black', alpha=0.9, fontweight='semibold')
+            ax.text(s["med"], y + 0.30, format_label(s["med"]), ha='center', va='bottom', fontsize=8, color='black', alpha=0.9, fontweight='bold')
             if s["whislo"] < s["med"]:
-                ax.text(s["whislo"], y - 0.22, format_label(s["whislo"]), ha='center', va='top', fontsize=7, color='black', alpha=0.75)
+                ax.text(s["whislo"], y - 0.33, format_label(s["whislo"]), ha='center', va='top', fontsize=7, color='black', alpha=0.75)
             if s["whishi"] > s["med"]:
-                ax.text(s["whishi"], y - 0.22, format_label(s["whishi"]), ha='center', va='top', fontsize=7, color='black', alpha=0.75)
+                ax.text(s["whishi"], y - 0.33, format_label(s["whishi"]), ha='center', va='top', fontsize=7, color='black', alpha=0.75)
 
     ax.set_xscale("log")
     ax.set_title(title, fontsize=14, fontweight='bold', family='serif')
@@ -867,14 +1082,16 @@ def plot_method_memory(df, title="Peak Memory Overhead"):
         std_val = float(np.std(vals))
         min_val = float(np.min(vals))
         max_val = float(np.max(vals))
+        q1_val = float(np.percentile(vals, 25))
+        q3_val = float(np.percentile(vals, 75))
         
         stats.append({
             "label": method,
             "med": mean_val,
-            "q1": max(min_val, mean_val - std_val),
-            "q3": min(max_val, mean_val + std_val),
-            "whislo": min_val,
-            "whishi": max_val,
+            "q1": q1_val,
+            "q3": q3_val,
+            "whislo": max(min_val, mean_val - std_val),
+            "whishi": min(max_val, mean_val + std_val),
             "fliers": []
         })
         
@@ -904,14 +1121,14 @@ def plot_method_memory(df, title="Peak Memory Overhead"):
             if val >= 10: return f"{val:.1f}"
             return f"{val:.2f}"
             
-        # Draw labels: whiskers below, mean above
+        # Draw labels: std below, mean above
         for i, s in enumerate(stats):
             y = i + 1
-            ax.text(s["med"], y + 0.22, format_label(s["med"]), ha='center', va='bottom', fontsize=8, color='black', alpha=0.9, fontweight='semibold')
+            ax.text(s["med"], y + 0.30, format_label(s["med"]), ha='center', va='bottom', fontsize=8, color='black', alpha=0.9, fontweight='bold')
             if s["whislo"] < s["med"]:
-                ax.text(s["whislo"], y - 0.22, format_label(s["whislo"]), ha='center', va='top', fontsize=7, color='black', alpha=0.75)
+                ax.text(s["whislo"], y - 0.33, format_label(s["whislo"]), ha='center', va='top', fontsize=7, color='black', alpha=0.75)
             if s["whishi"] > s["med"]:
-                ax.text(s["whishi"], y - 0.22, format_label(s["whishi"]), ha='center', va='top', fontsize=7, color='black', alpha=0.75)
+                ax.text(s["whishi"], y - 0.33, format_label(s["whishi"]), ha='center', va='top', fontsize=7, color='black', alpha=0.75)
 
     ax.set_title(title, fontsize=14, fontweight='bold', family='serif')
     ax.set_xlabel("Peak Attribution Memory (MB)")
@@ -951,6 +1168,16 @@ def plot_model_comparison_grouped(df, title="Architecture Efficiency Comparison"
     # Put values on top of the bars dynamically based on height with a background mask
     import math
     bg_color = ax.get_facecolor()
+    
+    # Adaptive label rotation to prevent collisions
+    num_hues = len(ax.containers)
+    rot = 90 if num_hues > 3 else 0
+    font_sz = 7 if num_hues > 4 else 8
+    pad_val = 5 if rot == 90 else 3
+    
+    # Add top margin to prevent rotated labels clipping
+    ax.margins(y=0.25 if rot == 90 else 0.15)
+    
     for container in ax.containers:
         labels = []
         for rect in container:
@@ -961,9 +1188,9 @@ def plot_model_comparison_grouped(df, title="Architecture Efficiency Comparison"
                 labels.append(f"{height:.3f}s")
             else:
                 labels.append(f"{height:.2f}s")
-        bar_labels = ax.bar_label(container, labels=labels, padding=3, fontsize=8)
+        bar_labels = ax.bar_label(container, labels=labels, padding=pad_val, fontsize=font_sz, rotation=rot)
         for label in bar_labels:
-            label.set_bbox(dict(facecolor=bg_color, edgecolor='none', pad=1, alpha=0.85))
+            label.set_bbox(dict(facecolor=bg_color, edgecolor='none', pad=0.8, alpha=0.85))
             
     ax.set_title(title, fontsize=14, fontweight='bold', family='serif')
     ax.legend(title="Model Architecture", loc='upper left', bbox_to_anchor=(1, 1))
@@ -1000,6 +1227,16 @@ def plot_model_memory_comparison_grouped(df, title="Architecture Peak Memory Com
     # Put values on top of the bars dynamically based on height with a background mask
     import math
     bg_color = ax.get_facecolor()
+    
+    # Adaptive label rotation to prevent collisions
+    num_hues = len(ax.containers)
+    rot = 90 if num_hues > 3 else 0
+    font_sz = 7 if num_hues > 4 else 8
+    pad_val = 5 if rot == 90 else 3
+    
+    # Add top margin to prevent rotated labels clipping
+    ax.margins(y=0.25 if rot == 90 else 0.15)
+    
     for container in ax.containers:
         labels = []
         for rect in container:
@@ -1008,9 +1245,9 @@ def plot_model_memory_comparison_grouped(df, title="Architecture Peak Memory Com
                 labels.append("")
             else:
                 labels.append(f"{height:.1f}MB")
-        bar_labels = ax.bar_label(container, labels=labels, padding=3, fontsize=8)
+        bar_labels = ax.bar_label(container, labels=labels, padding=pad_val, fontsize=font_sz, rotation=rot)
         for label in bar_labels:
-            label.set_bbox(dict(facecolor=bg_color, edgecolor='none', pad=1, alpha=0.85))
+            label.set_bbox(dict(facecolor=bg_color, edgecolor='none', pad=0.8, alpha=0.85))
             
     ax.set_title(title, fontsize=14, fontweight='bold', family='serif')
     ax.legend(title="Model Architecture", loc='upper left', bbox_to_anchor=(1, 1))
@@ -1317,6 +1554,16 @@ def render_analytics_sections(fdf, result_groups):
                 # Put values on top of the bars dynamically based on height with a background mask
                 import math
                 bg_color = ax_bar.get_facecolor()
+                
+                # Adaptive label rotation to prevent collisions
+                num_hues = len(ax_bar.containers)
+                rot = 90 if num_hues > 3 else 0
+                font_sz = 7 if num_hues > 4 else 8
+                pad_val = 5 if rot == 90 else 3
+                
+                # Add top margin to prevent rotated labels clipping
+                ax_bar.margins(y=0.25 if rot == 90 else 0.15)
+                
                 for container in ax_bar.containers:
                     labels = []
                     for rect in container:
@@ -1327,9 +1574,9 @@ def render_analytics_sections(fdf, result_groups):
                             labels.append(f"{height:.3f}s")
                         else:
                             labels.append(f"{height:.2f}s")
-                    bar_labels = ax_bar.bar_label(container, labels=labels, padding=3, fontsize=8)
+                    bar_labels = ax_bar.bar_label(container, labels=labels, padding=pad_val, fontsize=font_sz, rotation=rot)
                     for label in bar_labels:
-                        label.set_bbox(dict(facecolor=bg_color, edgecolor='none', pad=1, alpha=0.9))
+                        label.set_bbox(dict(facecolor=bg_color, edgecolor='none', pad=0.8, alpha=0.9))
                     
                 ax_bar.set_title("Architecture & Resolution Efficiency", fontsize=14, fontweight='bold')
                 plt.xticks(rotation=45)
