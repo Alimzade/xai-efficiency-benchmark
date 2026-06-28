@@ -107,5 +107,6 @@ You can easily modify and extend the benchmark to customize it for your specific
 ### 3. How to Auto-Load Local Test Images
 To have your own set of local test images load automatically on startup:
 *   Create a folder named `images` inside the `gui/` directory (i.e., `gui/images/`).
-*   Drop your `.jpg`, `.jpeg`, or `.png` images inside that folder.
+*   Drop your `.jpg`, `.jpeg`, `.png`, `.webp`, or `.gif` images inside that folder.
 *   The dashboard will automatically scan this folder on launch and display all detected images in the workspace preview gallery, removing the need to upload them manually every time.
+*   *Note*: Exclusions made via the GUI's **Auto-Loaded Folder Images** multiselect panel are session-based. Refreshing the browser page will re-include all images in `gui/images/`. To permanently exclude an image, remove it from the directory.
