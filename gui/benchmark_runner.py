@@ -304,6 +304,7 @@ def run_benchmark_task(config, session_dir):
                     if device.type == 'cuda':
                         peak_memory = torch.cuda.max_memory_allocated(device)
                         peak_memory_mb = max(peak_memory - memory_before, 0) / (1024 * 1024)
+                    elif device.type == 'mps':
                         memory_after = torch.mps.current_allocated_memory() if (is_mps_available() and hasattr(torch.mps, 'current_allocated_memory')) else 0
                         peak_memory_mb = max(memory_after - memory_before, 0) / (1024 * 1024)
 
@@ -342,6 +343,7 @@ def run_benchmark_task(config, session_dir):
             runtime_min = float(np.min(runtime_values))
             runtime_max = float(np.max(runtime_values))
             peak_memory_mb = float(max(memory_values)) if memory_values else 0.0
+            memory_std = float(np.std(memory_values)) if memory_values else 0.0
             
             # Generate Overlay
             attr_np = np.transpose(attribution.squeeze().cpu().detach().numpy(), (1, 2, 0))
@@ -375,7 +377,8 @@ def run_benchmark_task(config, session_dir):
                 "Measured Runs": repeat_count,
                 "Memory Scope": "attribution_peak",
                 "Peak Memory (MB)": round(peak_memory_mb, 2),
-                "Peak Attribution Memory (MB)": round(peak_memory_mb, 2)
+                "Peak Attribution Memory (MB)": round(peak_memory_mb, 2),
+                "Attribution Memory Std (MB)": round(memory_std, 2)
             })
 
             # Explicitly delete objects and clear cache after each method
@@ -412,6 +415,7 @@ def run_benchmark_task(config, session_dir):
                 "Memory Scope": "attribution_peak",
                 "Peak Memory (MB)": 0.0,
                 "Peak Attribution Memory (MB)": 0.0,
+                "Attribution Memory Std (MB)": 0.0,
                 "Status": f"Error: {str(e)}"
             })
 

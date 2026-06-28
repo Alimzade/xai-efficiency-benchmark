@@ -33,6 +33,8 @@ from session_manager import SessionManager
 from benchmark_runner import collect_environment_metadata, run_benchmark_task, get_cpu_name
 from exporter import generate_pdf_report, generate_csv_report
 
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 
 # --- Page Config ---
 st.set_page_config(page_title="XAI Efficiency Benchmark", page_icon="🔍", layout="wide")
@@ -304,28 +306,28 @@ st.markdown("""
         color: var(--xai-text);
         font-weight: 750;
     }
-    div.stButton > button,
-    div.stDownloadButton > button {
+    div.stButton button,
+    div.stDownloadButton button {
         border-radius: 8px !important;
         border: 1px solid rgba(148, 163, 184, 0.24) !important;
         background: linear-gradient(180deg, rgba(96, 165, 250, 0.18), rgba(45, 212, 191, 0.12)) !important;
         color: var(--xai-text) !important;
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
     }
-    div.stButton > button:hover,
-    div.stDownloadButton > button:hover {
+    div.stButton button:hover,
+    div.stDownloadButton button:hover {
         border-color: rgba(45, 212, 191, 0.55) !important;
         background: linear-gradient(180deg, rgba(96, 165, 250, 0.24), rgba(45, 212, 191, 0.18)) !important;
     }
     /* Reddish theme for delete buttons containing .delete-marker */
-    div:has(.delete-marker) div.stButton > button {
+    div:has(.delete-marker) div.stButton button {
         border-radius: 8px !important;
         border: 1px solid rgba(239, 68, 68, 0.15) !important;
         background: linear-gradient(180deg, rgba(239, 68, 68, 0.08), rgba(220, 38, 38, 0.04)) !important;
         color: var(--xai-text) !important;
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
     }
-    div:has(.delete-marker) div.stButton > button:hover {
+    div:has(.delete-marker) div.stButton button:hover {
         border-color: rgba(239, 68, 68, 0.35) !important;
         background: linear-gradient(180deg, rgba(239, 68, 68, 0.14), rgba(220, 38, 38, 0.08)) !important;
         color: var(--xai-text) !important;
@@ -705,7 +707,19 @@ def parse_input_sizes(size_str):
 def current_image_sources():
     uploaded_files = st.session_state.get("uploaded_files") or []
     url_list = [u.strip() for u in st.session_state.persisted_urls.split("\n") if u.strip()]
-    return list(uploaded_files) + url_list
+    
+    # Auto-load local images from gui/images/ folder if it exists
+    local_images = []
+    images_dir = os.path.join(PROJECT_ROOT, "gui", "images")
+    if os.path.exists(images_dir) and os.path.isdir(images_dir):
+        try:
+            for f in sorted(os.listdir(images_dir)):
+                if f.lower().endswith((".jpg", ".jpeg", ".png")):
+                    local_images.append(os.path.join(images_dir, f))
+        except Exception:
+            pass
+            
+    return local_images + list(uploaded_files) + url_list
 
 def render_live_elapsed_timer(start_time):
     start_ms = int((start_time or time.time()) * 1000)
@@ -746,14 +760,20 @@ def style_dataframe(df):
         "Attribution Runtime Median (sec)", "Attribution Runtime Mean (sec)",
         "Attribution Runtime Std (sec)", "Attribution Runtime Min (sec)",
         "Attribution Runtime Max (sec)", "Mean Attribution Runtime (sec)",
-        "Std Across Images (sec)", "Mean Peak Attribution Memory (MB)"
+        "Std Across Images (sec)", "Mean Peak Attribution Memory (MB)",
+        "Std Peak Memory (MB)", "Attribution Memory Std (MB)"
     ] if c in df.columns]
     formatters = {c: "{:.4f}" if "sec" in c else "{:.2f}" for c in subset_cols}
     integer_cols = ["Input Size (px)", "Resolution", "Samples", "Methods", "Resolutions", "Images", "Repeats", "Total Attribution Runs"]
     for col in integer_cols:
         if col in df.columns and pd.api.types.is_numeric_dtype(df[col]):
             formatters[col] = "{:.0f}"
-    return df.style.background_gradient(cmap="coolwarm", subset=subset_cols).format(formatters, na_rep="")
+    styler = df.style.background_gradient(cmap="coolwarm", subset=subset_cols).format(formatters, na_rep="")
+    if hasattr(styler, "hide"):
+        styler = styler.hide()
+    elif hasattr(styler, "hide_index"):
+        styler = styler.hide_index()
+    return styler
 
 def plot_method_runtime_log(df, title="Runtime Comparison (Log Scale)"):
     df = normalize_metric_columns(df)
@@ -811,12 +831,14 @@ def plot_method_runtime_log(df, title="Runtime Comparison (Log Scale)"):
             if val >= 0.001: return f"{val:.3f}"
             return f"{val:.4f}"
             
-        # Draw labels above whiskers and mean
+        # Draw labels: whiskers below, mean above
         for i, s in enumerate(stats):
             y = i + 1
-            ax.text(s["whislo"], y + 0.12, format_label(s["whislo"]), ha='center', va='bottom', fontsize=7, color='black', alpha=0.85)
-            ax.text(s["med"], y + 0.12, format_label(s["med"]), ha='center', va='bottom', fontsize=7, color='black', alpha=0.85)
-            ax.text(s["whishi"], y + 0.12, format_label(s["whishi"]), ha='center', va='bottom', fontsize=7, color='black', alpha=0.85)
+            ax.text(s["med"], y + 0.22, format_label(s["med"]), ha='center', va='bottom', fontsize=8, color='black', alpha=0.9, fontweight='semibold')
+            if s["whislo"] < s["med"]:
+                ax.text(s["whislo"], y - 0.22, format_label(s["whislo"]), ha='center', va='top', fontsize=7, color='black', alpha=0.75)
+            if s["whishi"] > s["med"]:
+                ax.text(s["whishi"], y - 0.22, format_label(s["whishi"]), ha='center', va='top', fontsize=7, color='black', alpha=0.75)
 
     ax.set_xscale("log")
     ax.set_title(title, fontsize=14, fontweight='bold', family='serif')
@@ -880,12 +902,14 @@ def plot_method_memory(df, title="Peak Memory Overhead"):
             if val >= 10: return f"{val:.1f}"
             return f"{val:.2f}"
             
-        # Draw labels above whiskers and mean
+        # Draw labels: whiskers below, mean above
         for i, s in enumerate(stats):
             y = i + 1
-            ax.text(s["whislo"], y + 0.12, format_label(s["whislo"]), ha='center', va='bottom', fontsize=7, color='black', alpha=0.85)
-            ax.text(s["med"], y + 0.12, format_label(s["med"]), ha='center', va='bottom', fontsize=7, color='black', alpha=0.85)
-            ax.text(s["whishi"], y + 0.12, format_label(s["whishi"]), ha='center', va='bottom', fontsize=7, color='black', alpha=0.85)
+            ax.text(s["med"], y + 0.22, format_label(s["med"]), ha='center', va='bottom', fontsize=8, color='black', alpha=0.9, fontweight='semibold')
+            if s["whislo"] < s["med"]:
+                ax.text(s["whislo"], y - 0.22, format_label(s["whislo"]), ha='center', va='top', fontsize=7, color='black', alpha=0.75)
+            if s["whishi"] > s["med"]:
+                ax.text(s["whishi"], y - 0.22, format_label(s["whishi"]), ha='center', va='top', fontsize=7, color='black', alpha=0.75)
 
     ax.set_title(title, fontsize=14, fontweight='bold', family='serif')
     ax.set_xlabel("Peak Attribution Memory (MB)")
@@ -970,6 +994,22 @@ def plot_model_memory_comparison_grouped(df, title="Architecture Peak Memory Com
     )
     ax.set_ylabel("Mean Peak Memory (MB)")
     ax.set_xlabel("XAI Method")
+    
+    # Put values on top of the bars dynamically based on height with a background mask
+    import math
+    bg_color = ax.get_facecolor()
+    for container in ax.containers:
+        labels = []
+        for rect in container:
+            height = rect.get_height()
+            if math.isnan(height) or height <= 0:
+                labels.append("")
+            else:
+                labels.append(f"{height:.1f}MB")
+        bar_labels = ax.bar_label(container, labels=labels, padding=3, fontsize=8)
+        for label in bar_labels:
+            label.set_bbox(dict(facecolor=bg_color, edgecolor='none', pad=1, alpha=0.85))
+            
     ax.set_title(title, fontsize=14, fontweight='bold', family='serif')
     ax.legend(title="Model Architecture", loc='upper left', bbox_to_anchor=(1, 1))
     ax.grid(True, ls="-", alpha=0.2)
@@ -1057,13 +1097,13 @@ def method_detail_summary(df):
         **{
             "Mean Attribution Runtime (sec)": (runtime_col, "mean"),
             "Std Across Images (sec)": (runtime_col, "std"),
-            "Min Attribution Runtime (sec)": (runtime_col, "min"),
-            "Max Attribution Runtime (sec)": (runtime_col, "max"),
             "Mean Peak Attribution Memory (MB)": (memory_col, "mean"),
+            "Std Peak Memory (MB)": (memory_col, "std"),
             "Samples": (runtime_col, "count"),
         }
     ).reset_index()
     summary["Std Across Images (sec)"] = summary["Std Across Images (sec)"].fillna(0)
+    summary["Std Peak Memory (MB)"] = summary["Std Peak Memory (MB)"].fillna(0)
     return summary.sort_values("Mean Attribution Runtime (sec)")
 
 def fastest_slowest_rows(df, count=5):
@@ -1193,9 +1233,14 @@ def render_analytics_sections(fdf, result_groups):
         summary_df = fdf.groupby(group_cols).agg(
             **{
                 "Mean Attribution Runtime (sec)": (runtime_col, "mean"),
+                "Std Across Images (sec)": (runtime_col, "std"),
                 "Mean Peak Attribution Memory (MB)": (memory_col, "mean"),
+                "Std Peak Memory (MB)": (memory_col, "std"),
+                "Samples": (runtime_col, "count"),
             }
         ).reset_index()
+        summary_df["Std Across Images (sec)"] = summary_df["Std Across Images (sec)"].fillna(0)
+        summary_df["Std Peak Memory (MB)"] = summary_df["Std Peak Memory (MB)"].fillna(0)
         with st.expander("📋 Configuration Averages", expanded=True):
             _c_images  = int(fdf["Image Index"].nunique()) if "Image Index" in fdf.columns else 1
             _c_repeats = int(fdf["Measured Runs"].iloc[0]) if "Measured Runs" in fdf.columns else 1
@@ -1206,8 +1251,7 @@ def render_analytics_sections(fdf, result_groups):
                 ("×",),
                 ("Repeats", _c_repeats),
                 ("=",),
-                ("Runs per Config", _c_config, True, "per configuration"),
-                ("Total Runs", _c_total, True, "grand total"),
+                ("Runs per Config", _c_config, True),
             ))
             st.table(style_dataframe(summary_df))
         
@@ -1317,7 +1361,7 @@ def render_analytics_sections(fdf, result_groups):
                     ("×",),
                     ("Repeats", _m_repeats),
                     ("=",),
-                    ("Total Runs", _m_total, True, "per method"),
+                    ("Runs per Method", _m_total, True),
                 ))
                 st.table(style_dataframe(method_detail_summary(fdf)))
                 cm1, cm2 = st.columns(2)
@@ -1343,7 +1387,7 @@ def render_analytics_sections(fdf, result_groups):
                     ("×",),
                     ("Repeats", repeats),
                     ("=",),
-                    ("Total Runs", total_runs, True, "per model"),
+                    ("Runs per Model", total_runs, True),
                 ))
                 
                 # Performance comparison table
@@ -1351,6 +1395,7 @@ def render_analytics_sections(fdf, result_groups):
                     **{
                         "Mean Attribution Runtime (sec)": (runtime_col, "mean"),
                         "Mean Peak Attribution Memory (MB)": (memory_col, "mean"),
+                        "Samples": (runtime_col, "count"),
                     }
                 ).reset_index().sort_values("Mean Attribution Runtime (sec)")
                 st.table(style_dataframe(model_summary))
@@ -1380,7 +1425,7 @@ def render_analytics_sections(fdf, result_groups):
                         ("×",),
                         ("Repeats", _r_repeats),
                         ("=",),
-                        ("Total Runs", _r_total, True, "per resolution"),
+                        ("Runs per Resolution", _r_total, True),
                     ))
                     st.table(style_dataframe(size_summary_df))
                     rc1, rc2 = st.columns(2)
@@ -1401,24 +1446,35 @@ def render_environment_summary(environment):
             return "-"
         return str(v)
 
-    selected_device = environment.get("selected_device", "cpu")
-    is_gpu = selected_device.lower() in ("cuda", "mps")
-    
-    if is_gpu:
-        gpu_names = ", ".join([d.get("name", "Unknown GPU") for d in environment.get("cuda_devices", [])]) or "None"
-        device_label = "GPU(s)"
-        device_value = gpu_names
-    else:
-        device_label = "CPU"
-        device_value = environment.get("processor") or "Unknown CPU"
-    
     env_rows = [
-        ("Git Commit", clean_val(environment.get("git_commit"))),
-        ("Python", clean_val(environment.get("python_version"))),
         ("Platform", clean_val(environment.get("platform"))),
-        ("Torch", clean_val(environment.get("torch_version"))),
-        (device_label, clean_val(device_value)),
+        ("CPU", clean_val(environment.get("processor"))),
     ]
+
+    cuda_devices = environment.get("cuda_devices", [])
+    selected_device = str(environment.get("selected_device", "")).lower()
+    if cuda_devices:
+        gpu_names = ", ".join([d.get("name", "Unknown GPU") for d in cuda_devices])
+        env_rows.append(("GPU Device(s)", clean_val(gpu_names)))
+    elif "mps" in selected_device:
+        env_rows.append(("GPU Device", "Apple Silicon MPS"))
+
+    exec_dev = clean_val(environment.get("selected_device", "cpu")).upper()
+    if "CUDA" in exec_dev or "MPS" in exec_dev:
+        exec_dev = f"{exec_dev} (GPU)"
+    env_rows.append(("Execution Device", exec_dev))
+
+    python_v = clean_val(environment.get("python_version"))
+    torch_v = clean_val(environment.get("torch_version"))
+    cuda_v = environment.get("torch_cuda_version")
+    
+    if cuda_v and str(cuda_v).strip().lower() not in ["", "none", "nan", "."]:
+        stack_str = f"Python {python_v} | PyTorch {torch_v} (CUDA {cuda_v})"
+    else:
+        stack_str = f"Python {python_v} | PyTorch {torch_v}"
+        
+    env_rows.append(("Software Stack", stack_str))
+    env_rows.append(("Git Commit", clean_val(environment.get("git_commit"))))
     
     # Build HTML table with controlled column widths and style matching Config Metadata
     table_html = """
@@ -1704,7 +1760,7 @@ def render_result_group(group, selected_methods, expanded=True):
             
             if arch_results:
                 raw_df = presentation_df(pd.DataFrame(arch_results))
-                display_cols = [c for c in ["Method", "Resolution", "Prediction", ATTR_RUNTIME_COL, ATTR_MEMORY_COL] if c in raw_df.columns]
+                display_cols = [c for c in ["Method", "Resolution", "Prediction", ATTR_RUNTIME_COL, "Attribution Runtime Std (sec)", ATTR_MEMORY_COL, "Attribution Memory Std (MB)"] if c in raw_df.columns]
                 st.table(style_dataframe(raw_df[display_cols]))
 
 @st.dialog("Image Viewer", width="large")
@@ -1767,11 +1823,46 @@ xai_opts = [
     "DeepLift_Shap",
     "Grad_CAM",
 ]
-run_order_notes = {
-    "Balanced": "Rotates size order across images/models/methods; recommended for size studies.",
-    "Grouped": "Runs image -> model -> method -> size in fixed order; useful for debugging.",
-    "Randomized": "Shuffles all tasks with a batch-specific seed; useful for robustness checks.",
-}
+
+# --- Restore Config Request (Must happen before any widgets are instantiated) ---
+if st.session_state.get("restore_config"):
+    restore_data = st.session_state.restore_config
+    settings = restore_data.get("settings", {})
+    environment = restore_data.get("environment", {})
+    
+    st.session_state.selected_models = settings.get("models", ["resnet50"])
+    
+    methods_map = {m.lower().replace("_", ""): m for m in xai_opts}
+    restored_methods = []
+    for m in settings.get("methods", []):
+        m_norm = m.lower().replace("_", "")
+        if m_norm in methods_map:
+            restored_methods.append(methods_map[m_norm])
+    st.session_state.selected_methods = restored_methods if restored_methods else ["Saliency", "Integrated_Gradients"]
+    
+    st.session_state.input_size_str = ", ".join([str(s) for s in settings.get("input_sizes", [224])])
+    st.session_state.selected_repeats = settings.get("repeat_count", 5)
+    st.session_state.selected_warmups = settings.get("warmup_runs", 1)
+    st.session_state.selected_run_order = settings.get("run_order", "Balanced")
+    
+    env_dev = environment.get("selected_device")
+    if env_dev:
+        env_dev_str = str(env_dev).lower()
+        if "cuda" in env_dev_str:
+            st.session_state.selected_device_mode = "GPU (CUDA)"
+        elif "mps" in env_dev_str:
+            st.session_state.selected_device_mode = "GPU (MPS)"
+        else:
+            st.session_state.selected_device_mode = "CPU"
+            
+    # Clear the restoration request so it only runs once
+    del st.session_state.restore_config
+    st.session_state.config_restored_toast = True
+
+if st.session_state.get("config_restored_toast"):
+    st.toast("Configuration successfully loaded! Switch to 'Benchmark Workspace' to run.", icon="✅")
+    st.session_state.config_restored_toast = False
+
 fragment_api = getattr(st, "fragment", getattr(st, "experimental_fragment", None))
 
 def rerun_app():
@@ -1848,9 +1939,11 @@ def render_image_preview_gallery():
         try:
             if hasattr(current_src, 'name'):
                 img_view = Image.open(current_src)
-            else:
+            elif isinstance(current_src, str) and (current_src.startswith("http://") or current_src.startswith("https://")):
                 response = requests.get(current_src)
                 img_view = Image.open(BytesIO(response.content))
+            else:
+                img_view = Image.open(current_src)
             st.session_state.current_img_base64 = get_base64(img_view)
             
             html_content = f"""
@@ -2199,7 +2292,7 @@ def render_active_run_page():
         status_col, timer_col = st.columns([5, 1])
         with status_col:
             st.markdown(
-                f"<div class='status-pulse'>STEP {idx + 1}/{total_steps}: {cur_met} on {cur_mod} @ {cur_size}px (Image {img_i + 1}, {st.session_state.current_run_order} order)</div>",
+                f"<div class='status-pulse'>STEP {idx + 1}/{total_steps}: {cur_met} on {cur_mod} @ {cur_size}px (Image {img_i + 1})</div>",
                 unsafe_allow_html=True
             )
         with timer_col:
@@ -2248,13 +2341,27 @@ def render_active_run_page():
             fdf = normalize_metric_columns(pd.DataFrame(all_r))
             result_groups = sorted_result_groups(st.session_state.last_run_results)
             
-            with st.expander("📊 Batch Summary", expanded=True):
-                st.markdown(f"**Total Duration:** `{format_time(st.session_state.total_execution_time)}`")
-                st.caption(f"Started: {display_timestamp(st.session_state.batch_started_at)} | Completed: {display_timestamp(st.session_state.batch_completed_at)}")
-                render_environment_summary(collect_environment_metadata(get_device_string(st.session_state.current_device_mode)))
+            st.markdown(f"**Total Duration:** `{format_time(st.session_state.total_execution_time)}`")
+            st.caption(f"Started: {display_timestamp(st.session_state.batch_started_at)} | Completed: {display_timestamp(st.session_state.batch_completed_at)}")
+            
+            with st.expander("Environment & Configuration Details", expanded=True):
+                meta_col1, meta_col_spacer, meta_col2 = st.columns([1.8, 0.2, 2.0])
+                with meta_col1:
+                    st.markdown('<div style="font-weight: 600; margin-bottom: 8px; color: var(--xai-text);">Environment Summary</div>', unsafe_allow_html=True)
+                    render_environment_summary(collect_environment_metadata(get_device_string(st.session_state.current_device_mode)))
+                with meta_col2:
+                    st.markdown('<div style="font-weight: 600; margin-bottom: 8px; color: var(--xai-text);">Benchmark Configuration</div>', unsafe_allow_html=True)
+                    active_settings = {
+                        "models": st.session_state.current_batch_models,
+                        "methods": st.session_state.current_batch_methods,
+                        "input_sizes": st.session_state.current_batch_sizes,
+                        "repeat_count": st.session_state.current_repeats,
+                        "warmup_runs": st.session_state.current_warmups
+                    }
+                    render_configuration_summary(active_settings, st.session_state.last_run_results)
                 
             # --- EXPORT & NAVIGATION BUTTONS (Outside expander) ---
-            ex1, ex2, ex3 = st.columns([1, 1, 3])
+            ex1, ex2, ex3, ex4 = st.columns([1, 1, 1.4, 1.6])
             with ex1:
                 csv_path = os.path.join(sm.base_dir, st.session_state.current_batch_id, f"{st.session_state.current_batch_id}.csv")
                 if not os.path.exists(csv_path):
@@ -2278,7 +2385,30 @@ def render_active_run_page():
                     with open(pdf_path, "rb") as f:
                         st.download_button("📄 Export PDF", data=f, file_name=f"{st.session_state.current_batch_id}.pdf", mime="application/pdf", use_container_width=True)
             with ex3:
-                if st.button("⬅️ Setup Another Run", key="back_from_run_btn", use_container_width=True):
+                if st.button("Repeat Config", key="repeat_current_active_btn", help="Load this configuration back into your workspace inputs to tweak or run it again.", use_container_width=True):
+                    st.session_state.restore_config = {
+                        "settings": {
+                            "models": st.session_state.current_batch_models,
+                            "methods": st.session_state.current_batch_methods,
+                            "input_sizes": st.session_state.current_batch_sizes,
+                            "repeat_count": st.session_state.current_repeats,
+                            "warmup_runs": st.session_state.current_warmups,
+                            "run_order": st.session_state.current_run_order
+                        },
+                        "environment": {
+                            "selected_device": st.session_state.current_device_mode
+                        }
+                    }
+                    st.session_state.is_finished = False
+                    st.session_state.benchmark_running = False
+                    st.session_state.benchmark_ready_to_run = False
+                    st.session_state.last_run_results = []
+                    st.session_state.completed_batch_id = ""
+                    st.session_state.last_run_batch_id = ""
+                    st.session_state.current_page = "Configure"
+                    rerun_app()
+            with ex4:
+                if st.button("⬅️ Setup Another Run", key="back_from_run_btn", help="Reset all configuration inputs back to defaults to start a fresh benchmark from scratch.", use_container_width=True):
                     st.session_state.is_finished = False
                     st.session_state.current_page = "Configure"
                     st.session_state.selected_models = ["resnet50"]
@@ -2366,7 +2496,7 @@ def render_history_page():
                             st.markdown('<div style="font-weight: 600; margin-bottom: 8px; color: var(--xai-text);">Benchmark Configuration</div>', unsafe_allow_html=True)
                             render_configuration_summary(meta.get("benchmark_settings"), meta.get("results"))
 
-                    hx1, hx2, hx3, hx_spacer = st.columns([1, 1, 1.2, 1.8])
+                    hx1, hx2, hx3, hx4, hx_spacer = st.columns([1, 1, 1.3, 1.1, 1.6])
                     with hx1:
                         h_csv = os.path.join(sm.base_dir, bid, f"{bid}.csv")
                         if not os.path.exists(h_csv):
@@ -2383,6 +2513,22 @@ def render_history_page():
                             with open(h_pdf, "rb") as f:
                                 st.download_button("📄 Export PDF", data=f, file_name=f"{bid}.pdf", mime="application/pdf", key=f"pdf_{bid}", use_container_width=True)
                     with hx3:
+                        if st.button("Repeat Config", key=f"repeat_{bid}", use_container_width=True):
+                            settings = meta.get("benchmark_settings", {})
+                            if settings:
+                                st.session_state.restore_config = {
+                                    "settings": settings,
+                                    "environment": meta.get("environment", {})
+                                }
+                                st.session_state.is_finished = False
+                                st.session_state.benchmark_running = False
+                                st.session_state.benchmark_ready_to_run = False
+                                st.session_state.last_run_results = []
+                                st.session_state.completed_batch_id = ""
+                                st.session_state.last_run_batch_id = ""
+                                st.session_state.current_page = "Configure"
+                                rerun_app()
+                    with hx4:
                         if st.button("Delete Batch", key=f"del_{bid}", use_container_width=True):
                             sm.delete_batch(bid)
                             st.success(f"Batch {bid} deleted.")
@@ -2589,7 +2735,8 @@ def render_history_page():
                 runtime_col: "mean",
                 memory_col: "mean",
                 "Warmup Runs": "first",
-                "Measured Runs": "first"
+                "Measured Runs": "first",
+                "Samples": "count"
             }).reset_index()
             
             st.table(style_dataframe(combined_summary_df))
@@ -2611,9 +2758,13 @@ with tab1:
         render_configure_page()
 
 with tab2:
+    if st.session_state.benchmark_running and not st.session_state.is_finished:
+        st.warning("⚡ **Benchmark is running in the background.** This page will refresh automatically as tasks complete. We recommend staying on the **Benchmark Workspace** tab to monitor progress.")
     render_history_page()
 
 with tab3:
+    if st.session_state.benchmark_running and not st.session_state.is_finished:
+        st.warning("⚡ **Benchmark is running in the background.** This page will refresh automatically as tasks complete. We recommend staying on the **Benchmark Workspace** tab to monitor progress.")
     st.markdown('<div style="margin-top: 1.5rem;"></div>', unsafe_allow_html=True)
     st.markdown("If you use this benchmark in your research, papers, or projects, please cite it using the following BibTeX entry:")
     
