@@ -10,6 +10,8 @@ warnings.filterwarnings("ignore", message=".*Passing.*palette.*without assigning
 import streamlit as st
 # Silence sub-logger warnings that get reset during streamlit import
 logging.getLogger("streamlit.runtime.scriptrunner_utils.script_run_context").setLevel(logging.ERROR)
+logging.getLogger("streamlit.runtime.scriptrunner.script_run_context").setLevel(logging.ERROR)
+logging.getLogger("streamlit.runtime.scriptrunner").setLevel(logging.ERROR)
 logging.getLogger("streamlit.runtime.caching.cache_data_api").setLevel(logging.ERROR)
 logging.getLogger("streamlit.runtime.state.session_state_proxy").setLevel(logging.ERROR)
 
