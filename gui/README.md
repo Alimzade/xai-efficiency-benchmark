@@ -58,17 +58,10 @@ While the interface resides in the `gui/` folder, it strictly depends on the fol
 
 ## ⏱️ Precision Measurement Details
 
-*   **Simultaneous Measurement:** Execution time and peak memory are measured **simultaneously** during a single run of the XAI method (not separately). If you request 5 repeats, the method runs exactly 5 times, capturing both duration and memory in each run to ensure direct alignment.
-*   **Zero Profiling Overhead (GPU):** When running on NVIDIA (CUDA) or Apple Silicon (MPS) GPUs, memory is tracked using PyTorch's native hardware/driver allocators (`reset_peak_memory_stats` and `max_memory_allocated`). This occurs at the driver level without injecting active polling code during execution, keeping the timer 100% clean and free of profiling overhead.
-*   **CPU Profiling Fallback:** On CPU backends, the app utilizes `memory_profiler` which runs a lightweight polling thread to monitor RSS system RAM. This introduces a minor, negligible CPU overhead which is normal for system memory inspection.
-
-### 📌 Critical Benchmarking Methodology Points
-
-1.  **Warmup Execution:** The very first execution of an XAI method is always omitted from timing statistics. Warmups trigger lazy CUDA compilation, autograd graph caching, and initial memory allocation overhead. This ensures subsequent measured repeats record true operational performance.
-2.  **Outlier Resistance (Median Metric):** We use the **Median** of the measured repeats as the final recorded runtime. This isolates the statistics from operating system jitter, background process spikes, and temporary GPU kernel scheduling stalls.
-3.  **Hardware Synchronization:** Since GPU execution (CUDA and MPS) is asynchronous, CPU timers would stop prematurely before the GPU finished the kernels. We call device-specific synchronization functions (e.g., `torch.cuda.synchronize()`) before starting and stopping the timer to guarantee precise duration metrics.
-4.  **Isolating Runs (State Cleanup):** To prevent memory leaks or cached allocations from one run carrying over to the next, the engine performs garbage collection (`gc.collect()`) and empties CUDA/MPS caches before instantiating each method.
-5.  **OOM Prevention (Internal Batching):** For computationally heavy methods like Integrated Gradients, processing all steps simultaneously can trigger Out-Of-Memory (OOM) failures. We implement custom internal batching (`internal_batch_size=2`) to run the attributions sequentially, protecting your system VRAM.
+*   **Timing & Memory Isolation**: Memory profiling runs in dedicated executions (default 1) separate from speed tests to keep speed metrics clean. Disabling memory runs (setting to 0) displays a dash `–` instead of false 0.0 MB values.
+*   **Benchmark Precision & Outliers**: Warmup runs are excluded from statistics. Timed repeats measure hardware duration using device synchronization (CUDA/MPS) and record median runtime to avoid background process spikes.
+*   **Memory Tracking**: GPU memory (CUDA/MPS) is tracked directly by PyTorch allocators. CPU memory samples system RAM every 100 ms, which may miss short memory spikes for fast runs under 100 ms.
+*   **Cache Cleanup & Crash Prevention**: Memory caches (CUDA/MPS) are cleared between runs to isolate methods. Heavy methods (like Integrated Gradients) run in small mini-batches to prevent Out-Of-Memory GPU crashes.
 
 ---
 

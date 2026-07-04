@@ -19,6 +19,7 @@ PRESENTATION_COL_ORDER = [
     "Prediction",
     "Device",
     "Warmup Runs",
+    "Memory Runs",
     "Measured Runs",
     ATTR_RUNTIME_COL,
     "Attribution Runtime Median (sec)",
@@ -130,12 +131,12 @@ def generate_pdf_report(batch_id, results_data, selected_methods, output_path, t
                 
                 if arch_results:
                     df = presentation_df(pd.DataFrame(arch_results))
-                    cols = ["Method", "Input Size (px)", "Prediction", "Warmup Runs", "Measured Runs", ATTR_RUNTIME_COL, ATTR_MEMORY_COL]
+                    cols = ["Method", "Input Size (px)", "Prediction", "Warmup Runs", "Memory Runs", "Measured Runs", ATTR_RUNTIME_COL, ATTR_MEMORY_COL]
                     # Only keep columns that exist in data
                     cols = [c for c in cols if c in df.columns]
                     if "Status" in df.columns and any(df["Status"].notna()): cols.append("Status")
                     
-                    table_data = df[cols].values
+                    table_data = df[cols].fillna("-").values
                     tbl = ax_table.table(cellText=table_data, colLabels=cols, loc='center', cellLoc='center')
                     tbl.auto_set_font_size(False)
                     tbl.set_fontsize(9)

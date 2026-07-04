@@ -973,20 +973,68 @@ def get_base64(img):
 
 def style_dataframe(df):
     df = normalize_metric_columns(df.copy())
-    subset_cols = [c for c in [
+    
+    # Identify which columns to style with background gradient.
+    # We only include numeric columns that contain at least one non-null numeric value.
+    subset_cols = []
+    possible_style_cols = [
         ATTR_RUNTIME_COL, ATTR_MEMORY_COL,
         "Attribution Runtime Median (sec)", "Attribution Runtime Mean (sec)",
         "Attribution Runtime Std (sec)", "Attribution Runtime Min (sec)",
         "Attribution Runtime Max (sec)", "Mean Attribution Runtime (sec)",
         "Std Across Images (sec)", "Mean Peak Attribution Memory (MB)",
         "Std Peak Memory (MB)", "Attribution Memory Std (MB)"
-    ] if c in df.columns]
-    formatters = {c: "{:.4f}" if "sec" in c else "{:.2f}" for c in subset_cols}
+    ]
+    
+    for c in possible_style_cols:
+        if c in df.columns:
+            non_null_vals = df[c].dropna()
+            # If the column is entirely null, convert it to "–" (en-dash) to force dash rendering
+            if len(non_null_vals) == 0:
+                df[c] = "–"
+            else:
+                subset_cols.append(c)
+                
+    # Fill remaining nulls with "–" (en-dash) in non-styled columns (like prediction, status, etc.)
+    for c in df.columns:
+        if c not in subset_cols:
+            df[c] = df[c].fillna("–")
+            
+    def make_formatter(col_name):
+        if "sec" in col_name:
+            return lambda v: "–" if pd.isna(v) else f"{v:.4f}"
+        elif col_name in ["Input Size (px)", "Resolution", "Samples", "Methods", "Resolutions", "Images", "Repeats", "Total Attribution Runs"]:
+            return lambda v: "–" if pd.isna(v) else f"{v:.0f}"
+        else:
+            return lambda v: "–" if pd.isna(v) else f"{v:.2f}"
+
+    formatters = {c: make_formatter(c) for c in subset_cols}
     integer_cols = ["Input Size (px)", "Resolution", "Samples", "Methods", "Resolutions", "Images", "Repeats", "Total Attribution Runs"]
     for col in integer_cols:
-        if col in df.columns and pd.api.types.is_numeric_dtype(df[col]):
-            formatters[col] = "{:.0f}"
-    styler = df.style.background_gradient(cmap="coolwarm", subset=subset_cols).format(formatters, na_rep="")
+        if col in df.columns and col in subset_cols and pd.api.types.is_numeric_dtype(df[col]):
+            formatters[col] = make_formatter(col)
+            
+    styler = df.style
+    if subset_cols:
+        styler = styler.background_gradient(cmap="coolwarm", subset=subset_cols)
+        
+    # Right-align all columns containing metrics or numeric dimensions to keep dashes aligned with numbers
+    right_align_cols = [c for c in df.columns if c not in ["Method", "Resolution", "Prediction", "Status"]]
+    if right_align_cols:
+        styler = styler.set_properties(**{"text-align": "right !important"}, subset=right_align_cols)
+        
+        # Also right-align the column headers (th) for these columns to align with data cells
+        header_styles = []
+        for idx, col in enumerate(df.columns):
+            if col in right_align_cols:
+                header_styles.append({
+                    "selector": f"th.col{idx}",
+                    "props": [("text-align", "right !important")]
+                })
+        if header_styles:
+            styler = styler.set_table_styles(header_styles, overwrite=False)
+        
+    styler = styler.format(formatters, na_rep="–")
     if hasattr(styler, "hide"):
         styler = styler.hide()
     elif hasattr(styler, "hide_index"):
@@ -1841,6 +1889,7 @@ def render_configuration_summary(settings, results):
     sizes = settings.get("input_sizes", [])
     repeats = settings.get("repeat_count")
     warmups = settings.get("warmup_runs")
+    memory_runs = settings.get("memory_runs", 1)
     
     if not models or not methods or not sizes:
         scanned_models = set()
@@ -1877,6 +1926,7 @@ def render_configuration_summary(settings, results):
         ("Input Resolutions", clean_val(len(sizes)), ", ".join([str(s) for s in sizes]) if sizes else "-"),
         ("Repeats per Config", clean_val(repeats), "-"),
         ("Warmup Runs", clean_val(warmups), "-"),
+        ("Memory Runs", clean_val(memory_runs), "-"),
     ]
     
     # Build HTML table with controlled column widths
@@ -2047,6 +2097,7 @@ if 'input_size_str' not in st.session_state: st.session_state.input_size_str = "
 if 'selected_methods' not in st.session_state: st.session_state.selected_methods = ["Saliency", "Integrated_Gradients"]
 if 'selected_warmups' not in st.session_state: st.session_state.selected_warmups = 1
 if 'selected_repeats' not in st.session_state: st.session_state.selected_repeats = 5
+if 'selected_memory_runs' not in st.session_state: st.session_state.selected_memory_runs = 1
 if 'selected_run_order' not in st.session_state: st.session_state.selected_run_order = "Balanced"
 has_cuda = torch.cuda.is_available()
 has_mps = hasattr(torch.backends, "mps") and torch.backends.mps.is_available()
@@ -2060,6 +2111,7 @@ if 'selected_device_mode' not in st.session_state: st.session_state.selected_dev
 if 'current_device_mode' not in st.session_state: st.session_state.current_device_mode = default_device_mode
 if 'current_warmups' not in st.session_state: st.session_state.current_warmups = 1
 if 'current_repeats' not in st.session_state: st.session_state.current_repeats = 5
+if 'current_memory_runs' not in st.session_state: st.session_state.current_memory_runs = 1
 if 'current_page' not in st.session_state: st.session_state.current_page = "Configure"
 
 # --- SIDEBAR ---
@@ -2094,6 +2146,7 @@ if st.session_state.get("restore_config"):
     st.session_state.input_size_str = ", ".join([str(s) for s in settings.get("input_sizes", [224])])
     st.session_state.selected_repeats = settings.get("repeat_count", 5)
     st.session_state.selected_warmups = settings.get("warmup_runs", 1)
+    st.session_state.selected_memory_runs = settings.get("memory_runs", 1)
     st.session_state.selected_run_order = settings.get("run_order", "Balanced")
     
     env_dev = environment.get("selected_device")
@@ -2278,14 +2331,25 @@ def render_configure_page():
             key="selected_models",
         )
     with row1_right:
-        st.number_input(
-            "Warmup runs",
-            min_value=0,
-            max_value=20,
-            key="selected_warmups",
-            step=1,
-            help="Untimed runs before measurement. Useful for CUDA/model warmup.",
-        )
+        col_w, col_m = st.columns(2)
+        with col_w:
+            st.number_input(
+                "Warmup runs",
+                min_value=0,
+                max_value=20,
+                key="selected_warmups",
+                step=1,
+                help="Untimed runs before measurement. Useful for CUDA/model warmup.",
+            )
+        with col_m:
+            st.number_input(
+                "Memory runs",
+                min_value=0,
+                max_value=100,
+                key="selected_memory_runs",
+                step=1,
+                help="Dedicated memory measurement runs (default 1). Set to 0 to skip memory profiling entirely.",
+            )
 
     # Row 2
     row2_left, row2_right = st.columns([2, 1])
@@ -2354,6 +2418,7 @@ def render_configure_page():
         <ul class="nice-bullets">
             <li><b>Warmups</b> are not reported in statistics. Measured repeats are timed and summarized with median, mean, and standard deviation.</li>
             <li><b>Task Ordering</b>: Benchmark runs are executed in a <b>Balanced</b> order (automatically rotating resolutions and model architectures) to mitigate PyTorch/CUDA caching allocator and execution-order bias.</li>
+            <li><b>Separate Timing & Memory</b>: By default, CPU memory is measured once in a dedicated run. The timed repeats are then executed cleanly without the memory profiler to ensure accurate speed statistics.</li>
         </ul>
         """, unsafe_allow_html=True)
     with row4_right:
@@ -2493,6 +2558,8 @@ def render_configure_page():
             <span class="run-summary-item">Repeats/config <strong>{st.session_state.selected_repeats}</strong></span>
             <span class="run-summary-separator">|</span>
             <span class="run-summary-item">Warmups/config <strong>{st.session_state.selected_warmups}</strong></span>
+            <span class="run-summary-separator">|</span>
+            <span class="run-summary-item">Memory runs/config <strong>{st.session_state.selected_memory_runs}</strong></span>
         </div>
         <div class="run-summary-action-spacer"></div>
         """, unsafe_allow_html=True)
@@ -2522,6 +2589,7 @@ def render_configure_page():
             st.session_state.sh_input_size_str = st.session_state.input_size_str
             st.session_state.sh_repeats = st.session_state.selected_repeats
             st.session_state.sh_warmups = st.session_state.selected_warmups
+            st.session_state.sh_memory_runs = st.session_state.selected_memory_runs
             st.session_state.sh_run_order = st.session_state.selected_run_order
             st.session_state.sh_device_mode = st.session_state.selected_device_mode
 
@@ -2534,6 +2602,7 @@ def render_configure_page():
             st.session_state.current_device_mode = st.session_state.selected_device_mode
             st.session_state.current_warmups = st.session_state.selected_warmups
             st.session_state.current_repeats = st.session_state.selected_repeats
+            st.session_state.current_memory_runs = st.session_state.selected_memory_runs
             st.session_state.task_queue = build_task_queue(
                 len(img_sources),
                 st.session_state.current_batch_models,
@@ -2629,6 +2698,8 @@ def render_active_run_page():
                 <span class="run-summary-item">Repeats/config <strong>{st.session_state.current_repeats}</strong></span>
                 <span class="run-summary-separator">|</span>
                 <span class="run-summary-item">Warmups/config <strong>{st.session_state.current_warmups}</strong></span>
+                <span class="run-summary-separator">|</span>
+                <span class="run-summary-item">Memory runs/config <strong>{st.session_state.current_memory_runs}</strong></span>
             </div>
             """, unsafe_allow_html=True)
 
@@ -2702,7 +2773,8 @@ def render_active_run_page():
                         "methods": st.session_state.current_batch_methods,
                         "input_sizes": st.session_state.current_batch_sizes,
                         "repeat_count": st.session_state.current_repeats,
-                        "warmup_runs": st.session_state.current_warmups
+                        "warmup_runs": st.session_state.current_warmups,
+                        "memory_runs": st.session_state.current_memory_runs
                     }
                     render_configuration_summary(active_settings, st.session_state.last_run_results)
                 
@@ -2739,6 +2811,7 @@ def render_active_run_page():
                             "input_sizes": st.session_state.current_batch_sizes,
                             "repeat_count": st.session_state.current_repeats,
                             "warmup_runs": st.session_state.current_warmups,
+                            "memory_runs": st.session_state.current_memory_runs,
                             "run_order": st.session_state.current_run_order
                         },
                         "environment": {
@@ -3037,6 +3110,7 @@ def render_history_page():
                     ("Input Resolutions", clean_val(len(resolutions_list)), ", ".join(resolutions_list) if resolutions_list else "-"),
                     ("Repeats per Config", clean_val(len(repeats_list)), ", ".join(repeats_list) if repeats_list else "-"),
                     ("Warmup Runs", clean_val(len(warmups_list)), ", ".join(warmups_list) if warmups_list else "-"),
+                    ("Memory Runs", "1", "-"),
                 ]
                 
                 config_table_html = """<table style="width:100%; border-collapse: collapse; font-family: sans-serif; font-size: 0.88rem; color: var(--xai-text); margin-bottom: 0.5rem;">
@@ -3164,6 +3238,7 @@ if st.session_state.benchmark_running and not st.session_state.is_finished:
             "force_device": get_device_string(st.session_state.current_device_mode), 
             "input_size": target_size,
             "warmup_runs": st.session_state.current_warmups,
+            "memory_runs": st.session_state.current_memory_runs,
             "repeat_count": st.session_state.current_repeats,
             "run_order": st.session_state.current_run_order
         }, model_entry["session_dir"])
@@ -3189,6 +3264,7 @@ if st.session_state.benchmark_running and not st.session_state.is_finished:
                     "methods": st.session_state.current_batch_methods,
                     "benchmark_settings": {
                         "warmup_runs": st.session_state.current_warmups,
+                        "memory_runs": st.session_state.current_memory_runs,
                         "repeat_count": st.session_state.current_repeats,
                         "run_order": st.session_state.current_run_order,
                         "task_count": len(task_queue),

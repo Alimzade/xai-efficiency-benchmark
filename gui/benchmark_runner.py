@@ -240,6 +240,7 @@ def run_benchmark_task(config, session_dir):
     results = []
     methods_to_run = config.get('methods', ['saliency'])
     warmup_runs = max(0, int(config.get('warmup_runs', 1)))
+    memory_runs = max(0, int(config.get('memory_runs', 1)))
     repeat_count = max(1, int(config.get('repeat_count', 1)))
     heatmaps_dir = os.path.join(session_dir, "heatmaps")
     os.makedirs(heatmaps_dir, exist_ok=True)
@@ -319,31 +320,39 @@ def run_benchmark_task(config, session_dir):
                     torch.mps.empty_cache()
                 gc.collect()
 
+            # --- DEDICATED MEMORY MEASUREMENT (After warmups) ---
+            memory_values = []
+            for _ in range(memory_runs):
+                if device.type in ['cuda', 'mps']:
+                    # On GPU, memory can be measured in a clean run with zero overhead
+                    _, _, current_memory = timed_get_attr(measure_memory=True)
+                else:
+                    # On CPU, run the memory profiler to measure peak memory without contaminating timing repeats
+                    mem_usage, _ = memory_usage((timed_get_attr, (False,)), interval=0.1, retval=True)
+                    current_memory = max(mem_usage) - min(mem_usage) if mem_usage else 0.0
+                memory_values.append(current_memory if current_memory is not None else 0.0)
+
+            peak_memory_mb = float(np.mean(memory_values)) if memory_values else None
+            memory_std = float(np.std(memory_values)) if len(memory_values) > 1 else None
+
+            # --- CLEAN TIMING REPEATS ---
             attribution = None
             runtime_values = []
-            memory_values = []
 
             for _ in range(repeat_count):
-                if device.type in ['cuda', 'mps']:
-                    current_attribution, current_runtime, current_memory = timed_get_attr()
-                else:
-                    mem_usage, timed_result = memory_usage((timed_get_attr, ()), interval=0.1, retval=True)
-                    current_attribution, current_runtime, _ = timed_result
-                    current_memory = max(mem_usage) - min(mem_usage) if mem_usage else 0.0
+                # Clean timing run (no background memory profiling thread)
+                current_attribution, current_runtime, _ = timed_get_attr(measure_memory=False)
 
                 if attribution is not None:
                     del attribution
                 attribution = current_attribution
                 runtime_values.append(current_runtime)
-                memory_values.append(current_memory if current_memory is not None else 0.0)
 
             runtime_median = float(np.median(runtime_values))
             runtime_mean = float(np.mean(runtime_values))
             runtime_std = float(np.std(runtime_values))
             runtime_min = float(np.min(runtime_values))
             runtime_max = float(np.max(runtime_values))
-            peak_memory_mb = float(max(memory_values)) if memory_values else 0.0
-            memory_std = float(np.std(memory_values)) if memory_values else 0.0
             
             # Generate Overlay
             attr_np = np.transpose(attribution.squeeze().cpu().detach().numpy(), (1, 2, 0))
@@ -374,11 +383,12 @@ def run_benchmark_task(config, session_dir):
                 "Runtime Max (sec)": round(runtime_max, 4),
                 "Attribution Runtime Max (sec)": round(runtime_max, 4),
                 "Warmup Runs": warmup_runs,
+                "Memory Runs": memory_runs,
                 "Measured Runs": repeat_count,
                 "Memory Scope": "attribution_peak",
-                "Peak Memory (MB)": round(peak_memory_mb, 2),
-                "Peak Attribution Memory (MB)": round(peak_memory_mb, 2),
-                "Attribution Memory Std (MB)": round(memory_std, 2)
+                "Peak Memory (MB)": round(peak_memory_mb, 2) if peak_memory_mb is not None else None,
+                "Peak Attribution Memory (MB)": round(peak_memory_mb, 2) if peak_memory_mb is not None else None,
+                "Attribution Memory Std (MB)": round(memory_std, 2) if memory_std is not None else None
             })
 
             # Explicitly delete objects and clear cache after each method
@@ -398,25 +408,19 @@ def run_benchmark_task(config, session_dir):
                 "Device": device_info,
                 "Model Cache": "reused" if was_model_cached else "loaded",
                 "Timing Scope": "attribution_only",
-                "Runtime (sec)": 0.0,
-                "Attribution Runtime (sec)": 0.0,
-                "Runtime Median (sec)": 0.0,
-                "Attribution Runtime Median (sec)": 0.0,
-                "Runtime Mean (sec)": 0.0,
-                "Attribution Runtime Mean (sec)": 0.0,
-                "Runtime Std (sec)": 0.0,
-                "Attribution Runtime Std (sec)": 0.0,
-                "Runtime Min (sec)": 0.0,
-                "Attribution Runtime Min (sec)": 0.0,
-                "Runtime Max (sec)": 0.0,
-                "Attribution Runtime Max (sec)": 0.0,
+                "Runtime (sec)": 0.0, "Attribution Runtime (sec)": 0.0,
+                "Runtime Median (sec)": 0.0, "Attribution Runtime Median (sec)": 0.0,
+                "Runtime Mean (sec)": 0.0, "Attribution Runtime Mean (sec)": 0.0,
+                "Runtime Std (sec)": 0.0, "Attribution Runtime Std (sec)": 0.0,
+                "Runtime Min (sec)": 0.0, "Attribution Runtime Min (sec)": 0.0,
+                "Runtime Max (sec)": 0.0, "Attribution Runtime Max (sec)": 0.0,
                 "Warmup Runs": warmup_runs,
+                "Memory Runs": memory_runs,
                 "Measured Runs": repeat_count,
                 "Memory Scope": "attribution_peak",
-                "Peak Memory (MB)": 0.0,
-                "Peak Attribution Memory (MB)": 0.0,
-                "Attribution Memory Std (MB)": 0.0,
-                "Status": f"Error: {str(e)}"
+                "Peak Memory (MB)": None, "Peak Attribution Memory (MB)": None,
+                "Attribution Memory Std (MB)": None,
+                "Status": f"Failed: {str(e)}"
             })
 
     # 6. Save Results
