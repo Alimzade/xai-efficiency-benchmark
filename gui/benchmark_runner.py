@@ -33,6 +33,11 @@ from captum.attr import (
 )
 from captum.attr import visualization as viz
 
+try:
+    from gui.quality_runner import compute_quality_metrics
+except ImportError:
+    from quality_runner import compute_quality_metrics
+
 MODEL_CACHE = {}
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -242,6 +247,8 @@ def run_benchmark_task(config, session_dir):
     warmup_runs = max(0, int(config.get('warmup_runs', 1)))
     memory_runs = max(0, int(config.get('memory_runs', 1)))
     repeat_count = max(1, int(config.get('repeat_count', 1)))
+    enable_quality_metrics = config.get('enable_quality_metrics', False)
+    selected_quality_metrics = config.get('selected_quality_metrics', ["Gini Index (Sparsity)"]) if enable_quality_metrics else []
     heatmaps_dir = os.path.join(session_dir, "heatmaps")
     os.makedirs(heatmaps_dir, exist_ok=True)
 
@@ -354,6 +361,17 @@ def run_benchmark_task(config, session_dir):
             runtime_min = float(np.min(runtime_values))
             runtime_max = float(np.max(runtime_values))
             
+            # --- PHASE B: EXPLANATION QUALITY METRICS (OFF TIMING CLOCK) ---
+            quality_scores = {}
+            if enable_quality_metrics and selected_quality_metrics:
+                quality_scores = compute_quality_metrics(
+                    attribution=attribution,
+                    model=model,
+                    input_tensor=input_tensor,
+                    target_class=pred_label_idx,
+                    selected_metrics=selected_quality_metrics
+                )
+
             # Generate Overlay
             attr_np = np.transpose(attribution.squeeze().cpu().detach().numpy(), (1, 2, 0))
             img_resized = np.array(img.resize((target_size, target_size)))
@@ -388,7 +406,8 @@ def run_benchmark_task(config, session_dir):
                 "Memory Scope": "attribution_peak",
                 "Peak Memory (MB)": round(peak_memory_mb, 2) if peak_memory_mb is not None else None,
                 "Peak Attribution Memory (MB)": round(peak_memory_mb, 2) if peak_memory_mb is not None else None,
-                "Attribution Memory Std (MB)": round(memory_std, 2) if memory_std is not None else None
+                "Attribution Memory Std (MB)": round(memory_std, 2) if memory_std is not None else None,
+                "Gini Index": quality_scores.get("Gini Index", None)
             })
 
             # Explicitly delete objects and clear cache after each method
@@ -420,6 +439,7 @@ def run_benchmark_task(config, session_dir):
                 "Memory Scope": "attribution_peak",
                 "Peak Memory (MB)": None, "Peak Attribution Memory (MB)": None,
                 "Attribution Memory Std (MB)": None,
+                "Gini Index": None,
                 "Status": f"Failed: {str(e)}"
             })
 

@@ -1001,7 +1001,7 @@ def style_dataframe(df):
             df[c] = df[c].fillna("–")
             
     def make_formatter(col_name):
-        if "sec" in col_name:
+        if "sec" in col_name or col_name in ["Gini Index", "Mean Gini Index"]:
             return lambda v: "–" if pd.isna(v) else f"{v:.4f}"
         elif col_name in ["Input Size (px)", "Resolution", "Samples", "Methods", "Resolutions", "Images", "Repeats", "Total Attribution Runs"]:
             return lambda v: "–" if pd.isna(v) else f"{v:.0f}"
@@ -1382,15 +1382,16 @@ def method_detail_summary(df):
     df = add_input_size_column(normalize_metric_columns(df))
     runtime_col = metric_col(df, ATTR_RUNTIME_COL, LEGACY_RUNTIME_COL)
     memory_col = metric_col(df, ATTR_MEMORY_COL, LEGACY_MEMORY_COL)
-    summary = df.groupby("Method").agg(
-        **{
-            "Mean Attribution Runtime (sec)": (runtime_col, "mean"),
-            "Std Across Images (sec)": (runtime_col, "std"),
-            "Mean Peak Attribution Memory (MB)": (memory_col, "mean"),
-            "Std Peak Memory (MB)": (memory_col, "std"),
-            "Samples": (runtime_col, "count"),
-        }
-    ).reset_index()
+    agg_dict = {
+        "Mean Attribution Runtime (sec)": (runtime_col, "mean"),
+        "Std Across Images (sec)": (runtime_col, "std"),
+        "Mean Peak Attribution Memory (MB)": (memory_col, "mean"),
+        "Std Peak Memory (MB)": (memory_col, "std"),
+        "Samples": (runtime_col, "count"),
+    }
+    if "Gini Index" in df.columns and df["Gini Index"].notna().any():
+        agg_dict["Mean Gini Index"] = ("Gini Index", "mean")
+    summary = df.groupby("Method").agg(**agg_dict).reset_index()
     summary["Std Across Images (sec)"] = summary["Std Across Images (sec)"].fillna(0)
     summary["Std Peak Memory (MB)"] = summary["Std Peak Memory (MB)"].fillna(0)
     return summary.sort_values("Mean Attribution Runtime (sec)")
@@ -1398,7 +1399,7 @@ def method_detail_summary(df):
 def fastest_slowest_rows(df, count=5):
     df = presentation_df(df)
     runtime_col = metric_col(df, ATTR_RUNTIME_COL, LEGACY_RUNTIME_COL)
-    cols = [c for c in ["Method", "Model", "Resolution", "Prediction", runtime_col, ATTR_MEMORY_COL] if c in df.columns]
+    cols = [c for c in ["Method", "Model", "Resolution", "Prediction", runtime_col, ATTR_MEMORY_COL, "Gini Index"] if c in df.columns]
     fastest = df.nsmallest(count, runtime_col)[cols]
     slowest = df.nlargest(count, runtime_col)[cols]
     return fastest, slowest
@@ -1519,15 +1520,16 @@ def render_analytics_sections(fdf, result_groups):
     with st.expander("📊 Performance Analysis", expanded=True):
         # 1. Configuration Averages Table at the very top
         group_cols = ["Method", "Model", "Resolution"]
-        summary_df = fdf.groupby(group_cols).agg(
-            **{
-                "Mean Attribution Runtime (sec)": (runtime_col, "mean"),
-                "Std Across Images (sec)": (runtime_col, "std"),
-                "Mean Peak Attribution Memory (MB)": (memory_col, "mean"),
-                "Std Peak Memory (MB)": (memory_col, "std"),
-                "Samples": (runtime_col, "count"),
-            }
-        ).reset_index()
+        agg_dict_config = {
+            "Mean Attribution Runtime (sec)": (runtime_col, "mean"),
+            "Std Across Images (sec)": (runtime_col, "std"),
+            "Mean Peak Attribution Memory (MB)": (memory_col, "mean"),
+            "Std Peak Memory (MB)": (memory_col, "std"),
+            "Samples": (runtime_col, "count"),
+        }
+        if "Gini Index" in fdf.columns and fdf["Gini Index"].notna().any():
+            agg_dict_config["Mean Gini Index"] = ("Gini Index", "mean")
+        summary_df = fdf.groupby(group_cols).agg(**agg_dict_config).reset_index()
         summary_df["Std Across Images (sec)"] = summary_df["Std Across Images (sec)"].fillna(0)
         summary_df["Std Peak Memory (MB)"] = summary_df["Std Peak Memory (MB)"].fillna(0)
         with st.expander("📋 Configuration Averages", expanded=True):
@@ -1690,13 +1692,14 @@ def render_analytics_sections(fdf, result_groups):
                 ))
                 
                 # Performance comparison table
-                model_summary = fdf.groupby("Model").agg(
-                    **{
-                        "Mean Attribution Runtime (sec)": (runtime_col, "mean"),
-                        "Mean Peak Attribution Memory (MB)": (memory_col, "mean"),
-                        "Samples": (runtime_col, "count"),
-                    }
-                ).reset_index().sort_values("Mean Attribution Runtime (sec)")
+                model_agg_dict = {
+                    "Mean Attribution Runtime (sec)": (runtime_col, "mean"),
+                    "Mean Peak Attribution Memory (MB)": (memory_col, "mean"),
+                    "Samples": (runtime_col, "count"),
+                }
+                if "Gini Index" in fdf.columns and fdf["Gini Index"].notna().any():
+                    model_agg_dict["Mean Gini Index"] = ("Gini Index", "mean")
+                model_summary = fdf.groupby("Model").agg(**model_agg_dict).reset_index().sort_values("Mean Attribution Runtime (sec)")
                 st.table(style_dataframe(model_summary))
                 
                 mc1, mc2 = st.columns(2)
@@ -2061,7 +2064,7 @@ def render_result_group(group, selected_methods, expanded=True):
             
             if arch_results:
                 raw_df = presentation_df(pd.DataFrame(arch_results))
-                display_cols = [c for c in ["Method", "Resolution", "Prediction", ATTR_RUNTIME_COL, "Attribution Runtime Std (sec)", ATTR_MEMORY_COL, "Attribution Memory Std (MB)"] if c in raw_df.columns]
+                display_cols = [c for c in ["Method", "Resolution", "Prediction", ATTR_RUNTIME_COL, "Attribution Runtime Std (sec)", ATTR_MEMORY_COL, "Attribution Memory Std (MB)", "Gini Index"] if c in raw_df.columns]
                 st.table(style_dataframe(raw_df[display_cols]))
 
 @st.dialog("Image Viewer", width="large")
@@ -2099,6 +2102,8 @@ if 'selected_warmups' not in st.session_state: st.session_state.selected_warmups
 if 'selected_repeats' not in st.session_state: st.session_state.selected_repeats = 5
 if 'selected_memory_runs' not in st.session_state: st.session_state.selected_memory_runs = 1
 if 'selected_run_order' not in st.session_state: st.session_state.selected_run_order = "Balanced"
+if 'enable_quality_metrics' not in st.session_state: st.session_state.enable_quality_metrics = False
+if 'selected_quality_metrics' not in st.session_state: st.session_state.selected_quality_metrics = []
 has_cuda = torch.cuda.is_available()
 has_mps = hasattr(torch.backends, "mps") and torch.backends.mps.is_available()
 default_device_mode = "CPU"
@@ -2112,6 +2117,8 @@ if 'current_device_mode' not in st.session_state: st.session_state.current_devic
 if 'current_warmups' not in st.session_state: st.session_state.current_warmups = 1
 if 'current_repeats' not in st.session_state: st.session_state.current_repeats = 5
 if 'current_memory_runs' not in st.session_state: st.session_state.current_memory_runs = 1
+if 'current_enable_quality_metrics' not in st.session_state: st.session_state.current_enable_quality_metrics = False
+if 'current_selected_quality_metrics' not in st.session_state: st.session_state.current_selected_quality_metrics = ["Gini Index (Sparsity)"]
 if 'current_page' not in st.session_state: st.session_state.current_page = "Configure"
 
 # --- SIDEBAR ---
@@ -2148,6 +2155,8 @@ if st.session_state.get("restore_config"):
     st.session_state.selected_warmups = settings.get("warmup_runs", 1)
     st.session_state.selected_memory_runs = settings.get("memory_runs", 1)
     st.session_state.selected_run_order = settings.get("run_order", "Balanced")
+    st.session_state.enable_quality_metrics = settings.get("enable_quality_metrics", False)
+    st.session_state.selected_quality_metrics = settings.get("selected_quality_metrics", ["Gini Index (Sparsity)"])
     
     env_dev = environment.get("selected_device")
     if env_dev:
@@ -2410,7 +2419,7 @@ def render_configure_page():
             horizontal=True,
         )
 
-    # Row 4
+    # Row 4: Details & Hardware Status
     row4_left, row4_right = st.columns([2, 1])
     with row4_left:
         st.markdown('<div style="margin-top: 35px; font-weight: bold; margin-bottom: 8px; font-size: 1.1em; color: var(--xai-text);">Measurement Details</div>', unsafe_allow_html=True)
@@ -2433,6 +2442,22 @@ def render_configure_page():
             st.success(f"**GPU Active:** {gpu_desc}")
         else:
             st.warning(f"**CPU Active:** {get_cpu_info()}")
+
+    # Row 5: Quality Metrics (Post-Processing)
+    st.divider()
+    is_quality_enabled = st.toggle(
+        "Explanation Quality Evaluation",
+        key="enable_quality_metrics",
+        help="Evaluates explanation quality (e.g. Gini Index / Sparsity) in post-processing outside the timing and memory benchmarking clock."
+    )
+
+    st.multiselect(
+        "Select Quality Metrics",
+        ["Gini Index (Sparsity)"],
+        key="selected_quality_metrics",
+        disabled=not is_quality_enabled,
+        help="Gini Index measures heatmap focus/concentration (0.0 = uniform blur, 1.0 = highly sparse/focused)."
+    )
 
     st.divider()
 
@@ -2603,6 +2628,8 @@ def render_configure_page():
             st.session_state.current_warmups = st.session_state.selected_warmups
             st.session_state.current_repeats = st.session_state.selected_repeats
             st.session_state.current_memory_runs = st.session_state.selected_memory_runs
+            st.session_state.current_enable_quality_metrics = st.session_state.enable_quality_metrics
+            st.session_state.current_selected_quality_metrics = list(st.session_state.get('selected_quality_metrics', ["Gini Index (Sparsity)"]))
             st.session_state.task_queue = build_task_queue(
                 len(img_sources),
                 st.session_state.current_batch_models,
@@ -2812,7 +2839,9 @@ def render_active_run_page():
                             "repeat_count": st.session_state.current_repeats,
                             "warmup_runs": st.session_state.current_warmups,
                             "memory_runs": st.session_state.current_memory_runs,
-                            "run_order": st.session_state.current_run_order
+                            "run_order": st.session_state.current_run_order,
+                            "enable_quality_metrics": st.session_state.current_enable_quality_metrics,
+                            "selected_quality_metrics": st.session_state.current_selected_quality_metrics
                         },
                         "environment": {
                             "selected_device": st.session_state.current_device_mode
@@ -3240,7 +3269,9 @@ if st.session_state.benchmark_running and not st.session_state.is_finished:
             "warmup_runs": st.session_state.current_warmups,
             "memory_runs": st.session_state.current_memory_runs,
             "repeat_count": st.session_state.current_repeats,
-            "run_order": st.session_state.current_run_order
+            "run_order": st.session_state.current_run_order,
+            "enable_quality_metrics": st.session_state.current_enable_quality_metrics,
+            "selected_quality_metrics": st.session_state.current_selected_quality_metrics
         }, model_entry["session_dir"])
         
         model_entry["results"].extend(results)
@@ -3266,6 +3297,8 @@ if st.session_state.benchmark_running and not st.session_state.is_finished:
                         "warmup_runs": st.session_state.current_warmups,
                         "memory_runs": st.session_state.current_memory_runs,
                         "repeat_count": st.session_state.current_repeats,
+                        "enable_quality_metrics": st.session_state.current_enable_quality_metrics,
+                        "selected_quality_metrics": st.session_state.current_selected_quality_metrics,
                         "run_order": st.session_state.current_run_order,
                         "task_count": len(task_queue),
                         "models": st.session_state.current_batch_models,

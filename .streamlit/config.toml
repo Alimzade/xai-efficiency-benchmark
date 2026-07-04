@@ -4,3 +4,10 @@ gatherUsageStats = false
 [server]
 headless = false
 runOnSave = true
+
+[theme]
+primaryColor = "#2dd4bf"
+backgroundColor = "#111827"
+secondaryBackgroundColor = "#151b2b"
+textColor = "#e5edf6"
+font = "sans serif"
