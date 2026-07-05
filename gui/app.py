@@ -1019,8 +1019,9 @@ def style_dataframe(df, raw_precision=False):
         "Attribution Runtime Median (sec)", "Attribution Runtime Mean (sec)",
         "Attribution Runtime Std (sec)", "Attribution Runtime Min (sec)",
         "Attribution Runtime Max (sec)", "Mean Attribution Runtime (sec)",
-        "Std Across Images (sec)", "Mean Peak Attribution Memory (MB)",
-        "Std Peak Memory (MB)", "Attribution Memory Std (MB)",
+        "Std Across Images (sec)", "Repeat Run Std (sec)",
+        "Mean Peak Attribution Memory (MB)", "Peak Memory (MB)", "Peak Attribution Memory (MB)",
+        "Std Peak Memory (MB)", "Peak Memory Std (MB)", "Attribution Memory Std (MB)", "Repeat Memory Std (MB)",
         "Gini Index", "Mean Gini Index",
         "Deletion AUC", "Mean Deletion AUC",
         "Insertion AUC", "Mean Insertion AUC",
@@ -1049,7 +1050,7 @@ def style_dataframe(df, raw_precision=False):
             else:
                 return lambda v: "–" if pd.isna(v) else (f"{float(v):.6f}".rstrip('0').rstrip('.') if pd.notna(v) and isinstance(v, (int, float, np.number)) else str(v))
         else:
-            if col_name in [ATTR_MEMORY_COL, "Mean Peak Attribution Memory (MB)", "Std Peak Memory (MB)", "Attribution Memory Std (MB)"]:
+            if "MB" in col_name or col_name in [ATTR_MEMORY_COL, "Mean Peak Attribution Memory (MB)", "Std Peak Memory (MB)", "Peak Memory Std (MB)", "Attribution Memory Std (MB)"]:
                 return lambda v: "–" if pd.isna(v) else f"{v:.2f}"
             elif "sec" in col_name or "Infidelity" in col_name or col_name in ["Gini Index", "Mean Gini Index", "Deletion AUC", "Mean Deletion AUC", "Insertion AUC", "Mean Insertion AUC"]:
                 return lambda v: "–" if pd.isna(v) else f"{v:.4f}"
@@ -2134,17 +2135,20 @@ def render_result_group(group, selected_methods, expanded=True):
             if m["model"] not in architectures: architectures.append(m["model"])
         
         for arch in architectures:
-            st.markdown(f"#### Model: `{arch}`")
             arch_models = sorted(
                 [m for m in group["models"] if m["model"] == arch],
                 key=lambda m: m.get("input_size", 0)
             )
+            sample_m = arch_models[0]
+            pred_class = sample_m["results"][0].get("Prediction", "Unknown") if (sample_m.get("results") and len(sample_m["results"]) > 0) else "Unknown"
+            
+            st.markdown(f"#### Model: `{arch}`")
+            st.markdown(f"<div style='margin-top: -12px; margin-bottom: 12px; font-size: 0.9rem; color: #94a3b8;'>Prediction: <strong style='color: #e5edf6;'>{pred_class}</strong></div>", unsafe_allow_html=True)
             
             # Layout: Input Image (Left) | Method Collage (Right)
             col_left, col_right = st.columns([1, 3])
             
             # 1. Show Input Image once for this Architecture
-            sample_m = arch_models[0]
             img_path = os.path.join(sample_m["session_dir"], "input_image.jpg")
             if os.path.exists(img_path):
                 # Pull original resolution from the first result entry
@@ -2180,7 +2184,7 @@ def render_result_group(group, selected_methods, expanded=True):
             
             if arch_results:
                 raw_df = presentation_df(pd.DataFrame(arch_results))
-                display_cols = [c for c in ["Method", "Resolution", "Prediction", ATTR_RUNTIME_COL, "Attribution Runtime Std (sec)", ATTR_MEMORY_COL, "Attribution Memory Std (MB)", "Gini Index", "Deletion AUC", "Insertion AUC", "Infidelity", "Quality Eval Time (sec)"] if c in raw_df.columns]
+                display_cols = [c for c in ["Method", "Resolution", ATTR_RUNTIME_COL, "Attribution Runtime Std (sec)", ATTR_MEMORY_COL, "Attribution Memory Std (MB)", "Gini Index", "Deletion AUC", "Insertion AUC", "Infidelity", "Quality Eval Time (sec)"] if c in raw_df.columns]
                 st.table(style_dataframe(raw_df[display_cols], raw_precision=True))
 
 @st.dialog("Image Viewer", width="large")
@@ -3467,7 +3471,18 @@ if st.session_state.benchmark_running and not st.session_state.is_finished:
             "selected_quality_metrics": st.session_state.current_selected_quality_metrics
         }, model_entry["session_dir"])
         
-        model_entry["results"].extend(results)
+        # Explicit composite Task ID (Image + Model + Resolution + Method) to guarantee 100% mathematical uniqueness
+        task_id = f"img{img_i}_{model_name}_{target_size}px_{method_name.lower()}"
+        for res in results:
+            res["_task_id"] = task_id
+            
+        existing_tasks = {r.get("_task_id"): idx_r for idx_r, r in enumerate(model_entry["results"]) if r.get("_task_id")}
+        for res in results:
+            t_id = res.get("_task_id")
+            if t_id and t_id in existing_tasks:
+                model_entry["results"][existing_tasks[t_id]] = res
+            else:
+                model_entry["results"].append(res)
         st.session_state.run_progress_idx += 1
         
         if st.session_state.run_progress_idx >= len(task_queue):

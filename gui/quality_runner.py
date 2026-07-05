@@ -128,9 +128,18 @@ def compute_deletion_insertion_auc(
         del_probs.append(base_prob)
         ins_probs.append(orig_prob)
 
-        x_steps = np.linspace(0, 1, len(del_probs))
-        del_auc = float(np.trapezoid(del_probs, x_steps))
-        ins_auc = float(np.trapezoid(ins_probs, x_steps))
+        # Normalize probability curves by initial model confidence (orig_prob)
+        # Ensures AUC ranges [0.0, 1.0] and remains invariant to raw ImageNet top-1 probability magnitude
+        if orig_prob > 1e-6:
+            del_probs_norm = [min(1.0, max(0.0, p / orig_prob)) for p in del_probs]
+            ins_probs_norm = [min(1.0, max(0.0, p / orig_prob)) for p in ins_probs]
+        else:
+            del_probs_norm = del_probs
+            ins_probs_norm = ins_probs
+
+        x_steps = np.linspace(0, 1, len(del_probs_norm))
+        del_auc = float(np.trapezoid(del_probs_norm, x_steps))
+        ins_auc = float(np.trapezoid(ins_probs_norm, x_steps))
 
         return {"Deletion AUC": del_auc, "Insertion AUC": ins_auc}
 
