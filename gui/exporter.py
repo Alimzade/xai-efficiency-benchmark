@@ -29,6 +29,10 @@ PRESENTATION_COL_ORDER = [
     "Attribution Runtime Max (sec)",
     ATTR_MEMORY_COL,
     "Gini Index",
+    "Deletion AUC",
+    "Insertion AUC",
+    "Infidelity",
+    "Quality Eval Time (sec)",
     "Status",
 ]
 
@@ -134,6 +138,10 @@ def generate_pdf_report(batch_id, results_data, selected_methods, output_path, t
                     df = presentation_df(pd.DataFrame(arch_results))
                     cols = ["Method", "Input Size (px)", "Prediction", "Warmup Runs", "Memory Runs", "Measured Runs", ATTR_RUNTIME_COL, ATTR_MEMORY_COL]
                     if "Gini Index" in df.columns and any(df["Gini Index"].notna()): cols.append("Gini Index")
+                    if "Deletion AUC" in df.columns and any(df["Deletion AUC"].notna()): cols.append("Deletion AUC")
+                    if "Insertion AUC" in df.columns and any(df["Insertion AUC"].notna()): cols.append("Insertion AUC")
+                    if "Infidelity" in df.columns and any(df["Infidelity"].notna()): cols.append("Infidelity")
+                    if "Quality Eval Time (sec)" in df.columns and any(df["Quality Eval Time (sec)"].notna()): cols.append("Quality Eval Time (sec)")
                     # Only keep columns that exist in data
                     cols = [c for c in cols if c in df.columns]
                     if "Status" in df.columns and any(df["Status"].notna()): cols.append("Status")

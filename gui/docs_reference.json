@@ -139,6 +139,26 @@
           "name": "Gini Index (Sparsity)",
           "unit": "Range $[0.0, 1.0]$",
           "definition": "$\\text{Gini}(\\mathbf{A}) = \\frac{\\sum_{i=1}^N (2i - N - 1) \\vert a_{(i)} \\vert}{N \\sum_{i=1}^N \\vert a_{(i)} \\vert}$ *(0.0 = uniform blur, 1.0 = focused)*."
+        },
+        {
+          "name": "Deletion AUC",
+          "unit": "Area Under Curve",
+          "definition": "Measures drop in target class probability as top important pixels are progressively removed. Lower AUC indicates higher faithfulness."
+        },
+        {
+          "name": "Insertion AUC",
+          "unit": "Area Under Curve",
+          "definition": "Measures recovery in target class probability as top important pixels are progressively added to a baseline image. Higher AUC indicates higher faithfulness."
+        },
+        {
+          "name": "Infidelity",
+          "unit": "Mean Squared Error",
+          "definition": "Captum metric measuring the mean squared difference between predictor output change under perturbation and attribution inner product. Lower is better."
+        },
+        {
+          "name": "Quality Eval Time",
+          "unit": "Seconds ($s$)",
+          "definition": "Runtime overhead consumed by computing post-hoc quality metrics."
         }
       ]
     }

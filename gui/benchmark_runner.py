@@ -369,6 +369,8 @@ def run_benchmark_task(config, session_dir):
                     model=model,
                     input_tensor=input_tensor,
                     target_class=pred_label_idx,
+                    method_key=method_key,
+                    device=device,
                     selected_metrics=selected_quality_metrics
                 )
 
@@ -407,7 +409,11 @@ def run_benchmark_task(config, session_dir):
                 "Peak Memory (MB)": round(peak_memory_mb, 2) if peak_memory_mb is not None else None,
                 "Peak Attribution Memory (MB)": round(peak_memory_mb, 2) if peak_memory_mb is not None else None,
                 "Attribution Memory Std (MB)": round(memory_std, 2) if memory_std is not None else None,
-                "Gini Index": quality_scores.get("Gini Index", None)
+                "Gini Index": round(quality_scores["Gini Index"], 4) if quality_scores.get("Gini Index") is not None else None,
+                "Deletion AUC": round(quality_scores["Deletion AUC"], 4) if quality_scores.get("Deletion AUC") is not None else None,
+                "Insertion AUC": round(quality_scores["Insertion AUC"], 4) if quality_scores.get("Insertion AUC") is not None else None,
+                "Infidelity": round(quality_scores["Infidelity"], 4) if quality_scores.get("Infidelity") is not None else None,
+                "Quality Eval Time (sec)": round(quality_scores["Quality Eval Time (sec)"], 4) if quality_scores.get("Quality Eval Time (sec)") is not None else None
             })
 
             # Explicitly delete objects and clear cache after each method
@@ -440,6 +446,10 @@ def run_benchmark_task(config, session_dir):
                 "Peak Memory (MB)": None, "Peak Attribution Memory (MB)": None,
                 "Attribution Memory Std (MB)": None,
                 "Gini Index": None,
+                "Deletion AUC": None,
+                "Insertion AUC": None,
+                "Infidelity": None,
+                "Quality Eval Time (sec)": None,
                 "Status": f"Failed: {str(e)}"
             })
 

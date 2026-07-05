@@ -522,8 +522,8 @@ st.markdown("""
         color: var(--xai-text);
         font-weight: 750;
     }
-    /* Subtle modern styling for documentation reference tables */
-    [data-testid="stExpander"] table {
+    /* Subtle modern styling ONLY for documentation reference tables */
+    .doc-reference-table table {
         width: 100% !important;
         border-collapse: separate !important;
         border-spacing: 0 !important;
@@ -534,24 +534,24 @@ st.markdown("""
         margin-bottom: 20px !important;
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
     }
-    [data-testid="stExpander"] th {
+    .doc-reference-table th {
         background: linear-gradient(180deg, rgba(45, 212, 191, 0.12), rgba(96, 165, 250, 0.06)) !important;
         color: var(--xai-text) !important;
         font-weight: 600 !important;
         border-bottom: 2px solid rgba(45, 212, 191, 0.3) !important;
         padding: 10px 14px !important;
     }
-    [data-testid="stExpander"] td {
+    .doc-reference-table td {
         background-color: rgba(255, 255, 255, 0.02) !important;
         border-bottom: 1px solid rgba(148, 163, 184, 0.12) !important;
         padding: 10px 14px !important;
         font-size: 0.92rem !important;
     }
-    [data-testid="stExpander"] td:first-child {
+    .doc-reference-table td:first-child {
         font-weight: 650 !important;
         color: #f1f5f9 !important;
     }
-    [data-testid="stExpander"] tr:hover td {
+    .doc-reference-table tr:hover td {
         background-color: rgba(45, 212, 191, 0.05) !important;
     }
     div.stButton button,
@@ -842,6 +842,11 @@ PRESENTATION_COL_ORDER = [
     "Attribution Runtime Min (sec)",
     "Attribution Runtime Max (sec)",
     ATTR_MEMORY_COL,
+    "Gini Index",
+    "Deletion AUC",
+    "Insertion AUC",
+    "Infidelity",
+    "Quality Eval Time (sec)",
     "Status",
 ]
 
@@ -1003,7 +1008,7 @@ def get_base64(img):
     buffered = BytesIO(); img.save(buffered, format="PNG")
     import base64; return base64.b64encode(buffered.getvalue()).decode()
 
-def style_dataframe(df):
+def style_dataframe(df, raw_precision=False):
     df = normalize_metric_columns(df.copy())
     
     # Identify which columns to style with background gradient.
@@ -1015,7 +1020,12 @@ def style_dataframe(df):
         "Attribution Runtime Std (sec)", "Attribution Runtime Min (sec)",
         "Attribution Runtime Max (sec)", "Mean Attribution Runtime (sec)",
         "Std Across Images (sec)", "Mean Peak Attribution Memory (MB)",
-        "Std Peak Memory (MB)", "Attribution Memory Std (MB)"
+        "Std Peak Memory (MB)", "Attribution Memory Std (MB)",
+        "Gini Index", "Mean Gini Index",
+        "Deletion AUC", "Mean Deletion AUC",
+        "Insertion AUC", "Mean Insertion AUC",
+        "Infidelity", "Mean Infidelity",
+        "Quality Eval Time (sec)", "Mean Quality Eval Time (sec)"
     ]
     
     for c in possible_style_cols:
@@ -1033,14 +1043,23 @@ def style_dataframe(df):
             df[c] = df[c].fillna("–")
             
     def make_formatter(col_name):
-        if "sec" in col_name or col_name in ["Gini Index", "Mean Gini Index"]:
-            return lambda v: "–" if pd.isna(v) else f"{v:.4f}"
-        elif col_name in ["Input Size (px)", "Resolution", "Samples", "Methods", "Resolutions", "Images", "Repeats", "Total Attribution Runs"]:
-            return lambda v: "–" if pd.isna(v) else f"{v:.0f}"
+        if raw_precision:
+            if col_name in ["Input Size (px)", "Resolution", "Samples", "Methods", "Resolutions", "Images", "Repeats", "Total Attribution Runs"]:
+                return lambda v: "–" if pd.isna(v) else f"{v:.0f}"
+            else:
+                return lambda v: "–" if pd.isna(v) else (f"{float(v):.6f}".rstrip('0').rstrip('.') if pd.notna(v) and isinstance(v, (int, float, np.number)) else str(v))
         else:
-            return lambda v: "–" if pd.isna(v) else f"{v:.2f}"
+            if col_name in [ATTR_MEMORY_COL, "Mean Peak Attribution Memory (MB)", "Std Peak Memory (MB)", "Attribution Memory Std (MB)"]:
+                return lambda v: "–" if pd.isna(v) else f"{v:.2f}"
+            elif "sec" in col_name or "Infidelity" in col_name or col_name in ["Gini Index", "Mean Gini Index", "Deletion AUC", "Mean Deletion AUC", "Insertion AUC", "Mean Insertion AUC"]:
+                return lambda v: "–" if pd.isna(v) else f"{v:.4f}"
+            elif col_name in ["Input Size (px)", "Resolution", "Samples", "Methods", "Resolutions", "Images", "Repeats", "Total Attribution Runs"]:
+                return lambda v: "–" if pd.isna(v) else f"{v:.0f}"
+            else:
+                return lambda v: "–" if pd.isna(v) else f"{v:.4f}"
 
-    formatters = {c: make_formatter(c) for c in subset_cols}
+    numeric_cols = [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c])]
+    formatters = {c: make_formatter(c) for c in numeric_cols}
     integer_cols = ["Input Size (px)", "Resolution", "Samples", "Methods", "Resolutions", "Images", "Repeats", "Total Attribution Runs"]
     for col in integer_cols:
         if col in df.columns and col in subset_cols and pd.api.types.is_numeric_dtype(df[col]):
@@ -1048,7 +1067,15 @@ def style_dataframe(df):
             
     styler = df.style
     if subset_cols:
-        styler = styler.background_gradient(cmap="coolwarm", subset=subset_cols)
+        # 1. Lower is Better (Runtime, Memory, Deletion AUC, Infidelity, Eval Time) -> coolwarm (Low=Blue/Good, High=Red/Bad)
+        lower_is_better_cols = [c for c in subset_cols if not any(k in c for k in ["Gini", "Insertion"])]
+        # 2. Higher is Better (Gini Index, Insertion AUC) -> coolwarm_r (High=Blue/Good, Low=Red/Bad)
+        higher_is_better_cols = [c for c in subset_cols if any(k in c for k in ["Gini", "Insertion"])]
+
+        if lower_is_better_cols:
+            styler = styler.background_gradient(cmap="coolwarm", subset=lower_is_better_cols)
+        if higher_is_better_cols:
+            styler = styler.background_gradient(cmap="coolwarm_r", subset=higher_is_better_cols)
         
     # Right-align all columns containing metrics or numeric dimensions to keep dashes aligned with numbers
     right_align_cols = [c for c in df.columns if c not in ["Method", "Resolution", "Prediction", "Status"]]
@@ -1151,13 +1178,21 @@ def plot_method_memory(df, title="Peak Memory Overhead"):
     df = normalize_metric_columns(df)
     memory_col = metric_col(df, ATTR_MEMORY_COL, LEGACY_MEMORY_COL)
     
+    valid_df = df[df[memory_col].notna()].copy()
+    if valid_df.empty:
+        fig, ax = plt.subplots(figsize=(10, 4))
+        ax.text(0.5, 0.5, "Memory profiling disabled or not available", ha='center', va='center', fontsize=12, color='gray')
+        ax.set_title(title, fontsize=14, fontweight='bold', family='serif')
+        ax.axis('off')
+        return fig
+
     # Sort methods by median memory
-    order = list(df.groupby("Method")[memory_col].median().sort_values(ascending=True).index)
+    order = list(valid_df.groupby("Method")[memory_col].median().sort_values(ascending=True).index)
     
     stats = []
     for method in order:
-        vals = df[df["Method"] == method][memory_col].values
-        vals = vals[vals >= 0]
+        vals = valid_df[valid_df["Method"] == method][memory_col].values
+        vals = np.array([v for v in vals if v is not None and pd.notna(v) and v >= 0], dtype=float)
         if len(vals) == 0:
             continue
         mean_val = float(np.mean(vals))
@@ -1355,10 +1390,6 @@ def image_size_summary(df):
             "Std Peak Memory (MB)": (memory_col, "std"),
         }
     ).reset_index()
-    summary["Std Across Images (sec)"] = summary["Std Across Images (sec)"].fillna(0)
-    summary["Std Peak Memory (MB)"] = summary["Std Peak Memory (MB)"].fillna(0)
-    summary["Input Size (px)"] = summary["Input Size (px)"].astype(int)
-    
     # Rename Column to Resolution
     summary = summary.rename(columns={"Input Size (px)": "Resolution"})
     return summary.sort_values("Resolution")
@@ -1414,19 +1445,33 @@ def method_detail_summary(df):
     df = add_input_size_column(normalize_metric_columns(df))
     runtime_col = metric_col(df, ATTR_RUNTIME_COL, LEGACY_RUNTIME_COL)
     memory_col = metric_col(df, ATTR_MEMORY_COL, LEGACY_MEMORY_COL)
+    
+    n_images = int(df["Image Index"].nunique()) if "Image Index" in df.columns else 1
+    std_runtime_src = "Attribution Runtime Std (sec)" if (n_images == 1 and "Attribution Runtime Std (sec)" in df.columns) else runtime_col
+    std_runtime_func = "mean" if n_images == 1 else "std"
+
+    std_mem_src = "Attribution Memory Std (MB)" if (n_images == 1 and "Attribution Memory Std (MB)" in df.columns) else memory_col
+    std_mem_func = "mean" if n_images == 1 else "std"
+
     agg_dict = {
         "Mean Attribution Runtime (sec)": (runtime_col, "mean"),
-        "Std Across Images (sec)": (runtime_col, "std"),
+        "Attribution Runtime Std (sec)": (std_runtime_src, std_runtime_func),
         "Mean Peak Attribution Memory (MB)": (memory_col, "mean"),
-        "Std Peak Memory (MB)": (memory_col, "std"),
+        "Peak Memory Std (MB)": (std_mem_src, std_mem_func),
         "Samples": (runtime_col, "count"),
     }
     if "Gini Index" in df.columns and df["Gini Index"].notna().any():
         agg_dict["Mean Gini Index"] = ("Gini Index", "mean")
-    summary = df.groupby("Method").agg(**agg_dict).reset_index()
-    summary["Std Across Images (sec)"] = summary["Std Across Images (sec)"].fillna(0)
-    summary["Std Peak Memory (MB)"] = summary["Std Peak Memory (MB)"].fillna(0)
-    return summary.sort_values("Mean Attribution Runtime (sec)")
+    if "Deletion AUC" in df.columns and df["Deletion AUC"].notna().any():
+        agg_dict["Mean Deletion AUC"] = ("Deletion AUC", "mean")
+    if "Insertion AUC" in df.columns and df["Insertion AUC"].notna().any():
+        agg_dict["Mean Insertion AUC"] = ("Insertion AUC", "mean")
+    if "Infidelity" in df.columns and df["Infidelity"].notna().any():
+        agg_dict["Mean Infidelity"] = ("Infidelity", "mean")
+    if "Quality Eval Time (sec)" in df.columns and df["Quality Eval Time (sec)"].notna().any():
+        agg_dict["Mean Quality Eval Time (sec)"] = ("Quality Eval Time (sec)", "mean")
+    summary = df.groupby("Method", sort=False).agg(**agg_dict).reset_index()
+    return summary
 
 def fastest_slowest_rows(df, count=5):
     df = presentation_df(df)
@@ -1552,18 +1597,31 @@ def render_analytics_sections(fdf, result_groups):
     with st.expander("📊 Performance Analysis", expanded=True):
         # 1. Configuration Averages Table at the very top
         group_cols = ["Method", "Model", "Resolution"]
+        n_images = int(fdf["Image Index"].nunique()) if "Image Index" in fdf.columns else 1
+        std_runtime_src = "Attribution Runtime Std (sec)" if (n_images == 1 and "Attribution Runtime Std (sec)" in fdf.columns) else runtime_col
+        std_runtime_func = "mean" if n_images == 1 else "std"
+
+        std_mem_src = "Attribution Memory Std (MB)" if (n_images == 1 and "Attribution Memory Std (MB)" in fdf.columns) else memory_col
+        std_mem_func = "mean" if n_images == 1 else "std"
+
         agg_dict_config = {
             "Mean Attribution Runtime (sec)": (runtime_col, "mean"),
-            "Std Across Images (sec)": (runtime_col, "std"),
+            "Attribution Runtime Std (sec)": (std_runtime_src, std_runtime_func),
             "Mean Peak Attribution Memory (MB)": (memory_col, "mean"),
-            "Std Peak Memory (MB)": (memory_col, "std"),
+            "Peak Memory Std (MB)": (std_mem_src, std_mem_func),
             "Samples": (runtime_col, "count"),
         }
         if "Gini Index" in fdf.columns and fdf["Gini Index"].notna().any():
             agg_dict_config["Mean Gini Index"] = ("Gini Index", "mean")
+        if "Deletion AUC" in fdf.columns and fdf["Deletion AUC"].notna().any():
+            agg_dict_config["Mean Deletion AUC"] = ("Deletion AUC", "mean")
+        if "Insertion AUC" in fdf.columns and fdf["Insertion AUC"].notna().any():
+            agg_dict_config["Mean Insertion AUC"] = ("Insertion AUC", "mean")
+        if "Infidelity" in fdf.columns and fdf["Infidelity"].notna().any():
+            agg_dict_config["Mean Infidelity"] = ("Infidelity", "mean")
+        if "Quality Eval Time (sec)" in fdf.columns and fdf["Quality Eval Time (sec)"].notna().any():
+            agg_dict_config["Mean Quality Eval Time (sec)"] = ("Quality Eval Time (sec)", "mean")
         summary_df = fdf.groupby(group_cols).agg(**agg_dict_config).reset_index()
-        summary_df["Std Across Images (sec)"] = summary_df["Std Across Images (sec)"].fillna(0)
-        summary_df["Std Peak Memory (MB)"] = summary_df["Std Peak Memory (MB)"].fillna(0)
         with st.expander("📋 Configuration Averages", expanded=True):
             _c_images  = int(fdf["Image Index"].nunique()) if "Image Index" in fdf.columns else 1
             _c_repeats = int(fdf["Measured Runs"].iloc[0]) if "Measured Runs" in fdf.columns else 1
@@ -1731,6 +1789,14 @@ def render_analytics_sections(fdf, result_groups):
                 }
                 if "Gini Index" in fdf.columns and fdf["Gini Index"].notna().any():
                     model_agg_dict["Mean Gini Index"] = ("Gini Index", "mean")
+                if "Deletion AUC" in fdf.columns and fdf["Deletion AUC"].notna().any():
+                    model_agg_dict["Mean Deletion AUC"] = ("Deletion AUC", "mean")
+                if "Insertion AUC" in fdf.columns and fdf["Insertion AUC"].notna().any():
+                    model_agg_dict["Mean Insertion AUC"] = ("Insertion AUC", "mean")
+                if "Infidelity" in fdf.columns and fdf["Infidelity"].notna().any():
+                    model_agg_dict["Mean Infidelity"] = ("Infidelity", "mean")
+                if "Quality Eval Time (sec)" in fdf.columns and fdf["Quality Eval Time (sec)"].notna().any():
+                    model_agg_dict["Mean Quality Eval Time (sec)"] = ("Quality Eval Time (sec)", "mean")
                 model_summary = fdf.groupby("Model").agg(**model_agg_dict).reset_index().sort_values("Mean Attribution Runtime (sec)")
                 st.table(style_dataframe(model_summary))
                 
@@ -1954,6 +2020,23 @@ def render_configuration_summary(settings, results):
             return "-"
         return str(v)
         
+    quality_metrics = settings.get("selected_quality_metrics") or settings.get("quality_metrics") or []
+    if not quality_metrics and settings.get("enable_quality_metrics") is False:
+        quality_metrics = []
+    elif not quality_metrics and results:
+        scanned_qm = set()
+        for g in results:
+            for m in g.get("models", []):
+                for r in m.get("results", []):
+                    for qm_name in ["Gini Index", "Deletion AUC", "Insertion AUC", "Infidelity"]:
+                        if qm_name in r and r.get(qm_name) is not None:
+                            scanned_qm.add(qm_name)
+        if scanned_qm:
+            quality_metrics = sorted(list(scanned_qm))
+
+    qm_count = len(quality_metrics) if quality_metrics else 0
+    qm_detail = ", ".join(quality_metrics) if quality_metrics else "None (Disabled)"
+
     config_rows = [
         ("Images Analyzed", clean_val(img_count), "-"),
         ("Models", clean_val(len(models)), ", ".join(models) if models else "-"),
@@ -1962,6 +2045,7 @@ def render_configuration_summary(settings, results):
         ("Repeats per Config", clean_val(repeats), "-"),
         ("Warmup Runs", clean_val(warmups), "-"),
         ("Memory Runs", clean_val(memory_runs), "-"),
+        ("Quality Metrics", clean_val(qm_count), qm_detail),
     ]
     
     # Build HTML table with controlled column widths
@@ -2096,8 +2180,8 @@ def render_result_group(group, selected_methods, expanded=True):
             
             if arch_results:
                 raw_df = presentation_df(pd.DataFrame(arch_results))
-                display_cols = [c for c in ["Method", "Resolution", "Prediction", ATTR_RUNTIME_COL, "Attribution Runtime Std (sec)", ATTR_MEMORY_COL, "Attribution Memory Std (MB)", "Gini Index"] if c in raw_df.columns]
-                st.table(style_dataframe(raw_df[display_cols]))
+                display_cols = [c for c in ["Method", "Resolution", "Prediction", ATTR_RUNTIME_COL, "Attribution Runtime Std (sec)", ATTR_MEMORY_COL, "Attribution Memory Std (MB)", "Gini Index", "Deletion AUC", "Insertion AUC", "Infidelity", "Quality Eval Time (sec)"] if c in raw_df.columns]
+                st.table(style_dataframe(raw_df[display_cols], raw_precision=True))
 
 @st.dialog("Image Viewer", width="large")
 def show_lightbox(img):
@@ -2182,7 +2266,13 @@ if st.session_state.get("restore_config"):
             restored_methods.append(methods_map[m_norm])
     st.session_state.selected_methods = restored_methods if restored_methods else ["Saliency", "Integrated_Gradients"]
     
-    st.session_state.input_size_str = ", ".join([str(s) for s in settings.get("input_sizes", [224])])
+    raw_sizes = settings.get("input_sizes") or settings.get("input_size_str") or [224]
+    if isinstance(raw_sizes, list) and len(raw_sizes) > 0:
+        st.session_state.input_size_str = ", ".join([str(s) for s in raw_sizes])
+    elif isinstance(raw_sizes, (str, int)):
+        st.session_state.input_size_str = str(raw_sizes)
+    else:
+        st.session_state.input_size_str = "224"
     st.session_state.selected_repeats = settings.get("repeat_count", 5)
     st.session_state.selected_warmups = settings.get("warmup_runs", 1)
     st.session_state.selected_memory_runs = settings.get("memory_runs", 1)
@@ -2252,9 +2342,17 @@ def plot_combined_batches_memory(df):
     df = normalize_metric_columns(df)
     memory_col = metric_col(df, ATTR_MEMORY_COL, LEGACY_MEMORY_COL)
     
+    valid_df = df[df[memory_col].notna()].copy()
+    if valid_df.empty:
+        fig, ax = plt.subplots(figsize=(12, 4))
+        ax.text(0.5, 0.5, "Memory profiling disabled or not available", ha='center', va='center', fontsize=12, color='gray')
+        ax.set_title("Peak Attribution Memory Comparison Across Batches", fontsize=14, fontweight='bold', family='serif')
+        ax.axis('off')
+        return fig
+
     fig, ax = plt.subplots(figsize=(12, 7))
-    df["Model_Method"] = df["Model"] + "\n(" + df["Method"] + ")"
-    df_sorted = df.sort_values(by=["Model_Method", "Batch"])
+    valid_df["Model_Method"] = valid_df["Model"] + "\n(" + valid_df["Method"] + ")"
+    df_sorted = valid_df.sort_values(by=["Model_Method", "Batch"])
     
     sns.barplot(
         data=df_sorted, 
@@ -2485,10 +2583,10 @@ def render_configure_page():
 
     st.multiselect(
         "Select Quality Metrics",
-        ["Gini Index (Sparsity)"],
+        ["Gini Index (Sparsity)", "Deletion AUC", "Insertion AUC", "Infidelity"],
         key="selected_quality_metrics",
         disabled=not is_quality_enabled,
-        help="Gini Index measures heatmap focus/concentration (0.0 = uniform blur, 1.0 = highly sparse/focused)."
+        help="Post-hoc quality metrics evaluated outside the timing clock. Gini Index (sparsity), Deletion AUC (faithfulness upon removal), Insertion AUC (faithfulness upon addition), and Infidelity (perturbation sensitivity)."
     )
 
     st.divider()
@@ -2833,7 +2931,8 @@ def render_active_run_page():
                         "input_sizes": st.session_state.current_batch_sizes,
                         "repeat_count": st.session_state.current_repeats,
                         "warmup_runs": st.session_state.current_warmups,
-                        "memory_runs": st.session_state.current_memory_runs
+                        "memory_runs": st.session_state.current_memory_runs,
+                        "selected_quality_metrics": st.session_state.selected_quality_metrics if st.session_state.get("enable_quality_metrics", False) else []
                     }
                     render_configuration_summary(active_settings, st.session_state.last_run_results)
                 
@@ -2865,9 +2964,9 @@ def render_active_run_page():
                 if st.button("Repeat Config", key="repeat_current_active_btn", help="Load this configuration back into your workspace inputs to tweak or run it again.", use_container_width=True):
                     st.session_state.restore_config = {
                         "settings": {
-                            "models": st.session_state.current_batch_models,
-                            "methods": st.session_state.current_batch_methods,
-                            "input_sizes": st.session_state.current_batch_sizes,
+                            "models": st.session_state.current_batch_models if st.session_state.current_batch_models else st.session_state.selected_models,
+                            "methods": st.session_state.current_batch_methods if st.session_state.current_batch_methods else st.session_state.selected_methods,
+                            "input_sizes": st.session_state.current_batch_sizes if st.session_state.current_batch_sizes else parse_input_sizes(st.session_state.get("input_size_str", "224")),
                             "repeat_count": st.session_state.current_repeats,
                             "warmup_runs": st.session_state.current_warmups,
                             "memory_runs": st.session_state.current_memory_runs,
@@ -3219,6 +3318,9 @@ def render_history_page():
                 "Measured Runs": "first",
                 "Samples": "count"
             }).reset_index()
+            for qm in ["Gini Index", "Deletion AUC", "Insertion AUC", "Infidelity", "Quality Eval Time (sec)"]:
+                if qm in combined_df.columns and combined_df[qm].notna().any():
+                    combined_summary_df[f"Mean {qm}"] = combined_df.groupby(group_cols)[qm].transform("mean")
             
             st.table(style_dataframe(combined_summary_df))
             
@@ -3245,6 +3347,8 @@ def render_documentation_page():
     st.markdown("Technical specifications and mathematical formulations for supported attribution algorithms, model architectures, and evaluation metrics.")
     
     docs_data = load_docs_reference()
+    
+    st.markdown('<div class="doc-reference-table">', unsafe_allow_html=True)
     
     # Section 1: XAI Methods
     with st.expander("🔬 Feature Attribution Methods", expanded=True):
@@ -3275,6 +3379,8 @@ def render_documentation_page():
             for item in group.get("metrics", []):
                 table_md += f"| **{item.get('name', '')}** | {item.get('unit', '')} | {item.get('definition', '')} |\n"
             st.markdown(table_md)
+            
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # --- TABS WORKSPACE ---
 tab1, tab2, tab3, tab4 = st.tabs([
