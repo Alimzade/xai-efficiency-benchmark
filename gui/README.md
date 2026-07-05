@@ -37,12 +37,13 @@ The GUI files are structured as follows:
 ├── gui/
 │   ├── app.py              # Main dashboard entrypoint: handles layout, pages, and plots
 │   ├── benchmark_runner.py # Execution engine: manages warmups, repeats, timers, and VRAM
+│   ├── docs_reference.json # Method, model, and metric reference taxonomy (JSON)
 │   ├── exporter.py         # Report generator: compiles benchmark runs into CSV and PDF
 │   ├── session_manager.py  # File system coordinator: handles workspace outputs and cleanup
 │   └── sessions/           # Created dynamically: stores task CSVs, PDF reports, and heatmaps
 ```
 
-### 🔗🔗 External Repository Dependencies
+### 🔗 External Repository Dependencies
 
 While the interface resides in the `gui/` folder, it strictly depends on the following external files and directories:
 

@@ -522,6 +522,38 @@ st.markdown("""
         color: var(--xai-text);
         font-weight: 750;
     }
+    /* Subtle modern styling for documentation reference tables */
+    [data-testid="stExpander"] table {
+        width: 100% !important;
+        border-collapse: separate !important;
+        border-spacing: 0 !important;
+        border-radius: 8px !important;
+        overflow: hidden !important;
+        border: 1px solid var(--xai-border) !important;
+        margin-top: 8px !important;
+        margin-bottom: 20px !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+    }
+    [data-testid="stExpander"] th {
+        background: linear-gradient(180deg, rgba(45, 212, 191, 0.12), rgba(96, 165, 250, 0.06)) !important;
+        color: var(--xai-text) !important;
+        font-weight: 600 !important;
+        border-bottom: 2px solid rgba(45, 212, 191, 0.3) !important;
+        padding: 10px 14px !important;
+    }
+    [data-testid="stExpander"] td {
+        background-color: rgba(255, 255, 255, 0.02) !important;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.12) !important;
+        padding: 10px 14px !important;
+        font-size: 0.92rem !important;
+    }
+    [data-testid="stExpander"] td:first-child {
+        font-weight: 650 !important;
+        color: #f1f5f9 !important;
+    }
+    [data-testid="stExpander"] tr:hover td {
+        background-color: rgba(45, 212, 191, 0.05) !important;
+    }
     div.stButton button,
     div.stDownloadButton button {
         border-radius: 8px !important;
@@ -3197,8 +3229,60 @@ def render_history_page():
         else:
             st.error("No valid results found in the selected batches.")
 
+def load_docs_reference():
+    docs_path = os.path.join(os.path.dirname(__file__), "docs_reference.json")
+    if os.path.exists(docs_path):
+        try:
+            with open(docs_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            st.error(f"Error loading documentation reference file: {e}")
+    return {}
+
+def render_documentation_page():
+    st.markdown('<div style="margin-top: 1.0rem;"></div>', unsafe_allow_html=True)
+    st.markdown("## XAI Methods, Models & Metrics")
+    st.markdown("Technical specifications and mathematical formulations for supported attribution algorithms, model architectures, and evaluation metrics.")
+    
+    docs_data = load_docs_reference()
+    
+    # Section 1: XAI Methods
+    with st.expander("🔬 Feature Attribution Methods", expanded=True):
+        xai_groups = docs_data.get("xai_methods", [])
+        for group in xai_groups:
+            st.markdown(f"#### {group.get('category', '')}")
+            table_md = "| Algorithm | Mathematical Formulation | Complexity | Key Characteristics & Properties |\n| :--- | :--- | :--- | :--- |\n"
+            for item in group.get("methods", []):
+                table_md += f"| **{item.get('name', '')}** | {item.get('formulation', '')} | {item.get('complexity', '')} | {item.get('characteristics', '')} |\n"
+            st.markdown(table_md)
+
+    # Section 2: Model Architectures
+    with st.expander("🏗️ Vision Model Architectures", expanded=False):
+        model_groups = docs_data.get("models", [])
+        for group in model_groups:
+            st.markdown(f"#### {group.get('category', '')}")
+            table_md = "| Model Backbone | Parameters (M) | Design Paradigm & Key Innovations |\n| :--- | :--- | :--- |\n"
+            for item in group.get("models", []):
+                table_md += f"| **{item.get('name', '')}** | {item.get('params', '')} | {item.get('characteristics', '')} |\n"
+            st.markdown(table_md)
+
+    # Section 3: Benchmark Metrics
+    with st.expander("📊 Evaluation Metrics", expanded=False):
+        metric_groups = docs_data.get("metrics", [])
+        for group in metric_groups:
+            st.markdown(f"#### {group.get('category', '')}")
+            table_md = "| Metric Name | Measurement Unit | Definition & Evaluation Logic |\n| :--- | :--- | :--- |\n"
+            for item in group.get("metrics", []):
+                table_md += f"| **{item.get('name', '')}** | {item.get('unit', '')} | {item.get('definition', '')} |\n"
+            st.markdown(table_md)
+
 # --- TABS WORKSPACE ---
-tab1, tab2, tab3 = st.tabs(["🚀 Benchmark Workspace", "📜 Results History & Evaluation", "📖 Citation"])
+tab1, tab2, tab3, tab4 = st.tabs([
+    "🚀 Benchmark Workspace", 
+    "📜 Results History & Evaluation", 
+    "📚 Documentation", 
+    "📖 Citation"
+])
 
 with tab1:
     if st.session_state.benchmark_running or st.session_state.benchmark_ready_to_run or st.session_state.is_finished:
@@ -3212,6 +3296,9 @@ with tab2:
     render_history_page()
 
 with tab3:
+    render_documentation_page()
+
+with tab4:
     if st.session_state.benchmark_running and not st.session_state.is_finished:
         st.warning("⚡ **Benchmark is running in the background.** This page will refresh automatically as tasks complete. We recommend staying on the **Benchmark Workspace** tab to monitor progress.")
     st.markdown('<div style="margin-top: 1.5rem;"></div>', unsafe_allow_html=True)
