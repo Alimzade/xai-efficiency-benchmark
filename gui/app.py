@@ -855,10 +855,30 @@ def metric_col(df, preferred, legacy):
 
 def normalize_metric_columns(df):
     df = df.copy()
+    # Remove duplicate column names if any exist from legacy schemas and guarantee unique row index
+    df = df.loc[:, ~df.columns.duplicated()].copy()
+    df.index = pd.RangeIndex(len(df))
+    
     if ATTR_RUNTIME_COL not in df.columns and LEGACY_RUNTIME_COL in df.columns:
         df[ATTR_RUNTIME_COL] = df[LEGACY_RUNTIME_COL]
     if ATTR_MEMORY_COL not in df.columns and LEGACY_MEMORY_COL in df.columns:
         df[ATTR_MEMORY_COL] = df[LEGACY_MEMORY_COL]
+        
+    # Coerce metric columns to float64 numeric dtypes so historical JSON string nulls ('-', '.', 'None') convert cleanly to np.nan
+    non_numeric_text_cols = {
+        "Method", "Model", "Resolution", "Original Resolution", "Prediction", 
+        "Status", "Device", "Model Cache", "Timing Scope", "Memory Scope", "_task_id",
+        "started_at", "completed_at"
+    }
+    for col in df.columns:
+        if col not in non_numeric_text_cols:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+            
+    # For timing std columns, replace exactly 0.0 with np.nan because a runtime std of 0.0 is a single-run artifact
+    std_cols = [c for c in df.columns if any(k in c for k in ["Runtime Std", "Across Images", "Run Std"])]
+    for col in std_cols:
+        df[col] = df[col].replace(0.0, np.nan)
+        
     return df
 
 def add_input_size_column(df):
@@ -1010,10 +1030,10 @@ def get_base64(img):
 
 def style_dataframe(df, raw_precision=False):
     df = normalize_metric_columns(df.copy())
+    df = df.loc[:, ~df.columns.duplicated()].copy()
+    df.index = pd.RangeIndex(len(df))
     
     # Identify which columns to style with background gradient.
-    # We only include numeric columns that contain at least one non-null numeric value.
-    subset_cols = []
     possible_style_cols = [
         ATTR_RUNTIME_COL, ATTR_MEMORY_COL,
         "Attribution Runtime Median (sec)", "Attribution Runtime Mean (sec)",
@@ -1029,57 +1049,56 @@ def style_dataframe(df, raw_precision=False):
         "Quality Eval Time (sec)", "Mean Quality Eval Time (sec)"
     ]
     
-    for c in possible_style_cols:
-        if c in df.columns:
-            non_null_vals = df[c].dropna()
-            # If the column is entirely null, convert it to "–" (en-dash) to force dash rendering
-            if len(non_null_vals) == 0:
-                df[c] = "–"
-            else:
-                subset_cols.append(c)
-                
-    # Fill remaining nulls with "–" (en-dash) in non-styled columns (like prediction, status, etc.)
-    for c in df.columns:
-        if c not in subset_cols:
-            df[c] = df[c].fillna("–")
+    subset_cols = [
+        c for c in possible_style_cols 
+        if c in df.columns and pd.api.types.is_numeric_dtype(df[c]) and df[c].dropna().shape[0] > 0
+    ]
             
     def make_formatter(col_name):
-        if raw_precision:
-            if col_name in ["Input Size (px)", "Resolution", "Samples", "Methods", "Resolutions", "Images", "Repeats", "Total Attribution Runs"]:
-                return lambda v: "–" if pd.isna(v) else f"{v:.0f}"
+        def _fmt(val):
+            if pd.isna(val) or val is None:
+                return "–"
+            try:
+                v = float(val)
+            except Exception:
+                return str(val)
+
+            if raw_precision:
+                if col_name in ["Input Size (px)", "Resolution", "Samples", "Methods", "Resolutions", "Images", "Repeats", "Total Attribution Runs"]:
+                    return f"{int(round(v))}"
+                s = f"{v:.6f}".rstrip('0').rstrip('.')
+                return s if s else "0"
             else:
-                return lambda v: "–" if pd.isna(v) else (f"{float(v):.6f}".rstrip('0').rstrip('.') if pd.notna(v) and isinstance(v, (int, float, np.number)) else str(v))
-        else:
-            if "MB" in col_name or col_name in [ATTR_MEMORY_COL, "Mean Peak Attribution Memory (MB)", "Std Peak Memory (MB)", "Peak Memory Std (MB)", "Attribution Memory Std (MB)"]:
-                return lambda v: "–" if pd.isna(v) else f"{v:.2f}"
-            elif "sec" in col_name or "Infidelity" in col_name or col_name in ["Gini Index", "Mean Gini Index", "Deletion AUC", "Mean Deletion AUC", "Insertion AUC", "Mean Insertion AUC"]:
-                return lambda v: "–" if pd.isna(v) else f"{v:.4f}"
-            elif col_name in ["Input Size (px)", "Resolution", "Samples", "Methods", "Resolutions", "Images", "Repeats", "Total Attribution Runs"]:
-                return lambda v: "–" if pd.isna(v) else f"{v:.0f}"
-            else:
-                return lambda v: "–" if pd.isna(v) else f"{v:.4f}"
+                if "MB" in col_name or col_name in [ATTR_MEMORY_COL, "Mean Peak Attribution Memory (MB)", "Std Peak Memory (MB)", "Peak Memory Std (MB)", "Attribution Memory Std (MB)"]:
+                    return f"{v:.2f}"
+                elif "sec" in col_name or "Infidelity" in col_name or col_name in ["Gini Index", "Mean Gini Index", "Deletion AUC", "Mean Deletion AUC", "Insertion AUC", "Mean Insertion AUC"]:
+                    return f"{v:.4f}"
+                elif col_name in ["Input Size (px)", "Resolution", "Samples", "Methods", "Resolutions", "Images", "Repeats", "Total Attribution Runs"]:
+                    return f"{int(round(v))}"
+                else:
+                    return f"{v:.4f}"
+        return _fmt
 
     numeric_cols = [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c])]
     formatters = {c: make_formatter(c) for c in numeric_cols}
-    integer_cols = ["Input Size (px)", "Resolution", "Samples", "Methods", "Resolutions", "Images", "Repeats", "Total Attribution Runs"]
-    for col in integer_cols:
-        if col in df.columns and col in subset_cols and pd.api.types.is_numeric_dtype(df[col]):
-            formatters[col] = make_formatter(col)
-            
+
     styler = df.style
     if subset_cols:
-        # 1. Lower is Better (Runtime, Memory, Deletion AUC, Infidelity, Eval Time) -> coolwarm (Low=Blue/Good, High=Red/Bad)
         lower_is_better_cols = [c for c in subset_cols if not any(k in c for k in ["Gini", "Insertion"])]
-        # 2. Higher is Better (Gini Index, Insertion AUC) -> coolwarm_r (High=Blue/Good, Low=Red/Bad)
         higher_is_better_cols = [c for c in subset_cols if any(k in c for k in ["Gini", "Insertion"])]
 
-        if lower_is_better_cols:
-            styler = styler.background_gradient(cmap="coolwarm", subset=lower_is_better_cols)
-        if higher_is_better_cols:
-            styler = styler.background_gradient(cmap="coolwarm_r", subset=higher_is_better_cols)
+        try:
+            for col in lower_is_better_cols:
+                if col in df.columns and pd.api.types.is_numeric_dtype(df[col]):
+                    styler = styler.background_gradient(cmap="coolwarm", subset=[col])
+            for col in higher_is_better_cols:
+                if col in df.columns and pd.api.types.is_numeric_dtype(df[col]):
+                    styler = styler.background_gradient(cmap="coolwarm_r", subset=[col])
+        except Exception as e:
+            logger.warning(f"Background gradient styling skipped due to Pandas Styler incompatibility: {e}")
         
     # Right-align all columns containing metrics or numeric dimensions to keep dashes aligned with numbers
-    right_align_cols = [c for c in df.columns if c not in ["Method", "Resolution", "Prediction", "Status"]]
+    right_align_cols = [c for c in df.columns if c not in ["Method", "Model", "Resolution", "Prediction", "Status", "Device", "Model_Size"]]
     if right_align_cols:
         styler = styler.set_properties(**{"text-align": "right !important"}, subset=right_align_cols)
         
@@ -2155,24 +2174,52 @@ def render_result_group(group, selected_methods, expanded=True):
                 orig_res = sample_m["results"][0].get("Original Resolution", "Unknown") if sample_m["results"] else "Unknown"
                 col_left.image(img_path, caption=f"Input Image ({orig_res})", use_container_width=True)
             
-            # 2. Show Heatmap Rows (One row per Method, sizes side-by-side)
+            # 2. Show Heatmap Thumbnails (Grid layout when 1 size, Row layout when multiple sizes)
             with col_right:
-                for method in selected_methods:
-                    st.markdown(f"**{method}**")
-                    # Create at least 4 columns to ensure thumbnails stay small and separate
-                    num_sizes = len(arch_models)
-                    cols_to_make = max(num_sizes, 4) 
-                    size_cols = st.columns(cols_to_make)
+                if len(arch_models) == 1:
+                    # --- Single Resolution Mode: Optimal 3 or 4 column grid based on method count ---
+                    m_data = arch_models[0]
+                    n_meth = len(selected_methods)
+                    if n_meth <= 3:
+                        GRID_COLUMNS = max(n_meth, 1)
+                    elif n_meth % 4 == 0:
+                        GRID_COLUMNS = 4
+                    elif n_meth % 3 == 0:
+                        GRID_COLUMNS = 3
+                    else:
+                        # Compare row fill efficiency (remainder): pick 3 or 4 whichever leaves a fuller final row
+                        GRID_COLUMNS = 3 if (n_meth % 3) > (n_meth % 4) else 4
                     
-                    for i, m_data in enumerate(arch_models):
-                        res = next((r for r in m_data["results"] if r["Method"].lower() == method.lower()), None)
-                        with size_cols[i]:
-                            if res:
-                                h_p = os.path.join(m_data["session_dir"], "heatmaps", f"{res['Method']}.png")
-                                if os.path.exists(h_p):
-                                    st.image(h_p, caption=f"{m_data['input_size']}px", use_container_width=True)
-                            else:
-                                st.markdown("<div style='height: 60px; border: 1px dashed rgba(148, 163, 184, 0.32); border-radius: 8px; background: rgba(255, 255, 255, 0.035); text-align: center; padding-top: 20px; color: #94a3b8; font-size: 0.7em;'>...</div>", unsafe_allow_html=True)
+                    for idx_batch in range(0, len(selected_methods), GRID_COLUMNS):
+                        method_chunk = selected_methods[idx_batch:idx_batch + GRID_COLUMNS]
+                        grid_cols = st.columns(GRID_COLUMNS)
+                        for i_col, method in enumerate(method_chunk):
+                            res = next((r for r in m_data["results"] if r["Method"].lower() == method.lower()), None)
+                            with grid_cols[i_col]:
+                                st.markdown(f"**{method}**")
+                                if res:
+                                    h_p = os.path.join(m_data["session_dir"], "heatmaps", f"{res['Method']}.png")
+                                    if os.path.exists(h_p):
+                                        st.image(h_p, caption=f"{m_data['input_size']}px", use_container_width=True)
+                                else:
+                                    st.markdown("<div style='height: 60px; border: 1px dashed rgba(148, 163, 184, 0.32); border-radius: 8px; background: rgba(255, 255, 255, 0.035); text-align: center; padding-top: 20px; color: #94a3b8; font-size: 0.7em;'>...</div>", unsafe_allow_html=True)
+                else:
+                    # --- Multiple Resolutions Mode: Method per row, sizes side-by-side ---
+                    for method in selected_methods:
+                        st.markdown(f"**{method}**")
+                        num_sizes = len(arch_models)
+                        cols_to_make = max(num_sizes, 4) 
+                        size_cols = st.columns(cols_to_make)
+                        
+                        for i, m_data in enumerate(arch_models):
+                            res = next((r for r in m_data["results"] if r["Method"].lower() == method.lower()), None)
+                            with size_cols[i]:
+                                if res:
+                                    h_p = os.path.join(m_data["session_dir"], "heatmaps", f"{res['Method']}.png")
+                                    if os.path.exists(h_p):
+                                        st.image(h_p, caption=f"{m_data['input_size']}px", use_container_width=True)
+                                else:
+                                    st.markdown("<div style='height: 60px; border: 1px dashed rgba(148, 163, 184, 0.32); border-radius: 8px; background: rgba(255, 255, 255, 0.035); text-align: center; padding-top: 20px; color: #94a3b8; font-size: 0.7em;'>...</div>", unsafe_allow_html=True)
             
             # 3. Consolidated Table for all sizes of this Architecture
             # Reorder arch_results to match the visual flow (Method first, then all sizes)
@@ -2185,6 +2232,8 @@ def render_result_group(group, selected_methods, expanded=True):
             if arch_results:
                 raw_df = presentation_df(pd.DataFrame(arch_results))
                 display_cols = [c for c in ["Method", "Resolution", ATTR_RUNTIME_COL, "Attribution Runtime Std (sec)", ATTR_MEMORY_COL, "Attribution Memory Std (MB)", "Gini Index", "Deletion AUC", "Insertion AUC", "Infidelity", "Quality Eval Time (sec)"] if c in raw_df.columns]
+                if "Status" in raw_df.columns and raw_df["Status"].astype(str).str.startswith("Failed").any():
+                    display_cols.append("Status")
                 st.table(style_dataframe(raw_df[display_cols], raw_precision=True))
 
 @st.dialog("Image Viewer", width="large")

@@ -18,7 +18,8 @@ from datetime import datetime
 # Add the parent directory to sys.path so we can import models and xai_methods
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from models.model_loader import load_model, preprocess_image
+from models.model_loader import load_model, preprocess_image, FIXED_SIZE_MODELS
+from torchvision import transforms
 from models.label_utils import get_label_mapping
 from captum.attr import (
     DeepLift,
@@ -357,7 +358,7 @@ def run_benchmark_task(config, session_dir):
 
             runtime_median = float(np.median(runtime_values))
             runtime_mean = float(np.mean(runtime_values))
-            runtime_std = float(np.std(runtime_values))
+            runtime_std = float(np.std(runtime_values)) if len(runtime_values) > 1 else None
             runtime_min = float(np.min(runtime_values))
             runtime_max = float(np.max(runtime_values))
             
@@ -374,9 +375,18 @@ def run_benchmark_task(config, session_dir):
                     selected_metrics=selected_quality_metrics
                 )
 
-            # Generate Overlay
+            # Generate Overlay — background must match the exact Resize+CenterCrop the model saw
             attr_np = np.transpose(attribution.squeeze().cpu().detach().numpy(), (1, 2, 0))
-            img_resized = np.array(img.resize((target_size, target_size)))
+            
+            # Apply the exact spatial preprocessing as preprocess_image (Resize → CenterCrop)
+            # so the background image is pixel-aligned with the attribution tensor
+            resize_val = int(target_size * (256 / 224))
+            crop_transform = transforms.Compose([
+                transforms.Resize(resize_val),
+                transforms.CenterCrop(target_size),
+            ])
+            img_cropped = crop_transform(img)
+            img_resized = np.array(img_cropped)
             
             fig, _ = viz.visualize_image_attr(attr_np, img_resized, method="blended_heat_map", sign="all", show_colorbar=True, alpha_overlay=0.6)
             fig.savefig(os.path.join(heatmaps_dir, f"{method_name}.png"), bbox_inches='tight', pad_inches=0)
@@ -396,8 +406,8 @@ def run_benchmark_task(config, session_dir):
                 "Attribution Runtime Median (sec)": round(runtime_median, 4),
                 "Runtime Mean (sec)": round(runtime_mean, 4),
                 "Attribution Runtime Mean (sec)": round(runtime_mean, 4),
-                "Runtime Std (sec)": round(runtime_std, 4),
-                "Attribution Runtime Std (sec)": round(runtime_std, 4),
+                "Runtime Std (sec)": round(runtime_std, 4) if runtime_std is not None else None,
+                "Attribution Runtime Std (sec)": round(runtime_std, 4) if runtime_std is not None else None,
                 "Runtime Min (sec)": round(runtime_min, 4),
                 "Attribution Runtime Min (sec)": round(runtime_min, 4),
                 "Runtime Max (sec)": round(runtime_max, 4),
