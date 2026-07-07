@@ -2180,14 +2180,13 @@ def render_result_group(group, selected_methods, expanded=True):
                     # --- Single Resolution Mode: Optimal 3 or 4 column grid based on method count ---
                     m_data = arch_models[0]
                     n_meth = len(selected_methods)
-                    if n_meth <= 3:
-                        GRID_COLUMNS = max(n_meth, 1)
-                    elif n_meth % 4 == 0:
+                    if n_meth % 4 == 0:
                         GRID_COLUMNS = 4
                     elif n_meth % 3 == 0:
                         GRID_COLUMNS = 3
                     else:
-                        # Compare row fill efficiency (remainder): pick 3 or 4 whichever leaves a fuller final row
+                        # Compare row fill efficiency (remainder): pick 3 or 4 whichever leaves a fuller final row.
+                        # For n_meth = 1 or 2, this naturally selects 4, keeping image sizes at a clean 25% width.
                         GRID_COLUMNS = 3 if (n_meth % 3) > (n_meth % 4) else 4
                     
                     for idx_batch in range(0, len(selected_methods), GRID_COLUMNS):
