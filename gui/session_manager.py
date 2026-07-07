@@ -42,3 +42,44 @@ class SessionManager:
             shutil.rmtree(path)
             return True
         return False
+
+    def save_batch_config(self, batch_id, config):
+        """Saves the configuration of a batch at the start of execution."""
+        path = os.path.join(self.base_dir, batch_id, "batch_config.json")
+        with open(path, "w") as f:
+            json.dump(config, f, indent=4)
+
+    def load_batch_config(self, batch_id):
+        """Loads the configuration of an incomplete or complete batch."""
+        path = os.path.join(self.base_dir, batch_id, "batch_config.json")
+        if os.path.exists(path):
+            with open(path, "r") as f:
+                return json.load(f)
+        return None
+
+    def list_incomplete_batches(self):
+        """Lists batches that have a batch_config.json but do not have a batch_results.json."""
+        if not os.path.exists(self.base_dir): return []
+        incomplete = []
+        for d in os.listdir(self.base_dir):
+            if d.startswith("Batch_"):
+                config_path = os.path.join(self.base_dir, d, "batch_config.json")
+                results_path = os.path.join(self.base_dir, d, "batch_results.json")
+                if os.path.exists(config_path) and not os.path.exists(results_path):
+                    # Try to load some info from batch_config.json
+                    try:
+                        with open(config_path, "r") as f:
+                            cfg = json.load(f)
+                        num_images = len(cfg.get("image_sources", []))
+                        num_models = len(cfg.get("models", []))
+                        num_methods = len(cfg.get("methods", []))
+                        info_str = f"{num_images} img, {num_models} mod, {num_methods} meth"
+                    except Exception:
+                        info_str = "Unknown config"
+                    incomplete.append({
+                        "id": d,
+                        "created": d.split("_")[1] + " " + d.split("_")[2] if len(d.split("_")) > 2 else d,
+                        "info": info_str
+                    })
+        return sorted(incomplete, key=lambda x: x["id"], reverse=True)
+

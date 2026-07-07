@@ -996,6 +996,139 @@ def current_image_sources():
             
     return local_images + list(uploaded_files) + url_list
 
+def serialize_and_persist_image_sources(img_sources, batch_id, base_dir="gui/sessions"):
+    persisted_sources = []
+    uploaded_dir = os.path.join(base_dir, batch_id, "uploaded_images")
+    
+    for idx, src in enumerate(img_sources):
+        if isinstance(src, str):
+            persisted_sources.append(src)
+        else:
+            # It's a Streamlit UploadedFile or file-like object
+            if not os.path.exists(uploaded_dir):
+                os.makedirs(uploaded_dir, exist_ok=True)
+            
+            ext = "jpg"
+            if hasattr(src, "name") and src.name:
+                parts = src.name.rsplit(".", 1)
+                if len(parts) > 1:
+                    ext = parts[1].lower()
+            
+            filename = f"img_{idx}.{ext}"
+            dest_path = os.path.normpath(os.path.join(uploaded_dir, filename))
+            
+            # Save the file content
+            with open(dest_path, "wb") as f:
+                if hasattr(src, "getbuffer"):
+                    f.write(src.getbuffer())
+                else:
+                    f.write(src.read())
+            
+            persisted_sources.append(dest_path)
+            
+    return persisted_sources
+
+def resume_batch(batch_id):
+    cfg = sm.load_batch_config(batch_id)
+    if not cfg:
+        st.error(f"Failed to load configuration for batch {batch_id}")
+        return
+        
+    st.session_state.current_batch_id = batch_id
+    st.session_state.last_run_batch_id = batch_id
+    st.session_state.current_run_order = cfg.get("run_order", "Balanced")
+    st.session_state.current_batch_methods = list(cfg.get("methods", []))
+    st.session_state.current_batch_models = list(cfg.get("models", []))
+    st.session_state.current_batch_sizes = list(cfg.get("input_sizes", []))
+    st.session_state.current_device_mode = cfg.get("device_mode", "CPU")
+    st.session_state.current_warmups = cfg.get("warmup_runs", 1)
+    st.session_state.current_repeats = cfg.get("repeat_count", 5)
+    st.session_state.current_memory_runs = cfg.get("memory_runs", 1)
+    st.session_state.current_enable_quality_metrics = cfg.get("enable_quality_metrics", False)
+    st.session_state.current_selected_quality_metrics = list(cfg.get("selected_quality_metrics", []))
+    st.session_state.prepared_img_sources = list(cfg.get("image_sources", []))
+    st.session_state.batch_started_at = cfg.get("started_at", "")
+    
+    # Rebuild the exact same task queue
+    st.session_state.task_queue = build_task_queue(
+        len(st.session_state.prepared_img_sources),
+        st.session_state.current_batch_models,
+        st.session_state.current_batch_sizes,
+        st.session_state.current_batch_methods,
+        st.session_state.current_run_order,
+        seed=batch_id
+    )
+    
+    # Reload completed results from the filesystem
+    st.session_state.last_run_results = []
+    st.session_state.run_progress_idx = 0
+    
+    for idx, task in enumerate(st.session_state.task_queue):
+        img_i = task["img_i"]
+        model_name = task["model_name"]
+        target_size = task["target_size"]
+        method_name = task["method_name"]
+        
+        s_dir = sm.get_task_path(batch_id, img_i + 1, f"{model_name}_{target_size}")
+        csv_path = os.path.normpath(os.path.join(s_dir, "results.csv"))
+        config_path = os.path.normpath(os.path.join(s_dir, "config.json"))
+        
+        pred_val = "Unknown"
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, "r") as f:
+                    t_cfg = json.load(f)
+                pred_val = t_cfg.get("prediction", "Unknown")
+            except Exception:
+                pass
+        
+        if os.path.exists(csv_path):
+            try:
+                df_res = pd.read_csv(csv_path)
+                method_rows = df_res[df_res["Method"].str.lower() == method_name.lower()]
+                if not method_rows.empty:
+                    target_group = get_or_create_result_group(st.session_state.last_run_results, img_i, st.session_state.prepared_img_sources)
+                    model_label = f"{model_name} ({target_size}px)"
+                    model_entry = next((m for m in target_group["models"] if m.get("model_label") == model_label), None)
+                    if not model_entry:
+                        model_entry = {
+                            "model": model_name,
+                            "model_label": model_label,
+                            "input_size": target_size,
+                            "results": [],
+                            "session_dir": s_dir,
+                            "src_path": st.session_state.prepared_img_sources[img_i]
+                        }
+                        target_group["models"].append(model_entry)
+                    
+                    res_dicts = method_rows.to_dict(orient="records")
+                    task_id = f"img{img_i}_{model_name}_{target_size}px_{method_name.lower()}"
+                    for r in res_dicts:
+                        r["_task_id"] = task_id
+                        
+                    existing_tasks = {r.get("_task_id"): idx_r for idx_r, r in enumerate(model_entry["results"]) if r.get("_task_id")}
+                    for r in res_dicts:
+                        t_id = r.get("_task_id")
+                        if t_id and t_id in existing_tasks:
+                            model_entry["results"][existing_tasks[t_id]] = r
+                        else:
+                            model_entry["results"].append(r)
+                            
+                    if idx == st.session_state.run_progress_idx:
+                        st.session_state.run_progress_idx = idx + 1
+                    continue
+            except Exception:
+                pass
+        break
+        
+    st.session_state.benchmark_running = True
+    st.session_state.is_finished = (st.session_state.run_progress_idx >= len(st.session_state.task_queue))
+    st.session_state.benchmark_ready_to_run = not st.session_state.is_finished
+    st.session_state.stop_requested = False
+    st.session_state.current_page = "Active Run"
+    st.session_state.batch_start_time = time.time()
+
+
 def render_live_elapsed_timer(start_time):
     start_ms = int((start_time or time.time()) * 1000)
     components.html(f"""
@@ -2800,8 +2933,9 @@ def render_configure_page():
             st.session_state.sh_run_order = st.session_state.selected_run_order
             st.session_state.sh_device_mode = st.session_state.selected_device_mode
 
-            st.session_state.current_batch_id = sm.start_batch()
-            st.session_state.last_run_batch_id = st.session_state.current_batch_id
+            batch_id = sm.start_batch()
+            st.session_state.current_batch_id = batch_id
+            st.session_state.last_run_batch_id = batch_id
             st.session_state.current_run_order = st.session_state.selected_run_order
             st.session_state.current_batch_methods = list(st.session_state.selected_methods)
             st.session_state.current_batch_models = list(st.session_state.selected_models)
@@ -2812,15 +2946,38 @@ def render_configure_page():
             st.session_state.current_memory_runs = st.session_state.selected_memory_runs
             st.session_state.current_enable_quality_metrics = st.session_state.enable_quality_metrics
             st.session_state.current_selected_quality_metrics = list(st.session_state.get('selected_quality_metrics', ["Gini Index (Sparsity)"]))
+            
+            # Persist and serialize image sources to survive app restarts and system sleep/shuts
+            persisted_imgs = serialize_and_persist_image_sources(img_sources, batch_id, sm.base_dir)
+            st.session_state.prepared_img_sources = persisted_imgs
+            
             st.session_state.task_queue = build_task_queue(
-                len(img_sources),
+                len(persisted_imgs),
                 st.session_state.current_batch_models,
                 st.session_state.current_batch_sizes,
                 st.session_state.current_batch_methods,
                 st.session_state.selected_run_order,
-                seed=st.session_state.current_batch_id
+                seed=batch_id
             )
-            st.session_state.prepared_img_sources = list(img_sources)
+            
+            # Save batch configuration for recovery
+            batch_config = {
+                "batch_id": batch_id,
+                "warmup_runs": st.session_state.current_warmups,
+                "memory_runs": st.session_state.current_memory_runs,
+                "repeat_count": st.session_state.current_repeats,
+                "enable_quality_metrics": st.session_state.current_enable_quality_metrics,
+                "selected_quality_metrics": st.session_state.current_selected_quality_metrics,
+                "run_order": st.session_state.current_run_order,
+                "models": st.session_state.current_batch_models,
+                "input_sizes": st.session_state.current_batch_sizes,
+                "methods": st.session_state.current_batch_methods,
+                "device_mode": st.session_state.current_device_mode,
+                "image_sources": persisted_imgs,
+                "started_at": ""
+            }
+            sm.save_batch_config(batch_id, batch_config)
+            
             st.session_state.batch_start_time = None
             st.session_state.total_execution_time = 0
             st.session_state.stop_requested = False
@@ -2828,6 +2985,26 @@ def render_configure_page():
             st.session_state.benchmark_ready_to_run = True
             st.session_state.current_page = "Active Run"
             rerun_app()
+
+    incomplete_batches = sm.list_incomplete_batches()
+    if incomplete_batches:
+        st.markdown('<div style="margin-top: 1.5rem; margin-bottom: 0.5rem; border-top: 1px solid rgba(148, 163, 184, 0.2); padding-top: 1.5rem;"></div>', unsafe_allow_html=True)
+        st.markdown("### ⚡ Interrupted Benchmarks")
+        st.warning("The following benchmarks were interrupted (e.g. due to system sleep/restart). You can resume them from where they left off.")
+        
+        for b in incomplete_batches:
+            col_b1, col_b2, col_b3 = st.columns([3, 1, 1])
+            with col_b1:
+                st.markdown(f"**Batch:** `{b['id']}` ({b['created']})  \n`{b['info']}`")
+            with col_b2:
+                if st.button("Resume 🚀", key=f"resume_{b['id']}", use_container_width=True):
+                    resume_batch(b['id'])
+                    rerun_app()
+            with col_b3:
+                if st.button("Delete 🗑️", key=f"del_inc_{b['id']}", use_container_width=True):
+                    sm.delete_batch(b['id'])
+                    st.success(f"Deleted {b['id']}")
+                    rerun_app()
 
 # --- PAGE 2: ACTIVE RUN ---
 def render_active_run_page():
@@ -2875,8 +3052,13 @@ def render_active_run_page():
         """, height=0)
         
         if st.button("Auto-start benchmark engine", type="primary", use_container_width=True):
+            if not st.session_state.get("batch_started_at"):
+                st.session_state.batch_started_at = timestamp_now()
+                cfg = sm.load_batch_config(st.session_state.current_batch_id)
+                if cfg:
+                    cfg["started_at"] = st.session_state.batch_started_at
+                    sm.save_batch_config(st.session_state.current_batch_id, cfg)
             st.session_state.batch_start_time = time.time()
-            st.session_state.batch_started_at = timestamp_now()
             st.session_state.batch_completed_at = ""
             st.session_state.total_execution_time = 0
             st.session_state.benchmark_ready_to_run = False
