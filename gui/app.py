@@ -899,12 +899,179 @@ def presentation_df(df):
     remaining_cols = [c for c in df.columns if c not in ordered_cols]
     return df[ordered_cols + remaining_cols]
 
+def parse_comma_sep_ints(val_str, default_val):
+    try:
+        vals = [int(x.strip()) for x in val_str.split(",") if x.strip().isdigit()]
+        return vals if vals else [default_val]
+    except Exception:
+        return [default_val]
+
+def parse_comma_sep_floats(val_str, default_val):
+    try:
+        vals = []
+        for x in val_str.split(","):
+            try:
+                vals.append(float(x.strip()))
+            except ValueError:
+                pass
+        return vals if vals else [default_val]
+    except Exception:
+        return [default_val]
+
+def expand_xai_methods_with_params(selected_methods):
+    expanded = []
+    for method in selected_methods:
+        import re
+        base_name = re.sub(r'_\d+$', '', method)
+        
+        if base_name == "Integrated_Gradients":
+            steps_list = parse_comma_sep_ints(st.session_state.get(f"ig_steps_str_{method}", st.session_state.get("ig_steps_str", "50")), 50)
+            batch_list = parse_comma_sep_ints(st.session_state.get(f"ig_internal_batch_str_{method}", st.session_state.get("ig_internal_batch_str", "2")), 2)
+            base_mode = st.session_state.get(f"ig_baseline_mode_{method}", st.session_state.get("ig_baseline_mode", "Zeros (Black)"))
+            
+            combos = []
+            for s in steps_list:
+                for b in batch_list:
+                    combos.append({"n_steps": s, "internal_batch_size": b, "baseline_mode": base_mode})
+                    
+            if len(combos) > 1:
+                for idx, params in enumerate(combos):
+                    name = f"{method}_{idx + 1}"
+                    expanded.append({
+                        "display_name": name,
+                        "base_name": "integrated_gradients",
+                        "params": params
+                    })
+            else:
+                expanded.append({
+                    "display_name": method,
+                    "base_name": "integrated_gradients",
+                    "params": combos[0]
+                })
+                
+        elif base_name == "Gradient_Shap":
+            samples_list = parse_comma_sep_ints(st.session_state.get(f"gs_samples_str_{method}", st.session_state.get("gs_samples_str", "10")), 10)
+            stdevs_list = parse_comma_sep_floats(st.session_state.get(f"gs_stdevs_str_{method}", st.session_state.get("gs_stdevs_str", "0.0001")), 0.0001)
+            base_mode = st.session_state.get(f"gs_baseline_mode_{method}", st.session_state.get("gs_baseline_mode", "Zeros & Mean"))
+            
+            combos = []
+            for s in samples_list:
+                for std in stdevs_list:
+                    combos.append({"n_samples": s, "stdevs": std, "baseline_mode": base_mode})
+                    
+            if len(combos) > 1:
+                for idx, params in enumerate(combos):
+                    name = f"{method}_{idx + 1}"
+                    expanded.append({
+                        "display_name": name,
+                        "base_name": "gradient_shap",
+                        "params": params
+                    })
+            else:
+                expanded.append({
+                    "display_name": method,
+                    "base_name": "gradient_shap",
+                    "params": combos[0]
+                })
+                
+        elif base_name == "Occlusion":
+            window_list = parse_comma_sep_ints(st.session_state.get(f"occlusion_window_str_{method}", st.session_state.get("occlusion_window_str", "15")), 15)
+            stride_list = parse_comma_sep_ints(st.session_state.get(f"occlusion_stride_str_{method}", st.session_state.get("occlusion_stride_str", "8")), 8)
+            occ_val = st.session_state.get(f"occlusion_value_str_{method}", st.session_state.get("occlusion_value_str", "0"))
+            
+            combos = []
+            for w in window_list:
+                for strd in stride_list:
+                    combos.append({
+                        "sliding_window_shapes": (3, w, w),
+                        "strides": (3, strd, strd),
+                        "occlude_color": occ_val
+                    })
+                    
+            if len(combos) > 1:
+                for idx, params in enumerate(combos):
+                    name = f"{method}_{idx + 1}"
+                    expanded.append({
+                        "display_name": name,
+                        "base_name": "occlusion",
+                        "params": params
+                    })
+            else:
+                expanded.append({
+                    "display_name": method,
+                    "base_name": "occlusion",
+                    "params": combos[0]
+                })
+                
+        elif base_name == "Lime":
+            samples_list = parse_comma_sep_ints(st.session_state.get(f"lime_samples_str_{method}", st.session_state.get("lime_samples_str", "500")), 500)
+            batch_list = parse_comma_sep_ints(st.session_state.get(f"lime_batch_str_{method}", st.session_state.get("lime_batch_str", "10")), 10)
+            seg_list = parse_comma_sep_ints(st.session_state.get(f"lime_segments_str_{method}", st.session_state.get("lime_segments_str", "50")), 50)
+            
+            combos = []
+            for s in samples_list:
+                for b in batch_list:
+                    for seg in seg_list:
+                        combos.append({"n_samples": s, "perturbations_per_eval": b, "n_segments": seg})
+                        
+            if len(combos) > 1:
+                for idx, params in enumerate(combos):
+                    name = f"{method}_{idx + 1}"
+                    expanded.append({
+                        "display_name": name,
+                        "base_name": "lime",
+                        "params": params
+                    })
+            else:
+                expanded.append({
+                    "display_name": method,
+                    "base_name": "lime",
+                    "params": combos[0]
+                })
+        else:
+            expanded.append({
+                "display_name": method,
+                "base_name": method.lower().replace("-", "_"),
+                "params": {}
+            })
+    return assign_display_name_suffixes(expanded)
+
+def assign_display_name_suffixes(expanded_methods):
+    display_names = [m["display_name"] for m in expanded_methods]
+    counts = {}
+    for name in display_names:
+        counts[name] = counts.get(name, 0) + 1
+        
+    current_counts = {}
+    for m in expanded_methods:
+        name = m["display_name"]
+        if counts[name] > 1:
+            current_counts[name] = current_counts.get(name, 0) + 1
+            m["display_name"] = f"{name}_{current_counts[name]}"
+    return expanded_methods
+
+def assign_numbered_suffixes(items_list):
+    counts = {}
+    for item in items_list:
+        counts[item] = counts.get(item, 0) + 1
+        
+    result = []
+    current_counts = {}
+    for item in items_list:
+        if counts[item] > 1:
+            current_counts[item] = current_counts.get(item, 0) + 1
+            result.append(f"{item}_{current_counts[item]}")
+        else:
+            result.append(item)
+    return result
+
 def build_task_queue(num_images, models, sizes, methods, run_order, seed=None):
+    # Note: methods here is a list of dicts: [{"display_name": "...", "base_name": "...", "params": {...}}, ...]
     tasks = []
     if run_order == "Balanced":
         for img_i in range(num_images):
             for mod_i, model_name in enumerate(models):
-                for met_i, method_name in enumerate(methods):
+                for met_i, method_info in enumerate(methods):
                     rotation = (img_i + mod_i + met_i) % len(sizes)
                     ordered_sizes = sizes[rotation:] + sizes[:rotation]
                     for target_size in ordered_sizes:
@@ -912,18 +1079,22 @@ def build_task_queue(num_images, models, sizes, methods, run_order, seed=None):
                             "img_i": img_i,
                             "model_name": model_name,
                             "target_size": target_size,
-                            "method_name": method_name,
+                            "method_name": method_info["display_name"],
+                            "method_base": method_info["base_name"],
+                            "method_params": method_info["params"]
                         })
     else:
         for img_i in range(num_images):
             for model_name in models:
-                for method_name in methods:
+                for method_info in methods:
                     for target_size in sizes:
                         tasks.append({
                             "img_i": img_i,
                             "model_name": model_name,
                             "target_size": target_size,
-                            "method_name": method_name,
+                            "method_name": method_info["display_name"],
+                            "method_base": method_info["base_name"],
+                            "method_params": method_info["params"]
                         })
 
     if run_order == "Randomized":
@@ -1038,6 +1209,7 @@ def resume_batch(batch_id):
     st.session_state.last_run_batch_id = batch_id
     st.session_state.current_run_order = cfg.get("run_order", "Balanced")
     st.session_state.current_batch_methods = list(cfg.get("methods", []))
+    st.session_state.current_batch_methods_info = cfg.get("methods_info", [])
     st.session_state.current_batch_models = list(cfg.get("models", []))
     st.session_state.current_batch_sizes = list(cfg.get("input_sizes", []))
     st.session_state.current_device_mode = cfg.get("device_mode", "CPU")
@@ -1049,12 +1221,16 @@ def resume_batch(batch_id):
     st.session_state.prepared_img_sources = list(cfg.get("image_sources", []))
     st.session_state.batch_started_at = cfg.get("started_at", "")
     
-    # Rebuild the exact same task queue
+    # Rebuild the exact same task queue using parameter-expanded methods
+    expanded_methods = cfg.get("methods_info", [])
+    if not expanded_methods:
+        expanded_methods = [{"display_name": m, "base_name": m.lower().replace("-", "_"), "params": {}} for m in cfg.get("methods", [])]
+        
     st.session_state.task_queue = build_task_queue(
         len(st.session_state.prepared_img_sources),
         st.session_state.current_batch_models,
         st.session_state.current_batch_sizes,
-        st.session_state.current_batch_methods,
+        expanded_methods,
         st.session_state.current_run_order,
         seed=batch_id
     )
@@ -2131,6 +2307,59 @@ def get_batch_display_name(bid, base_dir):
             return bid
     return bid
 
+def render_parameters_mapping_table(methods_info):
+    if not methods_info:
+        return
+        
+    # Filter only methods that have configured parameters
+    parameterized = [m for m in methods_info if m.get("params")]
+    if not parameterized:
+        return
+        
+    st.markdown('<div style="font-weight: 600; margin-top: 15px; margin-bottom: 8px; color: var(--xai-text);">Method Parameters</div>', unsafe_allow_html=True)
+    
+    table_html = (
+        '<table style="width:100%; border-collapse:collapse; font-size:0.85em; margin-bottom:20px; color:var(--xai-text);">'
+        '<thead>'
+        '<tr style="border-bottom:2px solid rgba(255,255,255,0.15); text-align:left;">'
+        '<th style="padding:8px; width:25%;">Method Identifier</th>'
+        '<th style="padding:8px; width:25%;">Base Algorithm</th>'
+        '<th style="padding:8px; width:50%;">Configured Parameters</th>'
+        '</tr>'
+        '</thead>'
+        '<tbody>'
+    )
+    for m in parameterized:
+        disp_name = m["display_name"]
+        base_name = m["base_name"].replace("_", " ").title()
+        params = m["params"]
+        
+        # Format the parameters dictionary into a readable string
+        formatted_params = []
+        for k, v in params.items():
+            k_pretty = k.replace("_", " ").title()
+            if isinstance(v, list) or isinstance(v, tuple):
+                # Format sliding window shapes/strides tuple cleanly
+                if len(v) == 3:
+                    v_str = f"({v[0]}, {v[1]}, {v[2]})"
+                else:
+                    v_str = str(v)
+            else:
+                v_str = str(v)
+            formatted_params.append(f"<b>{k_pretty}</b>: {v_str}")
+        
+        params_str = ", ".join(formatted_params)
+        table_html += (
+            '<tr style="border-bottom:1px solid rgba(255,255,255,0.05);">'
+            f'<td style="padding:8px; font-family:monospace; font-weight:bold; color:var(--xai-text);">{disp_name}</td>'
+            f'<td style="padding:8px;">{base_name}</td>'
+            f'<td style="padding:8px; line-height:1.4;">{params_str}</td>'
+            '</tr>'
+        )
+        
+    table_html += "</tbody></table>"
+    st.markdown(table_html, unsafe_allow_html=True)
+
 def render_configuration_summary(settings, results):
     if not results:
         return
@@ -2279,8 +2508,50 @@ def render_result_view_controls(key_prefix):
         </script>
     """, height=45)
 
+def get_image_thumbnail_base64(img_path, size=(24, 24)):
+    if not img_path or not os.path.exists(img_path):
+        return ""
+    try:
+        from PIL import Image
+        import base64
+        from io import BytesIO
+        
+        with Image.open(img_path) as img:
+            img_rgb = img.convert("RGB")
+            img_rgb.thumbnail(size)
+            buffer = BytesIO()
+            img_rgb.save(buffer, format="JPEG", quality=80)
+            encoded = base64.b64encode(buffer.getvalue()).decode()
+            return f"data:image/jpeg;base64,{encoded}"
+    except Exception:
+        return ""
+
 def render_result_group(group, selected_methods, expanded=True):
-    with st.expander(f"🖼️ Results for Image {group['img_idx']}", expanded=expanded):
+    # Find input image path to generate thumbnail
+    img_path = None
+    for m in group.get("models", []):
+        s_dir = m.get("session_dir", "")
+        # Try absolute path first
+        p = os.path.join(s_dir, "input_image.jpg")
+        if os.path.exists(p):
+            img_path = p
+            break
+        # Fallback to relative path resolution under base_dir
+        parts = s_dir.replace("\\", "/").split("/")
+        if len(parts) >= 2:
+            p_rel = os.path.join(sm.base_dir, parts[-2], parts[-1], "input_image.jpg")
+            if os.path.exists(p_rel):
+                img_path = p_rel
+                break
+                
+    thumb_b64 = get_image_thumbnail_base64(img_path, size=(24, 24))
+    
+    if thumb_b64:
+        label = f"![Thumbnail]({thumb_b64}) **Results for Image {group['img_idx']}**"
+    else:
+        label = f"🖼️ **Results for Image {group['img_idx']}**"
+        
+    with st.expander(label, expanded=expanded):
         # Group entries by base model architecture
         architectures = []
         for m in group["models"]:
@@ -2422,6 +2693,19 @@ if 'current_enable_quality_metrics' not in st.session_state: st.session_state.cu
 if 'current_selected_quality_metrics' not in st.session_state: st.session_state.current_selected_quality_metrics = ["Gini Index (Sparsity)"]
 if 'current_page' not in st.session_state: st.session_state.current_page = "Configure"
 
+if 'ig_steps_str' not in st.session_state: st.session_state.ig_steps_str = "50"
+if 'ig_internal_batch_str' not in st.session_state: st.session_state.ig_internal_batch_str = "2"
+if 'ig_baseline_mode' not in st.session_state: st.session_state.ig_baseline_mode = "Zeros (Black)"
+if 'gs_samples_str' not in st.session_state: st.session_state.gs_samples_str = "10"
+if 'gs_stdevs_str' not in st.session_state: st.session_state.gs_stdevs_str = "0.0001"
+if 'gs_baseline_mode' not in st.session_state: st.session_state.gs_baseline_mode = "Zeros & Mean"
+if 'occlusion_window_str' not in st.session_state: st.session_state.occlusion_window_str = "15"
+if 'occlusion_stride_str' not in st.session_state: st.session_state.occlusion_stride_str = "8"
+if 'occlusion_value_str' not in st.session_state: st.session_state.occlusion_value_str = "0"
+if 'lime_samples_str' not in st.session_state: st.session_state.lime_samples_str = "500"
+if 'lime_batch_str' not in st.session_state: st.session_state.lime_batch_str = "10"
+if 'lime_segments_str' not in st.session_state: st.session_state.lime_segments_str = "50"
+
 # --- SIDEBAR ---
 model_opts = ['resnet50', 'convnext-t', 'efficientnet-b0', 'swin-t', 'regnet-y-8gf', 'mobilenet-v3-large', 'densenet121', 'vit-b-16']
 xai_opts = [
@@ -2433,6 +2717,8 @@ xai_opts = [
     "DeepLift",
     "DeepLift_Shap",
     "Grad_CAM",
+    "Occlusion",
+    "Lime",
 ]
 
 # --- Restore Config Request (Must happen before any widgets are instantiated) ---
@@ -2711,11 +2997,215 @@ def render_configure_page():
     # Row 3
     row3_left, row3_right = st.columns([2, 1])
     with row3_left:
+        # Dynamically build options for XAI Methods.
+        # This allows users to select the same method multiple times (e.g. Integrated_Gradients, Integrated_Gradients_2)
+        base_xai_opts = [
+            "Saliency",
+            "Integrated_Gradients",
+            "Guided_Backprop",
+            "Input_X_Gradient",
+            "Gradient_Shap",
+            "DeepLift",
+            "DeepLift_Shap",
+            "Grad_CAM",
+            "Occlusion",
+            "Lime",
+        ]
+        
+        selected_methods = st.session_state.get("selected_methods", ["Saliency", "Integrated_Gradients"])
+        
+        dynamic_xai_opts = list(base_xai_opts)
+        for base in base_xai_opts:
+            import re
+            pattern = re.compile(rf"^{base}(?:_(\d+))?$")
+            versions = []
+            for m in selected_methods:
+                match = pattern.match(m)
+                if match:
+                    val = match.group(1)
+                    versions.append(int(val) if val else 1)
+            
+            if versions:
+                next_version = max(versions) + 1
+                dynamic_xai_opts.append(f"{base}_{next_version}")
+                for v in sorted(versions):
+                    name = f"{base}_{v}" if v > 1 else base
+                    if name not in dynamic_xai_opts:
+                        dynamic_xai_opts.append(name)
+
         st.multiselect(
             "XAI Methods",
-            xai_opts,
+            dynamic_xai_opts,
             key="selected_methods",
         )
+        
+        # Compact XAI Method Parameters rendered right under the selector in the same column
+        modifiable_selected = []
+        for m in st.session_state.selected_methods:
+            import re
+            base_name = re.sub(r'_\d+$', '', m)
+            if base_name in ["Integrated_Gradients", "Gradient_Shap", "Occlusion", "Lime"]:
+                modifiable_selected.append(m)
+        
+        if modifiable_selected:
+            # Force defaults back into session state if they were deleted during streamlit's widget cleanup
+            if 'ig_steps_str' not in st.session_state: st.session_state.ig_steps_str = "50"
+            if 'ig_internal_batch_str' not in st.session_state: st.session_state.ig_internal_batch_str = "2"
+            if 'ig_baseline_mode' not in st.session_state: st.session_state.ig_baseline_mode = "Zeros (Black)"
+            if 'gs_samples_str' not in st.session_state: st.session_state.gs_samples_str = "10"
+            if 'gs_stdevs_str' not in st.session_state: st.session_state.gs_stdevs_str = "0.0001"
+            if 'gs_baseline_mode' not in st.session_state: st.session_state.gs_baseline_mode = "Zeros & Mean"
+            if 'occlusion_window_str' not in st.session_state: st.session_state.occlusion_window_str = "15"
+            if 'occlusion_stride_str' not in st.session_state: st.session_state.occlusion_stride_str = "8"
+            if 'occlusion_value_str' not in st.session_state: st.session_state.occlusion_value_str = "0"
+            if 'lime_samples_str' not in st.session_state: st.session_state.lime_samples_str = "500"
+            if 'lime_batch_str' not in st.session_state: st.session_state.lime_batch_str = "10"
+            if 'lime_segments_str' not in st.session_state: st.session_state.lime_segments_str = "50"
+            
+            # Pre-fill method-specific parameter defaults
+            for method in modifiable_selected:
+                import re
+                base = re.sub(r'_\d+$', '', method)
+                if base == "Integrated_Gradients":
+                    if f"ig_steps_str_{method}" not in st.session_state: st.session_state[f"ig_steps_str_{method}"] = st.session_state.get("ig_steps_str", "50")
+                    if f"ig_internal_batch_str_{method}" not in st.session_state: st.session_state[f"ig_internal_batch_str_{method}"] = st.session_state.get("ig_internal_batch_str", "2")
+                    if f"ig_baseline_mode_{method}" not in st.session_state: st.session_state[f"ig_baseline_mode_{method}"] = st.session_state.get("ig_baseline_mode", "Zeros (Black)")
+                elif base == "Gradient_Shap":
+                    if f"gs_samples_str_{method}" not in st.session_state: st.session_state[f"gs_samples_str_{method}"] = st.session_state.get("gs_samples_str", "10")
+                    if f"gs_stdevs_str_{method}" not in st.session_state: st.session_state[f"gs_stdevs_str_{method}"] = st.session_state.get("gs_stdevs_str", "0.0001")
+                    if f"gs_baseline_mode_{method}" not in st.session_state: st.session_state[f"gs_baseline_mode_{method}"] = st.session_state.get("gs_baseline_mode", "Zeros & Mean")
+                elif base == "Occlusion":
+                    if f"occlusion_window_str_{method}" not in st.session_state: st.session_state[f"occlusion_window_str_{method}"] = st.session_state.get("occlusion_window_str", "15")
+                    if f"occlusion_stride_str_{method}" not in st.session_state: st.session_state[f"occlusion_stride_str_{method}"] = st.session_state.get("occlusion_stride_str", "8")
+                    if f"occlusion_value_str_{method}" not in st.session_state: st.session_state[f"occlusion_value_str_{method}"] = st.session_state.get("occlusion_value_str", "0")
+                elif base == "Lime":
+                    if f"lime_samples_str_{method}" not in st.session_state: st.session_state[f"lime_samples_str_{method}"] = st.session_state.get("lime_samples_str", "500")
+                    if f"lime_batch_str_{method}" not in st.session_state: st.session_state[f"lime_batch_str_{method}"] = st.session_state.get("lime_batch_str", "10")
+                    if f"lime_segments_str_{method}" not in st.session_state: st.session_state[f"lime_segments_str_{method}"] = st.session_state.get("lime_segments_str", "50")
+
+            with st.expander("⚙️ Algorithm Parameter Tuning", expanded=False):
+                st.markdown('<div style="font-size: 0.8em; color: var(--xai-muted); margin-bottom: 12px;">Customize algorithm inputs below. Use comma-separated values (e.g. <b>50, 100</b>) to test multiple parameter variations.</div>', unsafe_allow_html=True)
+                
+                for idx_m, method in enumerate(modifiable_selected):
+                    import re
+                    base_method = re.sub(r'_\d+$', '', method)
+                    
+                    if idx_m > 0:
+                        st.markdown("<hr style='margin: 4px 0 16px 0; border: 0; border-top: 1px solid rgba(255, 255, 255, 0.08);'>", unsafe_allow_html=True)
+                        
+                    st.markdown(f"<div style='font-size: 0.85em; font-weight: 600; color: var(--xai-text); margin-top: 0px; margin-bottom: 8px;'>{method.replace('_', ' ')}</div>", unsafe_allow_html=True)
+                    
+                    if base_method == "Integrated_Gradients":
+                        col_p1, col_p2, col_p3 = st.columns(3)
+                        with col_p1:
+                            st.text_input(
+                                "Steps",
+                                value=st.session_state.get(f"ig_steps_str_{method}", st.session_state.get("ig_steps_str", "50")),
+                                key=f"ig_steps_str_{method}",
+                                help="Number of steps along the path from baseline to input.\n\n- Default: 50\n- Higher is more mathematically accurate but slower."
+                            )
+                        with col_p2:
+                            st.text_input(
+                                "Internal Batch Size",
+                                value=st.session_state.get(f"ig_internal_batch_str_{method}", st.session_state.get("ig_internal_batch_str", "2")),
+                                key=f"ig_internal_batch_str_{method}",
+                                help="Mini-batch size to chunk the steps.\n\n- Default: 2\n- Set to 2-4 to prevent Out-Of-Memory (OOM) on large models."
+                            )
+                        with col_p3:
+                            ig_opts = ["Zeros (Black)", "Ones (White)", "Input Mean"]
+                            st.selectbox(
+                                "Baseline Mode",
+                                options=ig_opts,
+                                index=ig_opts.index(st.session_state.get(f"ig_baseline_mode_{method}", st.session_state.get("ig_baseline_mode", "Zeros (Black)"))) if st.session_state.get(f"ig_baseline_mode_{method}", st.session_state.get("ig_baseline_mode", "Zeros (Black)")) in ig_opts else 0,
+                                key=f"ig_baseline_mode_{method}",
+                                help="Baseline reference image for attribution.\n\n- Default: Zeros (Black)"
+                            )
+                            
+                    elif base_method == "Gradient_Shap":
+                        col_p1, col_p2, col_p3 = st.columns(3)
+                        with col_p1:
+                            st.text_input(
+                                "Samples",
+                                value=st.session_state.get(f"gs_samples_str_{method}", st.session_state.get("gs_samples_str", "10")),
+                                key=f"gs_samples_str_{method}",
+                                help="Number of baseline samples to average.\n\n- Default: 10\n- Suggest 10-20 for stable results."
+                            )
+                        with col_p2:
+                            st.text_input(
+                                "Stdevs (Noise)",
+                                value=st.session_state.get(f"gs_stdevs_str_{method}", st.session_state.get("gs_stdevs_str", "0.0001")),
+                                key=f"gs_stdevs_str_{method}",
+                                help="Standard deviation of Gaussian noise added to inputs.\n\n- Default: 0.0001"
+                            )
+                        with col_p3:
+                            gs_opts = ["Zeros & Mean", "Zeros Only", "Ones Only"]
+                            st.selectbox(
+                                "Baseline Mode",
+                                options=gs_opts,
+                                index=gs_opts.index(st.session_state.get(f"gs_baseline_mode_{method}", st.session_state.get("gs_baseline_mode", "Zeros & Mean"))) if st.session_state.get(f"gs_baseline_mode_{method}", st.session_state.get("gs_baseline_mode", "Zeros & Mean")) in gs_opts else 0,
+                                key=f"gs_baseline_mode_{method}",
+                                help="Distribution of baselines to sample from.\n\n- Default: Zeros & Mean"
+                            )
+                            
+                    elif base_method == "Occlusion":
+                        col_p1, col_p2, col_p3 = st.columns(3)
+                        with col_p1:
+                            st.text_input(
+                                "Patch Size (px)",
+                                value=st.session_state.get(f"occlusion_window_str_{method}", st.session_state.get("occlusion_window_str", "15")),
+                                key=f"occlusion_window_str_{method}",
+                                help="Size of the square occlusion patch.\n\n- Default: 15\n- Larger is faster but coarser."
+                            )
+                        with col_p2:
+                            st.text_input(
+                                "Stride (px)",
+                                value=st.session_state.get(f"occlusion_stride_str_{method}", st.session_state.get("occlusion_stride_str", "8")),
+                                key=f"occlusion_stride_str_{method}",
+                                help="Step size of the sliding window.\n\n- Default: 8\n- Smaller is more detailed but much slower."
+                            )
+                        with col_p3:
+                            st.text_input(
+                                "Occlude Color",
+                                value=st.session_state.get(f"occlusion_value_str_{method}", st.session_state.get("occlusion_value_str", "0")),
+                                key=f"occlusion_value_str_{method}",
+                                help="Pixel value to fill the occlusion patch.\n\n- Default: 0 (Black)\n- Can be 0, 1 (White), or mean."
+                            )
+                            
+                    elif base_method == "Lime":
+                        col_p1, col_p2, col_p3 = st.columns(3)
+                        with col_p1:
+                            st.text_input(
+                                "Perturbation Samples",
+                                value=st.session_state.get(f"lime_samples_str_{method}", st.session_state.get("lime_samples_str", "500")),
+                                key=f"lime_samples_str_{method}",
+                                help="Number of samples to perturb and fit the surrogate model on.\n\n- Default: 500\n- Warning: High values (>1000) are very slow."
+                            )
+                        with col_p2:
+                            st.text_input(
+                                "Batch Size",
+                                value=st.session_state.get(f"lime_batch_str_{method}", st.session_state.get("lime_batch_str", "10")),
+                                key=f"lime_batch_str_{method}",
+                                help="Internal batch size to run pertubations through the model.\n\n- Default: 10\n- Prevents memory overflow."
+                            )
+                        with col_p3:
+                            st.text_input(
+                                "Superpixels Count",
+                                value=st.session_state.get(f"lime_segments_str_{method}", st.session_state.get("lime_segments_str", "50")),
+                                key=f"lime_segments_str_{method}",
+                                help="Target number of superpixels for SLIC segmentation.\n\n- Default: 50\n- Fewer superpixels speeds up LIME."
+                            )
+                    st.markdown('<div style="margin-bottom: 5px;"></div>', unsafe_allow_html=True)
+        
+        # Measurement Details directly below parameters inside left column
+        st.markdown('<div style="margin-top: 25px; font-weight: bold; margin-bottom: 8px; font-size: 1.1em; color: var(--xai-text);">Measurement Details</div>', unsafe_allow_html=True)
+        st.markdown("""
+        <ul class="nice-bullets">
+            <li><b>Warmups</b> are not reported in statistics. Measured repeats are timed and summarized with median, mean, and standard deviation.</li>
+            <li><b>Task Ordering</b>: Benchmark runs are executed in a <b>Balanced</b> order (automatically rotating resolutions and model architectures) to mitigate PyTorch/CUDA caching allocator and execution-order bias.</li>
+            <li><b>Separate Timing & Memory</b>: By default, CPU memory is measured once in a dedicated run. The timed repeats are then executed cleanly without the memory profiler to ensure accurate speed statistics.</li>
+        </ul>
+        """, unsafe_allow_html=True)
+
     with row3_right:
         has_cuda = torch.cuda.is_available()
         has_mps = hasattr(torch.backends, "mps") and torch.backends.mps.is_available()
@@ -2733,20 +3223,9 @@ def render_configure_page():
             key="selected_device_mode",
             horizontal=True,
         )
-
-    # Row 4: Details & Hardware Status
-    row4_left, row4_right = st.columns([2, 1])
-    with row4_left:
-        st.markdown('<div style="margin-top: 35px; font-weight: bold; margin-bottom: 8px; font-size: 1.1em; color: var(--xai-text);">Measurement Details</div>', unsafe_allow_html=True)
-        st.markdown("""
-        <ul class="nice-bullets">
-            <li><b>Warmups</b> are not reported in statistics. Measured repeats are timed and summarized with median, mean, and standard deviation.</li>
-            <li><b>Task Ordering</b>: Benchmark runs are executed in a <b>Balanced</b> order (automatically rotating resolutions and model architectures) to mitigate PyTorch/CUDA caching allocator and execution-order bias.</li>
-            <li><b>Separate Timing & Memory</b>: By default, CPU memory is measured once in a dedicated run. The timed repeats are then executed cleanly without the memory profiler to ensure accurate speed statistics.</li>
-        </ul>
-        """, unsafe_allow_html=True)
-    with row4_right:
-        st.markdown('<div style="margin-top: 35px; font-weight: bold; margin-bottom: 8px; font-size: 1.1em; color: var(--xai-text);">Hardware Status</div>', unsafe_allow_html=True)
+        
+        # Hardware Status directly below target device selection inside right column
+        st.markdown('<div style="margin-top: 25px; font-weight: bold; margin-bottom: 8px; font-size: 1.1em; color: var(--xai-text);">Hardware Status</div>', unsafe_allow_html=True)
         if "GPU" in st.session_state.selected_device_mode:
             if torch.cuda.is_available():
                 gpu_desc = torch.cuda.get_device_name(0)
@@ -2937,8 +3416,14 @@ def render_configure_page():
             st.session_state.current_batch_id = batch_id
             st.session_state.last_run_batch_id = batch_id
             st.session_state.current_run_order = st.session_state.selected_run_order
-            st.session_state.current_batch_methods = list(st.session_state.selected_methods)
-            st.session_state.current_batch_models = list(st.session_state.selected_models)
+            
+            # Expand methods with parameter variations
+            expanded_methods = expand_xai_methods_with_params(st.session_state.selected_methods)
+            st.session_state.current_batch_methods_info = expanded_methods
+            display_methods = [m["display_name"] for m in expanded_methods]
+            st.session_state.current_batch_methods = display_methods
+            
+            st.session_state.current_batch_models = assign_numbered_suffixes(list(st.session_state.selected_models))
             st.session_state.current_batch_sizes = list(selected_sizes)
             st.session_state.current_device_mode = st.session_state.selected_device_mode
             st.session_state.current_warmups = st.session_state.selected_warmups
@@ -2955,7 +3440,7 @@ def render_configure_page():
                 len(persisted_imgs),
                 st.session_state.current_batch_models,
                 st.session_state.current_batch_sizes,
-                st.session_state.current_batch_methods,
+                expanded_methods,
                 st.session_state.selected_run_order,
                 seed=batch_id
             )
@@ -2971,7 +3456,8 @@ def render_configure_page():
                 "run_order": st.session_state.current_run_order,
                 "models": st.session_state.current_batch_models,
                 "input_sizes": st.session_state.current_batch_sizes,
-                "methods": st.session_state.current_batch_methods,
+                "methods": display_methods,
+                "methods_info": expanded_methods,
                 "device_mode": st.session_state.current_device_mode,
                 "image_sources": persisted_imgs,
                 "started_at": ""
@@ -3131,7 +3617,7 @@ def render_active_run_page():
                 render_result_group(group, st.session_state.current_batch_methods)
                 
     elif st.session_state.is_finished:
-        st.success(f"Benchmark complete in {format_time(st.session_state.total_execution_time)}. Results, charts, and exports are ready.")
+
         if st.session_state.completion_notice_batch_id != st.session_state.current_batch_id:
             st.toast("Benchmark complete. Results are ready.", icon="✅")
             st.session_state.completion_notice_batch_id = st.session_state.current_batch_id
@@ -3151,26 +3637,9 @@ def render_active_run_page():
             
             st.markdown(f"**Total Duration:** `{format_time(st.session_state.total_execution_time)}`")
             st.caption(f"Started: {display_timestamp(st.session_state.batch_started_at)} | Completed: {display_timestamp(st.session_state.batch_completed_at)}")
+            st.markdown('<div style="margin-top: 1.0rem;"></div>', unsafe_allow_html=True)
             
-            with st.expander("Environment & Configuration Details", expanded=True):
-                meta_col1, meta_col_spacer, meta_col2 = st.columns([1.8, 0.2, 2.0])
-                with meta_col1:
-                    st.markdown('<div style="font-weight: 600; margin-bottom: 8px; color: var(--xai-text);">Environment Summary</div>', unsafe_allow_html=True)
-                    render_environment_summary(collect_environment_metadata(get_device_string(st.session_state.current_device_mode)))
-                with meta_col2:
-                    st.markdown('<div style="font-weight: 600; margin-bottom: 8px; color: var(--xai-text);">Benchmark Configuration</div>', unsafe_allow_html=True)
-                    active_settings = {
-                        "models": st.session_state.current_batch_models,
-                        "methods": st.session_state.current_batch_methods,
-                        "input_sizes": st.session_state.current_batch_sizes,
-                        "repeat_count": st.session_state.current_repeats,
-                        "warmup_runs": st.session_state.current_warmups,
-                        "memory_runs": st.session_state.current_memory_runs,
-                        "selected_quality_metrics": st.session_state.selected_quality_metrics if st.session_state.get("enable_quality_metrics", False) else []
-                    }
-                    render_configuration_summary(active_settings, st.session_state.last_run_results)
-                
-            # --- EXPORT & NAVIGATION BUTTONS (Outside expander) ---
+            # --- EXPORT & NAVIGATION BUTTONS (Above configurations) ---
             ex1, ex2, ex3, ex4 = st.columns([1, 1, 1.4, 1.6])
             with ex1:
                 csv_path = os.path.join(sm.base_dir, st.session_state.current_batch_id, f"{st.session_state.current_batch_id}.csv")
@@ -3238,6 +3707,27 @@ def render_active_run_page():
                     st.session_state.current_batch_models = []
                     st.session_state.current_batch_sizes = []
                     rerun_app()
+                    
+            with st.expander("⚙️ Environment & Configuration Details", expanded=True):
+                meta_col1, meta_col_spacer, meta_col2 = st.columns([1.8, 0.2, 2.0])
+                with meta_col1:
+                    st.markdown('<div style="font-weight: 600; margin-bottom: 8px; color: var(--xai-text);">Environment Summary</div>', unsafe_allow_html=True)
+                    render_environment_summary(collect_environment_metadata(get_device_string(st.session_state.current_device_mode)))
+                with meta_col2:
+                    st.markdown('<div style="font-weight: 600; margin-bottom: 8px; color: var(--xai-text);">Benchmark Configuration</div>', unsafe_allow_html=True)
+                    active_settings = {
+                        "models": st.session_state.current_batch_models,
+                        "methods": st.session_state.current_batch_methods,
+                        "input_sizes": st.session_state.current_batch_sizes,
+                        "repeat_count": st.session_state.current_repeats,
+                        "warmup_runs": st.session_state.current_warmups,
+                        "memory_runs": st.session_state.current_memory_runs,
+                        "selected_quality_metrics": st.session_state.selected_quality_metrics if st.session_state.get("enable_quality_metrics", False) else []
+                    }
+                    render_configuration_summary(active_settings, st.session_state.last_run_results)
+                
+                # Render parameter mapping table if parameterized methods exist
+                render_parameters_mapping_table(st.session_state.get("current_batch_methods_info", []))
 
             render_analytics_sections(fdf, result_groups)
 
@@ -3299,17 +3789,10 @@ def render_history_page():
                     if h_total_time:
                         st.markdown(f"**Total Duration:** `{format_time(h_total_time)}`")
                     st.caption(f"Started: {display_timestamp(meta.get('started_at'))} | Completed: {display_timestamp(meta.get('completed_at'))}")
-                            
-                    with st.expander("Environment & Configuration Details", expanded=False):
-                        meta_col1, meta_col_spacer, meta_col2 = st.columns([1.8, 0.2, 2.0])
-                        with meta_col1:
-                            st.markdown('<div style="font-weight: 600; margin-bottom: 8px; color: var(--xai-text);">Environment Summary</div>', unsafe_allow_html=True)
-                            render_environment_summary(meta.get("environment"))
-                        with meta_col2:
-                            st.markdown('<div style="font-weight: 600; margin-bottom: 8px; color: var(--xai-text);">Benchmark Configuration</div>', unsafe_allow_html=True)
-                            render_configuration_summary(meta.get("benchmark_settings"), meta.get("results"))
-
-                    hx1, hx2, hx3, hx4, hx_spacer = st.columns([1, 1, 1.3, 1.1, 1.6])
+                    st.markdown('<div style="margin-top: 1.0rem;"></div>', unsafe_allow_html=True)
+                    
+                    # --- EXPORT & NAVIGATION BUTTONS (Above configurations) ---
+                    hx1, hx2, hx3, hx4, hx5, hx_spacer = st.columns([1, 1, 1.3, 1.6, 1.2, 1.0])
                     with hx1:
                         h_csv = os.path.join(sm.base_dir, bid, f"{bid}.csv")
                         if not os.path.exists(h_csv):
@@ -3342,11 +3825,44 @@ def render_history_page():
                                 st.session_state.current_page = "Configure"
                                 rerun_app()
                     with hx4:
+                        if st.button("⬅️ Setup Another Run", key=f"setup_{bid}", help="Reset all configuration inputs back to defaults to start a fresh benchmark from scratch.", use_container_width=True):
+                            st.session_state.is_finished = False
+                            st.session_state.benchmark_running = False
+                            st.session_state.benchmark_ready_to_run = False
+                            st.session_state.last_run_results = []
+                            st.session_state.completed_batch_id = ""
+                            st.session_state.last_run_batch_id = ""
+                            st.session_state.current_page = "Configure"
+                            st.session_state.selected_models = ["resnet50"]
+                            st.session_state.selected_methods = ["Saliency", "Integrated_Gradients"]
+                            st.session_state.input_size_str = "224"
+                            st.session_state.selected_repeats = 5
+                            st.session_state.selected_warmups = 1
+                            st.session_state.selected_run_order = "Balanced"
+                            st.session_state.selected_device_mode = default_device_mode
+                            st.session_state.current_batch_methods = []
+                            st.session_state.current_batch_models = []
+                            st.session_state.current_batch_sizes = []
+                            st.session_state.restore_config = None
+                            rerun_app()
+                    with hx5:
                         if st.button("Delete Batch", key=f"del_{bid}", use_container_width=True):
                             sm.delete_batch(bid)
                             st.success(f"Batch {bid} deleted.")
                             st.rerun()
                         st.markdown('<div class="delete-marker" style="display: none;"></div>', unsafe_allow_html=True)
+                            
+                    with st.expander("⚙️ Environment & Configuration Details", expanded=False):
+                        meta_col1, meta_col_spacer, meta_col2 = st.columns([1.8, 0.2, 2.0])
+                        with meta_col1:
+                            st.markdown('<div style="font-weight: 600; margin-bottom: 8px; color: var(--xai-text);">Environment Summary</div>', unsafe_allow_html=True)
+                            render_environment_summary(meta.get("environment"))
+                        with meta_col2:
+                            st.markdown('<div style="font-weight: 600; margin-bottom: 8px; color: var(--xai-text);">Benchmark Configuration</div>', unsafe_allow_html=True)
+                            render_configuration_summary(meta.get("benchmark_settings"), meta.get("results"))
+                            
+                        # Render parameter mapping table if parameterized methods exist
+                        render_parameters_mapping_table(meta.get("methods_info", []))
 
                     render_analytics_sections(hdf, meta["results"])
 
@@ -3397,12 +3913,16 @@ def render_history_page():
         combined_warmups = set()
         total_images = 0
         
+        combined_methods_info = {}
         for bid in selected_bids:
             batch_meta_p = os.path.join(sm.base_dir, bid, "batch_results.json")
             if os.path.exists(batch_meta_p):
                 try:
                     with open(batch_meta_p, 'r') as f:
                         meta = json.load(f)
+                    
+                    for m_info in meta.get("methods_info", []):
+                        combined_methods_info[m_info["display_name"]] = m_info
                     
                     methods_in_batches.update(meta.get("methods", []))
                     
@@ -3476,7 +3996,7 @@ def render_history_page():
             st.caption(f"Combined {len(selected_bids)} batches{time_range_str}")
             
             # Combined Environment & Configuration details expander
-            with st.expander("Environment & Configuration Details", expanded=False):
+            with st.expander("⚙️ Environment & Configuration Details", expanded=False):
                 if env_records:
                     st.markdown('<div style="font-weight: 600; margin-bottom: 8px; color: var(--xai-text);">Executing Environments</div>', unsafe_allow_html=True)
                     st.table(pd.DataFrame(env_records))
@@ -3526,6 +4046,9 @@ def render_history_page():
                     
                 config_table_html += "</tbody></table>"
                 st.markdown(config_table_html, unsafe_allow_html=True)
+                
+                # Render parameter mapping table if parameterized methods exist
+                render_parameters_mapping_table(list(combined_methods_info.values()))
                 
             st.divider()
             
@@ -3690,7 +4213,8 @@ if st.session_state.benchmark_running and not st.session_state.is_finished:
         results = run_benchmark_task({
             "model_name": model_name, 
             "image_source": model_entry["src_path"], 
-            "methods": [method_name.lower()], 
+            "methods": [method_name], 
+            "method_params": task.get("method_params", {}),
             "force_device": get_device_string(st.session_state.current_device_mode), 
             "input_size": target_size,
             "warmup_runs": st.session_state.current_warmups,
@@ -3746,7 +4270,8 @@ if st.session_state.benchmark_running and not st.session_state.is_finished:
                     "environment": collect_environment_metadata(get_device_string(st.session_state.current_device_mode)),
                     "started_at": st.session_state.batch_started_at,
                     "completed_at": st.session_state.batch_completed_at,
-                    "total_execution_time": st.session_state.total_execution_time
+                    "total_execution_time": st.session_state.total_execution_time,
+                    "methods_info": st.session_state.get("current_batch_methods_info", [])
                 }, f, indent=4)
         st.rerun()
     else:

@@ -31,6 +31,8 @@ from captum.attr import (
     LayerAttribution,
     LayerGradCam,
     Saliency,
+    Occlusion,
+    Lime,
 )
 from captum.attr import visualization as viz
 
@@ -129,7 +131,12 @@ def get_grad_cam_target_layer(model_name, model):
     return GRAD_CAM_TARGET_LAYERS[model_name](model)
 
 def normalize_method_name(method_name):
-    return method_name.lower().replace("-", "_")
+    # Strip any parameters in parentheses
+    name = method_name.split("(")[0].strip()
+    # Strip trailing numeric suffixes (e.g. Lime_1 -> Lime)
+    import re
+    name = re.sub(r'_\d+$', '', name)
+    return name.lower().replace("-", "_")
 
 def get_git_commit():
     try:
@@ -217,7 +224,9 @@ def run_benchmark_task(config, session_dir):
 
     # 2. Load Model
     model_name = config.get('model_name', 'resnet50')
-    model, was_model_cached = get_cached_model(model_name=model_name, device=device)
+    import re
+    norm_model_name = re.sub(r'_\d+$', '', model_name)
+    model, was_model_cached = get_cached_model(model_name=norm_model_name, device=device)
 
     # 3. Load Image
     img_src = config.get('image_source')
@@ -231,7 +240,7 @@ def run_benchmark_task(config, session_dir):
     
     original_dims = f"{img.size[0]} x {img.size[1]}"
     img.save(os.path.join(session_dir, "input_image.jpg"))
-    input_tensor = preprocess_image(img, model_name=model_name, target_size=target_size).unsqueeze(0).to(device)
+    input_tensor = preprocess_image(img, model_name=norm_model_name, target_size=target_size).unsqueeze(0).to(device)
     img_dims = f"{input_tensor.shape[2]} x {input_tensor.shape[3]}"
 
     # 4. Get Prediction
@@ -239,7 +248,7 @@ def run_benchmark_task(config, session_dir):
         output = model(input_tensor)
         _, pred_label_idx = torch.max(output, 1)
         predicted_class, _ = get_label_mapping(
-            model_name=model_name, predicted_class=pred_label_idx, label=None, label_names=None
+            model_name=norm_model_name, predicted_class=pred_label_idx, label=None, label_names=None
         )
 
     # 5. Benchmarking Loop
@@ -261,6 +270,8 @@ def run_benchmark_task(config, session_dir):
                 torch.cuda.empty_cache()
                 gc.collect()
 
+            method_params = config.get("method_params", {})
+
             if method_key == 'saliency': xai_tool = Saliency(model)
             elif method_key == 'integrated_gradients': xai_tool = IntegratedGradients(model)
             elif method_key == 'guided_backprop': xai_tool = GuidedBackprop(model)
@@ -268,16 +279,44 @@ def run_benchmark_task(config, session_dir):
             elif method_key == 'gradient_shap': xai_tool = GradientShap(model)
             elif method_key == 'deeplift': xai_tool = DeepLift(model)
             elif method_key == 'deeplift_shap': xai_tool = DeepLiftShap(model)
-            elif method_key == 'grad_cam': xai_tool = LayerGradCam(model, get_grad_cam_target_layer(model_name, model))
+            elif method_key == 'grad_cam': xai_tool = LayerGradCam(model, get_grad_cam_target_layer(norm_model_name, model))
+            elif method_key == 'occlusion': xai_tool = Occlusion(model)
+            elif method_key == 'lime': xai_tool = Lime(model)
             else: continue
 
             def get_attr():
                 if method_key == 'integrated_gradients':
-                    # INTERNAL BATCHING: This is the key to preventing OOM for IG
-                    return xai_tool.attribute(input_tensor, target=pred_label_idx, n_steps=50, internal_batch_size=2)
+                    n_steps = int(method_params.get("n_steps", 50))
+                    internal_batch_size = method_params.get("internal_batch_size", 2)
+                    if internal_batch_size is not None:
+                        internal_batch_size = int(internal_batch_size)
+                    
+                    base_mode = method_params.get("baseline_mode", "Zeros (Black)")
+                    if base_mode == "Zeros (Black)":
+                        baselines = torch.zeros_like(input_tensor)
+                    elif base_mode == "Ones (White)":
+                        baselines = torch.ones_like(input_tensor)
+                    elif base_mode == "Input Mean":
+                        baselines = torch.ones_like(input_tensor) * input_tensor.mean()
+                    else:
+                        baselines = torch.zeros_like(input_tensor)
+                        
+                    return xai_tool.attribute(input_tensor, target=pred_label_idx, n_steps=n_steps, internal_batch_size=internal_batch_size, baselines=baselines)
                 if method_key == 'gradient_shap':
-                    baseline_dist = torch.cat([torch.zeros_like(input_tensor), torch.ones_like(input_tensor) * input_tensor.mean()], dim=0)
-                    return xai_tool.attribute(input_tensor, baselines=baseline_dist, target=pred_label_idx, n_samples=10, stdevs=0.0001)
+                    n_samples = int(method_params.get("n_samples", 10))
+                    stdevs = float(method_params.get("stdevs", 0.0001))
+                    
+                    base_mode = method_params.get("baseline_mode", "Zeros & Mean")
+                    if base_mode == "Zeros & Mean":
+                        baseline_dist = torch.cat([torch.zeros_like(input_tensor), torch.ones_like(input_tensor) * input_tensor.mean()], dim=0)
+                    elif base_mode == "Zeros Only":
+                        baseline_dist = torch.zeros_like(input_tensor)
+                    elif base_mode == "Ones Only":
+                        baseline_dist = torch.ones_like(input_tensor)
+                    else:
+                        baseline_dist = torch.cat([torch.zeros_like(input_tensor), torch.ones_like(input_tensor) * input_tensor.mean()], dim=0)
+                        
+                    return xai_tool.attribute(input_tensor, baselines=baseline_dist, target=pred_label_idx, n_samples=n_samples, stdevs=stdevs)
                 if method_key == 'deeplift':
                     return xai_tool.attribute(input_tensor, baselines=torch.zeros_like(input_tensor), target=pred_label_idx)
                 if method_key == 'deeplift_shap':
@@ -287,6 +326,32 @@ def run_benchmark_task(config, session_dir):
                     attribution = xai_tool.attribute(input_tensor, target=pred_label_idx)
                     attribution = LayerAttribution.interpolate(attribution, input_tensor.shape[2:])
                     return attribution.repeat(1, 3, 1, 1)
+                if method_key == 'occlusion':
+                    w_shapes = method_params.get("sliding_window_shapes", (3, 15, 15))
+                    strds = method_params.get("strides", (3, 8, 8))
+                    
+                    occ_color = method_params.get("occlude_color", "0")
+                    if occ_color == "mean":
+                        baselines = input_tensor.mean().item()
+                    else:
+                        try:
+                            baselines = float(occ_color)
+                        except Exception:
+                            baselines = 0.0
+                            
+                    return xai_tool.attribute(input_tensor, sliding_window_shapes=w_shapes, strides=strds, target=pred_label_idx, baselines=baselines)
+                if method_key == 'lime':
+                    from skimage.segmentation import slic
+                    n_samples = int(method_params.get("n_samples", 500))
+                    batch_size = int(method_params.get("perturbations_per_eval", 10))
+                    n_segments = int(method_params.get("n_segments", 50))
+                    
+                    img_np = input_tensor.squeeze(0).permute(1, 2, 0).detach().cpu().numpy()
+                    superpixels = slic(img_np, n_segments=n_segments, compactness=10, sigma=1, start_label=0)
+                    superpixels = superpixels - superpixels.min()
+                    feature_mask = torch.tensor(superpixels, dtype=torch.long, device=device).unsqueeze(0).unsqueeze(0)
+                    
+                    return xai_tool.attribute(input_tensor, target=pred_label_idx, feature_mask=feature_mask, n_samples=n_samples, perturbations_per_eval=batch_size)
                 return xai_tool.attribute(input_tensor, target=pred_label_idx)
 
             def timed_get_attr(measure_memory=True):
