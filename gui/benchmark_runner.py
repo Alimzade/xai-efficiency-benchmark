@@ -330,6 +330,11 @@ def run_benchmark_task(config, session_dir):
                     w_shapes = method_params.get("sliding_window_shapes", (3, 15, 15))
                     strds = method_params.get("strides", (3, 8, 8))
                     
+                    if isinstance(w_shapes, list):
+                        w_shapes = tuple(w_shapes)
+                    if isinstance(strds, list):
+                        strds = tuple(strds)
+                    
                     occ_color = method_params.get("occlude_color", "0")
                     if occ_color == "mean":
                         baselines = input_tensor.mean().item()

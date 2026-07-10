@@ -3222,6 +3222,26 @@ def render_configure_page():
 
     st.markdown('<div style="margin-top: 1.5rem;"></div>', unsafe_allow_html=True)
 
+    incomplete_batches = sm.list_incomplete_batches()
+    if incomplete_batches:
+        st.markdown("### ⚡ Interrupted Benchmarks")
+        st.warning("The following benchmarks were interrupted (e.g. due to system sleep/restart). You can resume them from where they left off.")
+        
+        for b in incomplete_batches:
+            col_b1, col_b2, col_b3 = st.columns([3, 1, 1])
+            with col_b1:
+                st.markdown(f"**Batch:** `{b['id']}` ({b['created']})  \n`{b['info']}`")
+            with col_b2:
+                if st.button("Resume 🚀", key=f"resume_{b['id']}", use_container_width=True):
+                    resume_batch(b['id'])
+                    rerun_app()
+            with col_b3:
+                if st.button("Delete 🗑️", key=f"del_inc_{b['id']}", use_container_width=True):
+                    sm.delete_batch(b['id'])
+                    st.success(f"Deleted {b['id']}")
+                    rerun_app()
+        st.markdown('<div style="margin-top: 1.5rem; margin-bottom: 1.5rem; border-top: 1px solid rgba(148, 163, 184, 0.2); padding-top: 0.5rem;"></div>', unsafe_allow_html=True)
+
     # Row 1
     row1_left, row1_right = st.columns([2, 1])
     with row1_left:
@@ -3830,29 +3850,17 @@ def render_configure_page():
             st.session_state.current_page = "Active Run"
             rerun_app()
 
-    incomplete_batches = sm.list_incomplete_batches()
-    if incomplete_batches:
-        st.markdown('<div style="margin-top: 1.5rem; margin-bottom: 0.5rem; border-top: 1px solid rgba(148, 163, 184, 0.2); padding-top: 1.5rem;"></div>', unsafe_allow_html=True)
-        st.markdown("### ⚡ Interrupted Benchmarks")
-        st.warning("The following benchmarks were interrupted (e.g. due to system sleep/restart). You can resume them from where they left off.")
-        
-        for b in incomplete_batches:
-            col_b1, col_b2, col_b3 = st.columns([3, 1, 1])
-            with col_b1:
-                st.markdown(f"**Batch:** `{b['id']}` ({b['created']})  \n`{b['info']}`")
-            with col_b2:
-                if st.button("Resume 🚀", key=f"resume_{b['id']}", use_container_width=True):
-                    resume_batch(b['id'])
-                    rerun_app()
-            with col_b3:
-                if st.button("Delete 🗑️", key=f"del_inc_{b['id']}", use_container_width=True):
-                    sm.delete_batch(b['id'])
-                    st.success(f"Deleted {b['id']}")
-                    rerun_app()
+    # Interrupted benchmarks moved to top of configure page
 
 # --- PAGE 2: ACTIVE RUN ---
 def render_active_run_page():
-    st.markdown("## ⚡ Benchmark Execution Engine")
+    st.markdown("""
+        <div style="text-align: left; margin-top: 0.8rem; margin-bottom: -1.8rem !important;">
+            <h3 style="background: linear-gradient(90deg, #60a5fa, #2dd4bf); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 1.55rem; font-weight: 700; margin: 0; display: inline-block; letter-spacing: -0.02em;">
+                ⚡ Benchmark Execution Engine
+            </h3>
+        </div>
+        """, unsafe_allow_html=True)
     
     if st.session_state.benchmark_ready_to_run:
         st.info("Preparing benchmark environment... Starting shortly.")
