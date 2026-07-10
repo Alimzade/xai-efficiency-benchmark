@@ -3305,7 +3305,11 @@ def render_configure_page():
         selected_methods = st.session_state.get("selected_methods", ["Saliency", "Integrated_Gradients"])
         
         dynamic_xai_opts = list(base_xai_opts)
+        parameterized_bases = ["Integrated_Gradients", "Gradient_Shap", "Occlusion", "Lime"]
         for base in base_xai_opts:
+            if base not in parameterized_bases:
+                continue
+                
             import re
             pattern = re.compile(rf"^{base}(?:_(\d+))?$")
             versions = []
