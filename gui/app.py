@@ -302,6 +302,7 @@ st.markdown("""
         padding-top: 1.45rem;
     }
     .app-title {
+        text-align: center !important;
         margin-bottom: 2.2rem !important;
         padding: 0.35rem 0 0.2rem 0;
     }
@@ -491,6 +492,7 @@ st.markdown("""
         font-size: 0.76rem;
     }
     [data-testid="stTabs"] [role="tablist"] {
+        justify-content: center;
         gap: 0.35rem;
         border-bottom: 1px solid var(--xai-border);
     }
@@ -568,17 +570,17 @@ st.markdown("""
         background: linear-gradient(180deg, rgba(96, 165, 250, 0.24), rgba(45, 212, 191, 0.18)) !important;
     }
     /* Reddish theme for delete buttons containing .delete-marker */
-    div:has(.delete-marker) div.stButton button {
+    div[class*="st-key-del"] button {
         border-radius: 8px !important;
-        border: 1px solid rgba(239, 68, 68, 0.15) !important;
+        border: 1px solid rgba(239, 68, 68, 0.22) !important;
         background: linear-gradient(180deg, rgba(239, 68, 68, 0.08), rgba(220, 38, 38, 0.04)) !important;
-        color: var(--xai-text) !important;
+        color: rgba(252, 165, 165, 0.8) !important;
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
     }
-    div:has(.delete-marker) div.stButton button:hover {
-        border-color: rgba(239, 68, 68, 0.35) !important;
-        background: linear-gradient(180deg, rgba(239, 68, 68, 0.14), rgba(220, 38, 38, 0.08)) !important;
-        color: var(--xai-text) !important;
+    div[class*="st-key-del"] button:hover {
+        border-color: rgba(239, 68, 68, 0.45) !important;
+        background: linear-gradient(180deg, rgba(239, 68, 68, 0.16), rgba(220, 38, 38, 0.08)) !important;
+        color: #fca5a5 !important;
     }
     /* Increase font-size of locked size warning caption */
     div[data-testid="column"]:has(input[disabled]) [data-testid="stCaptionContainer"] {
@@ -656,17 +658,33 @@ st.markdown("""
     .status-pulse { color: #22d3ee; font-weight: bold; animation: pulse 1.5s infinite; font-size: 1.1em; }
     @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
     /* Segmented Radio Buttons styling for modern Target Device Selection */
+    div[data-testid="stRadio"] {
+        width: 100% !important;
+    }
     div[data-testid="stRadio"] [role="radiogroup"] {
-        display: flex;
-        flex-direction: row;
-        align-items: center;
-        gap: 10px;
-        min-height: 40px; /* Align height with multiselect input box */
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        align-items: center !important;
+        gap: 10px !important;
+        min-height: 40px !important;
+        width: 100% !important;
+    }
+    div[data-testid="stRadio"] [role="radiogroup"] > div,
+    div[data-testid="stRadio"] [role="radiogroup"] [data-testid="stRadioOption"] {
+        flex: 1 1 0% !important;
+        min-width: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
     }
     div[data-testid="stRadio"] [role="radiogroup"] label > div:first-of-type {
         display: none !important;
     }
     div[data-testid="stRadio"] [role="radiogroup"] label {
+        flex: 1 1 0% !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 100% !important;
         background: rgba(255, 255, 255, 0.045) !important;
         border: 1px solid rgba(148, 163, 184, 0.2) !important;
         padding: 6px 18px !important;
@@ -675,9 +693,9 @@ st.markdown("""
         transition: all 0.2s ease !important;
         margin: 0 !important;
         color: rgba(229, 237, 246, 0.75) !important;
-        display: flex;
-        align-items: center;
-        justify-content: center;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
     }
     div[data-testid="stRadio"] [role="radiogroup"] label:has(input:checked) {
         background: linear-gradient(180deg, rgba(96, 165, 250, 0.24), rgba(45, 212, 191, 0.18)) !important;
@@ -1140,6 +1158,90 @@ def display_timestamp(value):
         return datetime.fromisoformat(value).strftime("%Y-%m-%d %H:%M:%S %Z")
     except ValueError:
         return str(value)
+
+def format_run_timestamps(started_iso, completed_iso):
+    if not started_iso:
+        return ""
+    try:
+        dt_start = datetime.fromisoformat(started_iso)
+        tz_str = dt_start.strftime("%Z")
+        if not tz_str:
+            offset = dt_start.utcoffset()
+            if offset is not None:
+                offset_hours = int(offset.total_seconds() / 3600)
+                tz_str = f"UTC{'+' if offset_hours >= 0 else ''}{offset_hours}"
+            else:
+                tz_str = "UTC"
+            
+        date_start = dt_start.strftime("%b %d, %Y")
+        time_start = dt_start.strftime("%H:%M:%S")
+        
+        if completed_iso:
+            dt_end = datetime.fromisoformat(completed_iso)
+            date_end = dt_end.strftime("%b %d, %Y")
+            time_end = dt_end.strftime("%H:%M:%S")
+            
+            if date_start == date_end:
+                return f"""
+                <div style="font-size: 1.0rem; color: var(--xai-muted); margin-bottom: 0.8rem; display: flex; align-items: center; gap: 4px;">
+                    <span style="color: var(--xai-muted); font-weight: 500; margin-right: 2px;">Date:</span>
+                    <code>{date_start}</code>
+                    <span style="color: rgba(148, 163, 184, 0.35); margin: 0 6px;">|</span>
+                    <span style="color: var(--xai-muted); font-weight: 500; margin-right: 2px;">Time:</span>
+                    <code>{time_start}</code>
+                    <span style="color: rgba(148, 163, 184, 0.35); margin: 0 3px;">&rarr;</span>
+                    <code>{time_end}</code>
+                    <span style="font-size: 0.76rem; color: var(--xai-muted); margin-left: 4px;">({tz_str})</span>
+                </div>
+                """
+            else:
+                return f"""
+                <div style="font-size: 1.0rem; color: var(--xai-muted); margin-bottom: 0.8rem; display: flex; align-items: center; gap: 4px;">
+                    <span style="color: var(--xai-muted); font-weight: 500; margin-right: 2px;">Started:</span>
+                    <code>{date_start} {time_start}</code>
+                    <span style="color: rgba(148, 163, 184, 0.35); margin: 0 6px;">|</span>
+                    <span style="color: var(--xai-muted); font-weight: 500; margin-right: 2px;">Completed:</span>
+                    <code>{date_end} {time_end}</code>
+                    <span style="font-size: 0.76rem; color: var(--xai-muted); margin-left: 4px;">({tz_str})</span>
+                </div>
+                """
+        else:
+            return f"""
+            <div style="font-size: 1.0rem; color: var(--xai-muted); margin-bottom: 0.8rem; display: flex; align-items: center; gap: 4px;">
+                <span style="color: var(--xai-muted); font-weight: 500; margin-right: 2px;">Started:</span>
+                <code>{date_start} {time_start}</code>
+                <span style="font-size: 0.76rem; color: var(--xai-muted); margin-left: 4px;">({tz_str})</span>
+            </div>
+            """
+    except Exception:
+        start_display = display_timestamp(started_iso)
+        if completed_iso:
+            end_display = display_timestamp(completed_iso)
+            return f"""
+            <div style="font-size: 1.0rem; color: var(--xai-muted); margin-bottom: 0.8rem; display: flex; align-items: center; gap: 4px;">
+                <span style="color: var(--xai-muted); font-weight: 500; margin-right: 2px;">Started:</span>
+                <code>{start_display}</code>
+                <span style="color: rgba(148, 163, 184, 0.35); margin: 0 6px;">|</span>
+                <span style="color: var(--xai-muted); font-weight: 500; margin-right: 2px;">Completed:</span>
+                <code>{end_display}</code>
+            </div>
+            """
+        return f"""
+        <div style="font-size: 1.0rem; color: var(--xai-muted); margin-bottom: 0.8rem; display: flex; align-items: center; gap: 4px;">
+            <span style="color: var(--xai-muted); font-weight: 500; margin-right: 2px;">Started:</span>
+            <code>{start_display}</code>
+        </div>
+        """
+
+def format_run_duration(duration):
+    if not duration:
+        return ""
+    return f"""
+    <div style="font-size: 1.0rem; color: var(--xai-muted); margin-bottom: 0.2rem; display: flex; align-items: center; gap: 4px;">
+        <span style="color: var(--xai-muted); font-weight: 500; margin-right: 2px;">Total Duration:</span>
+        <code>{duration}</code>
+    </div>
+    """
 
 def parse_input_sizes(size_str):
     try:
@@ -2163,7 +2265,7 @@ def render_analytics_sections(fdf, result_groups):
                     with rc2:
                         st.pyplot(plot_image_size_memory_scaling(size_summary_df))
     
-    st.divider()
+
 
 def render_environment_summary(environment):
     if not environment:
@@ -2461,15 +2563,31 @@ def render_configuration_summary(settings, results):
     clean_html = table_html.replace("\n", "").replace("    ", "").strip()
     st.markdown(clean_html, unsafe_allow_html=True)
 
-def render_result_view_controls(key_prefix):
+def render_detailed_results_header(key_prefix, title_text="Detailed Per-Image Results"):
     components.html(f"""
         <style>
-            body {{ margin: 0; background: transparent; }}
+            body {{
+                margin: 0;
+                background: transparent;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                height: 100%;
+                font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            }}
+            .xai-title {{
+                font-size: 1.2rem;
+                font-weight: 600;
+                color: #e5edf6;
+                white-space: nowrap;
+                line-height: 1;
+                display: flex;
+                align-items: center;
+            }}
             .xai-expander-controls {{
                 display: flex;
-                gap: 0.45rem;
+                gap: 8px;
                 align-items: center;
-                margin: 0.1rem 0 0.55rem 0;
             }}
             .xai-expander-controls button {{
                 border: 1px solid rgba(148, 163, 184, 0.26);
@@ -2479,34 +2597,195 @@ def render_result_view_controls(key_prefix):
                 cursor: pointer;
                 font: 600 12px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
                 padding: 0.35rem 0.7rem;
+                white-space: nowrap;
+                transition: all 0.2s ease;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                line-height: 1;
+                margin: 0;
+                box-sizing: border-box;
             }}
             .xai-expander-controls button:hover {{
                 border-color: rgba(45, 212, 191, 0.55);
                 background: linear-gradient(180deg, rgba(96, 165, 250, 0.24), rgba(45, 212, 191, 0.18));
             }}
+            .xai-expander-controls button:disabled {{
+                opacity: 0.32 !important;
+                cursor: not-allowed !important;
+                border-color: rgba(148, 163, 184, 0.1) !important;
+                background: rgba(255, 255, 255, 0.02) !important;
+                color: rgba(229, 237, 246, 0.35) !important;
+                pointer-events: none !important;
+            }}
         </style>
-        <div class="xai-expander-controls" data-key="{key_prefix}">
-            <button type="button" data-action="expand">Expand all</button>
-            <button type="button" data-action="collapse">Collapse all</button>
+        <div class="xai-title">{title_text}</div>
+        <div class="xai-expander-controls">
+            <button type="button" id="expand-btn">Expand All</button>
+            <button type="button" id="collapse-btn">Collapse All</button>
         </div>
         <script>
             const root = window.parent.document;
-            const controls = document.querySelector('.xai-expander-controls[data-key="{key_prefix}"]');
+            const expandBtn = document.getElementById('expand-btn');
+            const collapseBtn = document.getElementById('collapse-btn');
+            let isTransitioning = false;
+            
             function imageResultDetails() {{
                 return Array.from(root.querySelectorAll('details')).filter((details) => {{
+                    // Filter out elements in hidden tabs (not currently visible on screen)
+                    if (details.offsetParent === null) return false;
                     const summary = details.querySelector('summary');
                     return summary && summary.textContent.includes('Results for Image');
                 }});
             }}
-            controls.addEventListener('click', (event) => {{
-                const action = event.target.dataset.action;
-                if (!action) return;
-                imageResultDetails().forEach((details) => {{
-                    details.open = action === 'expand';
+            
+            function updateButtonStates() {{
+                if (isTransitioning) return;
+                const details = imageResultDetails();
+                if (details.length === 0) {{
+                    expandBtn.disabled = true;
+                    collapseBtn.disabled = true;
+                    return;
+                }}
+                const anyOpen = details.some(d => d.open);
+                const anyClosed = details.some(d => !d.open);
+                
+                expandBtn.disabled = !anyClosed;
+                collapseBtn.disabled = !anyOpen;
+            }}
+            
+            function toggleAll(openState) {{
+                const details = imageResultDetails();
+                details.forEach(d => {{
+                    const summary = d.querySelector('summary');
+                    if (summary) {{
+                        if ((openState && !d.open) || (!openState && d.open)) {{
+                            summary.click();
+                        }}
+                    }}
                 }});
+            }}
+            
+            expandBtn.addEventListener('click', (e) => {{
+                e.preventDefault();
+                const parentWin = window.parent;
+                const parentDoc = parentWin.document;
+                
+                // Save scroll positions of all elements in the parent document that are scrolled
+                const scrollStates = [];
+                const allElements = parentDoc.querySelectorAll('*');
+                allElements.forEach(el => {{
+                    if (el.scrollTop > 0 || el.scrollLeft > 0) {{
+                        scrollStates.push({{
+                            element: el,
+                            scrollTop: el.scrollTop,
+                            scrollLeft: el.scrollLeft
+                        }});
+                    }}
+                }});
+                const docEl = parentDoc.documentElement;
+                const bodyEl = parentDoc.body;
+                const winScrollX = parentWin.scrollX || docEl.scrollLeft || bodyEl.scrollLeft;
+                const winScrollY = parentWin.scrollY || docEl.scrollTop || bodyEl.scrollTop;
+
+                // Lock states immediately for transitions (expand is now disabled, collapse is enabled)
+                isTransitioning = true;
+                expandBtn.disabled = true;
+                collapseBtn.disabled = false;
+
+                // Expand all
+                toggleAll(true);
+
+                expandBtn.blur();
+                if (parentDoc.activeElement) {{
+                    parentDoc.activeElement.blur();
+                }}
+
+                // Restore all scroll positions (immediate and deferred)
+                const restoreScrolls = () => {{
+                    scrollStates.forEach(state => {{
+                        state.element.scrollTop = state.scrollTop;
+                        state.element.scrollLeft = state.scrollLeft;
+                    }});
+                    parentWin.scrollTo(winScrollX, winScrollY);
+                }};
+                restoreScrolls();
+                setTimeout(restoreScrolls, 10);
+                setTimeout(restoreScrolls, 50);
+                
+                // Release lock and re-evaluate once React animations settle
+                setTimeout(() => {{
+                    isTransitioning = false;
+                    updateButtonStates();
+                }}, 1200);
             }});
+            
+            collapseBtn.addEventListener('click', (e) => {{
+                e.preventDefault();
+                const parentWin = window.parent;
+                const parentDoc = parentWin.document;
+                
+                // Save scroll positions of all elements in the parent document that are scrolled
+                const scrollStates = [];
+                const allElements = parentDoc.querySelectorAll('*');
+                allElements.forEach(el => {{
+                    if (el.scrollTop > 0 || el.scrollLeft > 0) {{
+                        scrollStates.push({{
+                            element: el,
+                            scrollTop: el.scrollTop,
+                            scrollLeft: el.scrollLeft
+                        }});
+                    }}
+                }});
+                const docEl = parentDoc.documentElement;
+                const bodyEl = parentDoc.body;
+                const winScrollX = parentWin.scrollX || docEl.scrollLeft || bodyEl.scrollLeft;
+                const winScrollY = parentWin.scrollY || docEl.scrollTop || bodyEl.scrollTop;
+
+                // Lock states immediately for transitions (collapse is now disabled, expand is enabled)
+                isTransitioning = true;
+                collapseBtn.disabled = true;
+                expandBtn.disabled = false;
+
+                // Collapse all
+                toggleAll(false);
+
+                collapseBtn.blur();
+                if (parentDoc.activeElement) {{
+                    parentDoc.activeElement.blur();
+                }}
+
+                // Restore all scroll positions (immediate and deferred)
+                const restoreScrolls = () => {{
+                    scrollStates.forEach(state => {{
+                        state.element.scrollTop = state.scrollTop;
+                        state.element.scrollLeft = state.scrollLeft;
+                    }});
+                    parentWin.scrollTo(winScrollX, winScrollY);
+                }};
+                restoreScrolls();
+                setTimeout(restoreScrolls, 10);
+                setTimeout(restoreScrolls, 50);
+                
+                // Release lock and re-evaluate once React animations settle
+                setTimeout(() => {{
+                    isTransitioning = false;
+                    updateButtonStates();
+                }}, 1200);
+            }});
+            
+            // Listen to toggle events on the parent document (capture phase because toggle does not bubble)
+            root.addEventListener('toggle', (e) => {{
+                if (e.target.tagName && e.target.tagName.toLowerCase() === 'details') {{
+                    // Delay state check slightly to let browser layout and React render cycles settle
+                    setTimeout(updateButtonStates, 100);
+                }}
+            }}, true);
+            
+            setTimeout(updateButtonStates, 200);
+            setInterval(updateButtonStates, 2000);
         </script>
-    """, height=45)
+    """, height=38)
 
 def get_image_thumbnail_base64(img_path, size=(24, 24)):
     if not img_path or not os.path.exists(img_path):
@@ -2518,9 +2797,20 @@ def get_image_thumbnail_base64(img_path, size=(24, 24)):
         
         with Image.open(img_path) as img:
             img_rgb = img.convert("RGB")
-            img_rgb.thumbnail(size)
+            
+            # Crop to center square to avoid aspect ratio distortion
+            width, height = img_rgb.size
+            min_dim = min(width, height)
+            left = (width - min_dim) // 2
+            top = (height - min_dim) // 2
+            right = left + min_dim
+            bottom = top + min_dim
+            
+            img_square = img_rgb.crop((left, top, right, bottom))
+            img_square.thumbnail(size, Image.LANCZOS)
+            
             buffer = BytesIO()
-            img_rgb.save(buffer, format="JPEG", quality=80)
+            img_square.save(buffer, format="JPEG", quality=85)
             encoded = base64.b64encode(buffer.getvalue()).decode()
             return f"data:image/jpeg;base64,{encoded}"
     except Exception:
@@ -2547,7 +2837,7 @@ def render_result_group(group, selected_methods, expanded=True):
     thumb_b64 = get_image_thumbnail_base64(img_path, size=(24, 24))
     
     if thumb_b64:
-        label = f"![Thumbnail]({thumb_b64}) **Results for Image {group['img_idx']}**"
+        label = f"![Thumbnail]({thumb_b64})&nbsp; **Results for Image {group['img_idx']}**"
     else:
         label = f"🖼️ **Results for Image {group['img_idx']}**"
         
@@ -3218,24 +3508,88 @@ def render_configure_page():
         if st.session_state.selected_device_mode not in device_options:
             st.session_state.selected_device_mode = device_options[0]
         st.radio(
-            "Target Device Selection",
+            "Hardware Device",
             device_options,
             key="selected_device_mode",
             horizontal=True,
         )
         
-        # Hardware Status directly below target device selection inside right column
-        st.markdown('<div style="margin-top: 25px; font-weight: bold; margin-bottom: 8px; font-size: 1.1em; color: var(--xai-text);">Hardware Status</div>', unsafe_allow_html=True)
         if "GPU" in st.session_state.selected_device_mode:
             if torch.cuda.is_available():
                 gpu_desc = torch.cuda.get_device_name(0)
             elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-                gpu_desc = "Apple Silicon GPU (MPS)"
+                gpu_desc = "Apple Silicon (MPS)"
             else:
                 gpu_desc = "Active"
-            st.success(f"**GPU Active:** {gpu_desc}")
+            status_text = f"🟢 {gpu_desc}"
         else:
-            st.warning(f"**CPU Active:** {get_cpu_info()}")
+            status_text = f"💻 {get_cpu_info()}"
+            
+        import sys
+        cuda_line = f"<p>• <strong>CUDA Version</strong>: {torch.version.cuda}</p>" if torch.cuda.is_available() else ""
+        
+        status_html = f"""
+        <style>
+            .hw-status-container {{
+                border: 1px solid var(--xai-border) !important;
+                border-radius: 8px !important;
+                overflow: hidden !important;
+                background: linear-gradient(135deg, rgba(96, 165, 250, 0.14) 0%, rgba(45, 212, 191, 0.08) 100%),
+                            repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.015) 0px, rgba(255, 255, 255, 0.015) 2px, transparent 2px, transparent 10px) !important;
+                transition: border-color 0.2s ease !important;
+            }}
+            .hw-status-container:hover {{
+                border-color: rgba(45, 212, 191, 0.4) !important;
+            }}
+            .hw-status-summary {{
+                display: flex !important;
+                align-items: center !important;
+                justify-content: space-between !important;
+                padding: 0.6rem 0.9rem !important;
+                cursor: pointer !important;
+                color: var(--xai-text) !important;
+                font-weight: 500 !important;
+                font-size: 0.88rem !important;
+                list-style: none !important;
+                outline: none !important;
+                box-sizing: border-box !important;
+            }}
+            .hw-status-summary::-webkit-details-marker {{
+                display: none !important;
+            }}
+            .hw-status-container[open] .hw-chevron {{
+                transform: rotate(180deg) !important;
+            }}
+            .hw-status-details {{
+                padding: 0.9rem !important;
+                border-top: 1px solid var(--xai-border) !important;
+                font-size: 0.85rem !important;
+                color: var(--xai-muted) !important;
+                background: rgba(11, 18, 27, 0.45) !important;
+            }}
+            .hw-status-details p {{
+                margin: 0 0 6px 0 !important;
+                line-height: 1.4 !important;
+            }}
+            .hw-status-details p:last-child {{
+                margin-bottom: 0 !important;
+            }}
+        </style>
+        <details class="hw-status-container">
+            <summary class="hw-status-summary">
+                <span>{status_text}</span>
+                <span class="hw-chevron" style="transition: transform 0.2s; font-size: 0.75rem; display: inline-block;">▼</span>
+            </summary>
+            <div class="hw-status-details">
+                <p><strong>Hardware & Environment Details:</strong></p>
+                <p>• <strong>OS/Platform</strong>: {platform.platform()}</p>
+                <p>• <strong>Python Version</strong>: {sys.version.split()[0]}</p>
+                <p>• <strong>PyTorch Version</strong>: {torch.__version__}</p>
+                {cuda_line}
+            </div>
+        </details>
+        """
+        st.markdown(status_html, unsafe_allow_html=True)
 
     # Row 5: Quality Metrics (Post-Processing)
     st.divider()
@@ -3611,8 +3965,7 @@ def render_active_run_page():
             rerun_app()
             
         if st.session_state.last_run_results:
-            st.subheader("Completed Results So Far")
-            render_result_view_controls("current_live_results")
+            render_detailed_results_header("current_live_results", "Completed Results So Far")
             for group in sorted_result_groups(st.session_state.last_run_results):
                 render_result_group(group, st.session_state.current_batch_methods)
                 
@@ -3635,8 +3988,11 @@ def render_active_run_page():
             fdf = normalize_metric_columns(pd.DataFrame(all_r))
             result_groups = sorted_result_groups(st.session_state.last_run_results)
             
-            st.markdown(f"**Total Duration:** `{format_time(st.session_state.total_execution_time)}`")
-            st.caption(f"Started: {display_timestamp(st.session_state.batch_started_at)} | Completed: {display_timestamp(st.session_state.batch_completed_at)}")
+
+            st.markdown('<div style="margin-top: 1.5rem;"></div>', unsafe_allow_html=True)
+            if st.session_state.total_execution_time:
+                st.markdown(format_run_duration(format_time(st.session_state.total_execution_time)), unsafe_allow_html=True)
+            st.markdown(format_run_timestamps(st.session_state.batch_started_at, st.session_state.batch_completed_at), unsafe_allow_html=True)
             st.markdown('<div style="margin-top: 1.0rem;"></div>', unsafe_allow_html=True)
             
             # --- EXPORT & NAVIGATION BUTTONS (Above configurations) ---
@@ -3708,6 +4064,7 @@ def render_active_run_page():
                     st.session_state.current_batch_sizes = []
                     rerun_app()
                     
+            st.markdown('<div style="margin-top: 1.0rem;"></div>', unsafe_allow_html=True)
             with st.expander("⚙️ Environment & Configuration Details", expanded=True):
                 meta_col1, meta_col_spacer, meta_col2 = st.columns([1.8, 0.2, 2.0])
                 with meta_col1:
@@ -3731,8 +4088,8 @@ def render_active_run_page():
 
             render_analytics_sections(fdf, result_groups)
 
-        st.markdown('<div class="step-header">Detailed Per-Image Attribution Heatmaps and Results</div>', unsafe_allow_html=True)
-        render_result_view_controls("current_final_results")
+        st.markdown('<hr style="margin: 1.4rem 0 1.4rem 0; border: none; border-top: 1px solid var(--xai-border);">', unsafe_allow_html=True)
+        render_detailed_results_header("current_final_results")
         for group in sorted_result_groups(st.session_state.last_run_results):
             render_result_group(group, st.session_state.current_batch_methods)
     else:
@@ -3747,19 +4104,19 @@ def render_history_page():
         st.info("No benchmark history found. Start a new run in the 'Configure Benchmark' page!")
         return
 
-    selected_bids = st.multiselect(
-        "Select Benchmark Batch(es) to View & Evaluate",
+    selected_bid = st.selectbox(
+        "Select Benchmark Batch to View & Evaluate",
         [b["id"] for b in batches],
         format_func=lambda bid: get_batch_display_name(bid, sm.base_dir),
-        help="Select one batch to view its standard results, or multiple batches to combine and compare them."
+        help="Select a batch to view its results, charts, and exports."
     )
 
-    if not selected_bids:
-        st.info("Please select one or more batches from the list above.")
+    if not selected_bid:
+        st.info("Please select a batch from the list above.")
         return
 
-    if len(selected_bids) == 1:
-        bid = selected_bids[0]
+    if True:
+        bid = selected_bid
         batch_meta_p = os.path.join(sm.base_dir, bid, "batch_results.json")
         if os.path.exists(batch_meta_p):
             try:
@@ -3786,13 +4143,14 @@ def render_history_page():
                     st.markdown('<div style="margin-top: 1.5rem;"></div>', unsafe_allow_html=True)
                     
                     # Header row with metadata
+
                     if h_total_time:
-                        st.markdown(f"**Total Duration:** `{format_time(h_total_time)}`")
-                    st.caption(f"Started: {display_timestamp(meta.get('started_at'))} | Completed: {display_timestamp(meta.get('completed_at'))}")
+                        st.markdown(format_run_duration(format_time(h_total_time)), unsafe_allow_html=True)
+                    st.markdown(format_run_timestamps(meta.get('started_at'), meta.get('completed_at')), unsafe_allow_html=True)
                     st.markdown('<div style="margin-top: 1.0rem;"></div>', unsafe_allow_html=True)
                     
                     # --- EXPORT & NAVIGATION BUTTONS (Above configurations) ---
-                    hx1, hx2, hx3, hx4, hx5, hx_spacer = st.columns([1, 1, 1.3, 1.6, 1.2, 1.0])
+                    hx1, hx2, hx3, hx4 = st.columns([1, 1, 1.4, 1.6])
                     with hx1:
                         h_csv = os.path.join(sm.base_dir, bid, f"{bid}.csv")
                         if not os.path.exists(h_csv):
@@ -3825,33 +4183,12 @@ def render_history_page():
                                 st.session_state.current_page = "Configure"
                                 rerun_app()
                     with hx4:
-                        if st.button("⬅️ Setup Another Run", key=f"setup_{bid}", help="Reset all configuration inputs back to defaults to start a fresh benchmark from scratch.", use_container_width=True):
-                            st.session_state.is_finished = False
-                            st.session_state.benchmark_running = False
-                            st.session_state.benchmark_ready_to_run = False
-                            st.session_state.last_run_results = []
-                            st.session_state.completed_batch_id = ""
-                            st.session_state.last_run_batch_id = ""
-                            st.session_state.current_page = "Configure"
-                            st.session_state.selected_models = ["resnet50"]
-                            st.session_state.selected_methods = ["Saliency", "Integrated_Gradients"]
-                            st.session_state.input_size_str = "224"
-                            st.session_state.selected_repeats = 5
-                            st.session_state.selected_warmups = 1
-                            st.session_state.selected_run_order = "Balanced"
-                            st.session_state.selected_device_mode = default_device_mode
-                            st.session_state.current_batch_methods = []
-                            st.session_state.current_batch_models = []
-                            st.session_state.current_batch_sizes = []
-                            st.session_state.restore_config = None
-                            rerun_app()
-                    with hx5:
                         if st.button("Delete Batch", key=f"del_{bid}", use_container_width=True):
                             sm.delete_batch(bid)
                             st.success(f"Batch {bid} deleted.")
                             st.rerun()
-                        st.markdown('<div class="delete-marker" style="display: none;"></div>', unsafe_allow_html=True)
                             
+                    st.markdown('<div style="margin-top: 1.0rem;"></div>', unsafe_allow_html=True)
                     with st.expander("⚙️ Environment & Configuration Details", expanded=False):
                         meta_col1, meta_col_spacer, meta_col2 = st.columns([1.8, 0.2, 2.0])
                         with meta_col1:
@@ -3867,8 +4204,8 @@ def render_history_page():
                     render_analytics_sections(hdf, meta["results"])
 
                 # Per-image results
-                st.markdown('<div class="step-header">Detailed Per-Image Attribution Heatmaps and Results</div>', unsafe_allow_html=True)
-                render_result_view_controls(f"history_results_{bid}")
+                st.markdown('<hr style="margin: 1.4rem 0 1.4rem 0; border: none; border-top: 1px solid var(--xai-border);">', unsafe_allow_html=True)
+                render_detailed_results_header(f"history_results_{bid}")
                 for group in meta["results"]:
                     render_result_group(group, meta["methods"])
 
@@ -3882,211 +4219,10 @@ def render_history_page():
                         sm.delete_batch(bid)
                         st.success(f"Batch {bid} deleted.")
                         st.rerun()
-                    st.markdown('<div class="delete-marker" style="display: none;"></div>', unsafe_allow_html=True)
         else:
             st.info("Loading metadata for this batch...")
     else:
-        # Multi-Batch Evaluation Mode!
-        del_col_spacer, del_col_top = st.columns([2.8, 2.2])
-        with del_col_top:
-            if st.button("Delete All Selected Batches", key="del_all_top", use_container_width=True):
-                for bid in selected_bids:
-                    sm.delete_batch(bid)
-                st.success("Selected batches deleted successfully!")
-                st.rerun()
-            st.markdown('<div class="delete-marker" style="display: none;"></div>', unsafe_allow_html=True)
-            
-        st.markdown("### Combined Multi-Batch Evaluation Dashboard")
-        
-        all_combined_results = []
-        env_records = []
-        methods_in_batches = set()
-        
-        # Metadata accumulation
-        combined_total_time = 0
-        started_times = []
-        completed_times = []
-        combined_models = set()
-        combined_methods = set()
-        combined_resolutions = set()
-        combined_repeats = set()
-        combined_warmups = set()
-        total_images = 0
-        
-        combined_methods_info = {}
-        for bid in selected_bids:
-            batch_meta_p = os.path.join(sm.base_dir, bid, "batch_results.json")
-            if os.path.exists(batch_meta_p):
-                try:
-                    with open(batch_meta_p, 'r') as f:
-                        meta = json.load(f)
-                    
-                    for m_info in meta.get("methods_info", []):
-                        combined_methods_info[m_info["display_name"]] = m_info
-                    
-                    methods_in_batches.update(meta.get("methods", []))
-                    
-                    # Accumulate times
-                    combined_total_time += meta.get("total_execution_time", 0)
-                    if meta.get("started_at"):
-                        started_times.append(meta["started_at"])
-                    if meta.get("completed_at"):
-                        completed_times.append(meta["completed_at"])
-                        
-                    env = meta.get("environment", {})
-                    gpu_names = ", ".join([d.get("name", "Unknown GPU") for d in env.get("cuda_devices", [])]) or "None"
-                    env_records.append({
-                        "Batch": bid,
-                        "Device/GPU": gpu_names if gpu_names != "None" else env.get("selected_device", "CPU"),
-                        "Torch": env.get("torch_version", "unknown"),
-                        "CUDA": env.get("torch_cuda_version") or "N/A",
-                        "Platform": env.get("platform", "unknown")[:25] + "..." if len(env.get("platform", "unknown")) > 25 else env.get("platform", "unknown"),
-                        "Total Duration": format_time(meta.get("total_execution_time", 0))
-                    })
-                    
-                    settings = meta.get("benchmark_settings", {})
-                    if settings:
-                        combined_models.update(settings.get("models", []))
-                        combined_methods.update(settings.get("methods", []))
-                        combined_resolutions.update(settings.get("input_sizes", []))
-                        if settings.get("repeat_count") is not None:
-                            combined_repeats.add(settings.get("repeat_count"))
-                        if settings.get("warmup_runs") is not None:
-                            combined_warmups.add(settings.get("warmup_runs"))
-                            
-                    results = meta.get("results", [])
-                    if results:
-                        total_images += len(results)
-                        if not settings or not settings.get("models") or not settings.get("methods"):
-                            for g in results:
-                                for m in g.get("models", []):
-                                    if m.get("model_name"):
-                                        combined_models.add(m.get("model_name"))
-                                    for r in m.get("results", []):
-                                        if r.get("Method"):
-                                            combined_methods.add(r.get("Method"))
-                                        if "Resolution" in r and r.get("Resolution"):
-                                            combined_resolutions.add(str(r.get("Resolution")))
-                                            
-                    for group in results:
-                        img_idx = group["img_idx"]
-                        for model_entry in group["models"]:
-                            for r in model_entry["results"]:
-                                r_copy = r.copy()
-                                r_copy["Batch"] = bid
-                                r_copy["Image Index"] = img_idx
-                                all_combined_results.append(r_copy)
-                except Exception as e:
-                    st.warning(f"Failed to load batch {bid}: {str(e)}")
-                    
-        if all_combined_results:
-            combined_df = pd.DataFrame(all_combined_results)
-            combined_df = add_input_size_column(normalize_metric_columns(combined_df))
-            
-            runtime_col = metric_col(combined_df, ATTR_RUNTIME_COL, LEGACY_RUNTIME_COL)
-            memory_col = metric_col(combined_df, ATTR_MEMORY_COL, LEGACY_MEMORY_COL)
-            
-            # Header metadata section
-            st.markdown('<div style="margin-top: 1.5rem;"></div>', unsafe_allow_html=True)
-            if combined_total_time:
-                st.markdown(f"**Total Duration:** `{format_time(combined_total_time)}`")
-            time_range_str = ""
-            if started_times and completed_times:
-                time_range_str = f" | Time Range: {display_timestamp(min(started_times))} to {display_timestamp(max(completed_times))}"
-            st.caption(f"Combined {len(selected_bids)} batches{time_range_str}")
-            
-            # Combined Environment & Configuration details expander
-            with st.expander("⚙️ Environment & Configuration Details", expanded=False):
-                if env_records:
-                    st.markdown('<div style="font-weight: 600; margin-bottom: 8px; color: var(--xai-text);">Executing Environments</div>', unsafe_allow_html=True)
-                    st.table(pd.DataFrame(env_records))
-                    st.markdown('<div style="margin-top: 1.5rem;"></div>', unsafe_allow_html=True)
-                
-                st.markdown('<div style="font-weight: 600; margin-bottom: 8px; color: var(--xai-text);">Combined Configuration Summary</div>', unsafe_allow_html=True)
-                
-                # Format lists nicely for configuration summary
-                models_list = sorted(list(combined_models))
-                methods_list = sorted(list(combined_methods))
-                resolutions_list = sorted([str(r) for r in combined_resolutions])
-                repeats_list = sorted([str(r) for r in combined_repeats])
-                warmups_list = sorted([str(w) for w in combined_warmups])
-                
-                def clean_val(v):
-                    if v is None or str(v).strip() in ["", "nan", "None", "."]:
-                        return "-"
-                    return str(v)
-                    
-                combined_rows = [
-                    ("Batches Combined", clean_val(len(selected_bids)), ", ".join(selected_bids)),
-                    ("Images Analyzed", clean_val(total_images), "-"),
-                    ("Models", clean_val(len(models_list)), ", ".join(models_list) if models_list else "-"),
-                    ("Methods", clean_val(len(methods_list)), ", ".join(methods_list) if methods_list else "-"),
-                    ("Input Resolutions", clean_val(len(resolutions_list)), ", ".join(resolutions_list) if resolutions_list else "-"),
-                    ("Repeats per Config", clean_val(len(repeats_list)), ", ".join(repeats_list) if repeats_list else "-"),
-                    ("Warmup Runs", clean_val(len(warmups_list)), ", ".join(warmups_list) if warmups_list else "-"),
-                    ("Memory Runs", "1", "-"),
-                ]
-                
-                config_table_html = """<table style="width:100%; border-collapse: collapse; font-family: sans-serif; font-size: 0.88rem; color: var(--xai-text); margin-bottom: 0.5rem;">
-  <thead>
-    <tr style="border-bottom: 2px solid var(--xai-border); text-align: left; color: var(--xai-muted);">
-      <th style="padding: 8px 10px; width: 160px; font-weight: 600;">Parameter</th>
-      <th style="padding: 8px 10px; width: 80px; font-weight: 600;">Count / Value</th>
-      <th style="padding: 8px 10px; font-weight: 600;">Detail</th>
-    </tr>
-  </thead>
-  <tbody>"""
-                
-                for param, count, detail in combined_rows:
-                    config_table_html += f"""<tr style="border-bottom: 1px solid rgba(148, 163, 184, 0.12);">
-  <td style="padding: 8px 10px; font-weight: 500; color: var(--xai-text);">{param}</td>
-  <td style="padding: 8px 10px; color: var(--xai-muted);">{count}</td>
-  <td style="padding: 8px 10px; color: var(--xai-muted);">{detail}</td>
-</tr>"""
-                    
-                config_table_html += "</tbody></table>"
-                st.markdown(config_table_html, unsafe_allow_html=True)
-                
-                # Render parameter mapping table if parameterized methods exist
-                render_parameters_mapping_table(list(combined_methods_info.values()))
-                
-            st.divider()
-            
-            st.subheader("Comparative Performance Visualizations")
-            chart_tab1, chart_tab2 = st.tabs(["Attribution Runtime", "Peak Memory Overhead"])
-            
-            with chart_tab1:
-                st.pyplot(plot_combined_batches_comparison(combined_df))
-            with chart_tab2:
-                st.pyplot(plot_combined_batches_memory(combined_df))
-                
-            st.divider()
-            
-            st.subheader("Combined Grouped Averages")
-            group_cols = ["Batch", "Model"]
-            if "Resolution" in combined_df.columns:
-                group_cols.append("Resolution")
-            group_cols.append("Method")
-            
-            combined_summary_df = combined_df.groupby(group_cols).agg({
-                runtime_col: "mean",
-                memory_col: "mean",
-                "Warmup Runs": "first",
-                "Measured Runs": "first",
-                "Samples": "count"
-            }).reset_index()
-            for qm in ["Gini Index", "Deletion AUC", "Insertion AUC", "Infidelity", "Quality Eval Time (sec)"]:
-                if qm in combined_df.columns and combined_df[qm].notna().any():
-                    combined_summary_df[f"Mean {qm}"] = combined_df.groupby(group_cols)[qm].transform("mean")
-            
-            st.table(style_dataframe(combined_summary_df))
-            
-            
-            
-            with st.expander("View Raw Combined Dataset", expanded=False):
-                st.dataframe(style_dataframe(presentation_df(combined_df)))
-        else:
-            st.error("No valid results found in the selected batches.")
+        pass
 
 def load_docs_reference():
     docs_path = os.path.join(os.path.dirname(__file__), "docs_reference.json")
