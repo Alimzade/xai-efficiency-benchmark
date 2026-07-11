@@ -1183,7 +1183,7 @@ def format_run_timestamps(started_iso, completed_iso):
             
             if date_start == date_end:
                 return f"""
-                <div style="font-size: 1.0rem; color: var(--xai-muted); margin-bottom: 0.8rem; display: flex; align-items: center; gap: 4px;">
+                <div style="font-size: 1.0rem; color: var(--xai-muted); margin-bottom: 0.8rem; display: flex; align-items: center; justify-content: center; gap: 4px;">
                     <span style="color: var(--xai-muted); font-weight: 500; margin-right: 2px;">Date:</span>
                     <code>{date_start}</code>
                     <span style="color: rgba(148, 163, 184, 0.35); margin: 0 6px;">|</span>
@@ -1196,7 +1196,7 @@ def format_run_timestamps(started_iso, completed_iso):
                 """
             else:
                 return f"""
-                <div style="font-size: 1.0rem; color: var(--xai-muted); margin-bottom: 0.8rem; display: flex; align-items: center; gap: 4px;">
+                <div style="font-size: 1.0rem; color: var(--xai-muted); margin-bottom: 0.8rem; display: flex; align-items: center; justify-content: center; gap: 4px;">
                     <span style="color: var(--xai-muted); font-weight: 500; margin-right: 2px;">Started:</span>
                     <code>{date_start} {time_start}</code>
                     <span style="color: rgba(148, 163, 184, 0.35); margin: 0 6px;">|</span>
@@ -1207,7 +1207,7 @@ def format_run_timestamps(started_iso, completed_iso):
                 """
         else:
             return f"""
-            <div style="font-size: 1.0rem; color: var(--xai-muted); margin-bottom: 0.8rem; display: flex; align-items: center; gap: 4px;">
+            <div style="font-size: 1.0rem; color: var(--xai-muted); margin-bottom: 0.8rem; display: flex; align-items: center; justify-content: center; gap: 4px;">
                 <span style="color: var(--xai-muted); font-weight: 500; margin-right: 2px;">Started:</span>
                 <code>{date_start} {time_start}</code>
                 <span style="font-size: 0.76rem; color: var(--xai-muted); margin-left: 4px;">({tz_str})</span>
@@ -1218,7 +1218,7 @@ def format_run_timestamps(started_iso, completed_iso):
         if completed_iso:
             end_display = display_timestamp(completed_iso)
             return f"""
-            <div style="font-size: 1.0rem; color: var(--xai-muted); margin-bottom: 0.8rem; display: flex; align-items: center; gap: 4px;">
+            <div style="font-size: 1.0rem; color: var(--xai-muted); margin-bottom: 0.8rem; display: flex; align-items: center; justify-content: center; gap: 4px;">
                 <span style="color: var(--xai-muted); font-weight: 500; margin-right: 2px;">Started:</span>
                 <code>{start_display}</code>
                 <span style="color: rgba(148, 163, 184, 0.35); margin: 0 6px;">|</span>
@@ -1227,7 +1227,7 @@ def format_run_timestamps(started_iso, completed_iso):
             </div>
             """
         return f"""
-        <div style="font-size: 1.0rem; color: var(--xai-muted); margin-bottom: 0.8rem; display: flex; align-items: center; gap: 4px;">
+        <div style="font-size: 1.0rem; color: var(--xai-muted); margin-bottom: 0.8rem; display: flex; align-items: center; justify-content: center; gap: 4px;">
             <span style="color: var(--xai-muted); font-weight: 500; margin-right: 2px;">Started:</span>
             <code>{start_display}</code>
         </div>
@@ -1237,7 +1237,7 @@ def format_run_duration(duration):
     if not duration:
         return ""
     return f"""
-    <div style="font-size: 1.0rem; color: var(--xai-muted); margin-bottom: 0.2rem; display: flex; align-items: center; gap: 4px;">
+    <div style="font-size: 1.0rem; color: var(--xai-muted); margin-bottom: 0.2rem; display: flex; align-items: center; justify-content: center; gap: 4px;">
         <span style="color: var(--xai-muted); font-weight: 500; margin-right: 2px;">Total Duration:</span>
         <code>{duration}</code>
     </div>
@@ -1475,7 +1475,9 @@ def style_dataframe(df, raw_precision=False):
                 return str(val)
 
             if raw_precision:
-                if col_name in ["Input Size (px)", "Resolution", "Samples", "Methods", "Resolutions", "Images", "Repeats", "Total Attribution Runs"]:
+                if col_name == "Resolution":
+                    return f"{int(round(v))} x {int(round(v))}"
+                elif col_name in ["Input Size (px)", "Samples", "Methods", "Resolutions", "Images", "Repeats", "Total Attribution Runs"]:
                     return f"{int(round(v))}"
                 s = f"{v:.6f}".rstrip('0').rstrip('.')
                 return s if s else "0"
@@ -1484,7 +1486,9 @@ def style_dataframe(df, raw_precision=False):
                     return f"{v:.2f}"
                 elif "sec" in col_name or "Infidelity" in col_name or col_name in ["Gini Index", "Mean Gini Index", "Deletion AUC", "Mean Deletion AUC", "Insertion AUC", "Mean Insertion AUC"]:
                     return f"{v:.4f}"
-                elif col_name in ["Input Size (px)", "Resolution", "Samples", "Methods", "Resolutions", "Images", "Repeats", "Total Attribution Runs"]:
+                elif col_name == "Resolution":
+                    return f"{int(round(v))} x {int(round(v))}"
+                elif col_name in ["Input Size (px)", "Samples", "Methods", "Resolutions", "Images", "Repeats", "Total Attribution Runs"]:
                     return f"{int(round(v))}"
                 else:
                     return f"{v:.4f}"
@@ -1951,6 +1955,14 @@ def plot_runtime_memory_scatter(df, figsize=(9, 6)):
     ax.set_xlabel("Mean Attribution Runtime (sec)")
     ax.set_ylabel("Mean Peak Attribution Memory (MB)")
     
+    # Set axis limits starting at 0 with 10% padding on the max side to prevent cramped borders
+    x_max = df_config[runtime_col].max()
+    y_max = df_config[memory_col].max()
+    x_limit = (x_max * 1.1) if not pd.isna(x_max) and x_max > 0 else 1.0
+    y_limit = (y_max * 1.1) if not pd.isna(y_max) and y_max > 0 else 100.0
+    ax.set_xlim(left=0.0, right=x_limit)
+    ax.set_ylim(bottom=0.0, top=y_limit)
+    
     # Extract legend handles and insert an empty spacer row between different categories
     handles, labels = ax.get_legend_handles_labels()
     new_handles = []
@@ -2162,7 +2174,7 @@ def render_analytics_sections(fdf, result_groups):
                 st.pyplot(plot_runtime_memory_scatter(fdf, figsize=(12, 7)))
             
         st.markdown('<div style="margin-top: 1.5rem; border-top: 1px solid var(--xai-border); padding-top: 1rem;"></div>', unsafe_allow_html=True)
-        st.subheader("Detailed Comparisons")
+        render_detailed_comparisons_header("comparison_section")
         
         # 3. Nested Collapsible Sections for varying dimensions
         
@@ -2463,7 +2475,7 @@ def render_parameters_mapping_table(methods_info):
     st.markdown(table_html, unsafe_allow_html=True)
 
 def render_configuration_summary(settings, results):
-    if not results:
+    if not results and not settings:
         return
     # Fallback to scanning results if settings is empty/missing
     if not settings:
@@ -2480,15 +2492,16 @@ def render_configuration_summary(settings, results):
         scanned_models = set()
         scanned_methods = set()
         scanned_sizes = set()
-        for g in results:
-            for m in g.get("models", []):
-                if m.get("model_name"):
-                    scanned_models.add(m.get("model_name"))
-                for r in m.get("results", []):
-                    if r.get("Method"):
-                        scanned_methods.add(r.get("Method"))
-                    if "Resolution" in r and r.get("Resolution"):
-                        scanned_sizes.add(str(r.get("Resolution")))
+        if results:
+            for g in results:
+                for m in g.get("models", []):
+                    if m.get("model_name"):
+                        scanned_models.add(m.get("model_name"))
+                    for r in m.get("results", []):
+                        if r.get("Method"):
+                            scanned_methods.add(r.get("Method"))
+                        if "Resolution" in r and r.get("Resolution"):
+                            scanned_sizes.add(str(r.get("Resolution")))
         if not models:
             models = sorted(list(scanned_models))
         if not methods:
@@ -2496,7 +2509,12 @@ def render_configuration_summary(settings, results):
         if not sizes:
             sizes = sorted(list(scanned_sizes))
             
-    img_count = len(results)
+    if results:
+        img_count = len(results)
+    elif settings.get("image_sources"):
+        img_count = len(settings.get("image_sources"))
+    else:
+        img_count = len(st.session_state.get("prepared_img_sources", []))
     
     # Helper to clean strings and handle missing
     def clean_val(v):
@@ -2787,6 +2805,217 @@ def render_detailed_results_header(key_prefix, title_text="Detailed Per-Image Re
         </script>
     """, height=38)
 
+def render_detailed_comparisons_header(key_prefix, title_text="Detailed Comparisons"):
+    components.html(f"""
+        <style>
+            body {{
+                margin: 0;
+                background: transparent;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                height: 100%;
+                font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            }}
+            .xai-title {{
+                font-size: 1.2rem;
+                font-weight: 600;
+                color: #e5edf6;
+                white-space: nowrap;
+                line-height: 1;
+                display: flex;
+                align-items: center;
+            }}
+            .xai-expander-controls {{
+                display: flex;
+                gap: 8px;
+                align-items: center;
+            }}
+            .xai-expander-controls button {{
+                border: 1px solid rgba(148, 163, 184, 0.26);
+                border-radius: 8px;
+                background: linear-gradient(180deg, rgba(96, 165, 250, 0.16), rgba(45, 212, 191, 0.1));
+                color: #e5edf6;
+                cursor: pointer;
+                font: 600 12px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                padding: 0.35rem 0.7rem;
+                white-space: nowrap;
+                transition: all 0.2s ease;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                line-height: 1;
+                margin: 0;
+                box-sizing: border-box;
+            }}
+            .xai-expander-controls button:hover {{
+                border-color: rgba(45, 212, 191, 0.55);
+                background: linear-gradient(180deg, rgba(96, 165, 250, 0.24), rgba(45, 212, 191, 0.18));
+            }}
+            .xai-expander-controls button:disabled {{
+                opacity: 0.32 !important;
+                cursor: not-allowed !important;
+                border-color: rgba(148, 163, 184, 0.1) !important;
+                background: rgba(255, 255, 255, 0.02) !important;
+                color: rgba(229, 237, 246, 0.35) !important;
+                pointer-events: none !important;
+            }}
+        </style>
+        <div class="xai-title">{title_text}</div>
+        <div class="xai-expander-controls">
+            <button type="button" id="expand-btn">Expand All</button>
+            <button type="button" id="collapse-btn">Collapse All</button>
+        </div>
+        <script>
+            const root = window.parent.document;
+            const expandBtn = document.getElementById('expand-btn');
+            const collapseBtn = document.getElementById('collapse-btn');
+            let isTransitioning = false;
+            
+            function comparisonExpanderDetails() {{
+                return Array.from(root.querySelectorAll('details')).filter((details) => {{
+                    if (details.offsetParent === null) return false;
+                    const summary = details.querySelector('summary');
+                    return summary && summary.textContent.includes('Comparison');
+                }});
+            }}
+            
+            function updateButtonStates() {{
+                if (isTransitioning) return;
+                const details = comparisonExpanderDetails();
+                if (details.length === 0) {{
+                    expandBtn.disabled = true;
+                    collapseBtn.disabled = true;
+                    return;
+                }}
+                const anyOpen = details.some(d => d.open);
+                const anyClosed = details.some(d => !d.open);
+                
+                expandBtn.disabled = !anyClosed;
+                collapseBtn.disabled = !anyOpen;
+            }}
+            
+            function toggleAll(openState) {{
+                const details = comparisonExpanderDetails();
+                details.forEach(d => {{
+                    const summary = d.querySelector('summary');
+                    if (summary) {{
+                        if ((openState && !d.open) || (!openState && d.open)) {{
+                            summary.click();
+                        }}
+                    }}
+                }});
+            }}
+            
+            expandBtn.addEventListener('click', (e) => {{
+                e.preventDefault();
+                const parentWin = window.parent;
+                const parentDoc = parentWin.document;
+                
+                const scrollStates = [];
+                const allElements = parentDoc.querySelectorAll('*');
+                allElements.forEach(el => {{
+                    if (el.scrollTop > 0 || el.scrollLeft > 0) {{
+                        scrollStates.push({{
+                            element: el,
+                            scrollTop: el.scrollTop,
+                            scrollLeft: el.scrollLeft
+                        }});
+                    }}
+                }});
+                const docEl = parentDoc.documentElement;
+                const bodyEl = parentDoc.body;
+                const winScrollX = parentWin.scrollX || docEl.scrollLeft || bodyEl.scrollLeft;
+                const winScrollY = parentWin.scrollY || docEl.scrollTop || bodyEl.scrollTop;
+
+                isTransitioning = true;
+                expandBtn.disabled = true;
+                collapseBtn.disabled = false;
+
+                toggleAll(true);
+
+                expandBtn.blur();
+                if (parentDoc.activeElement) {{
+                    parentDoc.activeElement.blur();
+                }}
+
+                const restoreScrolls = () => {{
+                    scrollStates.forEach(state => {{
+                        state.element.scrollTop = state.scrollTop;
+                        state.element.scrollLeft = state.scrollLeft;
+                    }});
+                    parentWin.scrollTo(winScrollX, winScrollY);
+                }};
+                restoreScrolls();
+                setTimeout(restoreScrolls, 10);
+                setTimeout(restoreScrolls, 50);
+                
+                setTimeout(() => {{
+                    isTransitioning = false;
+                    updateButtonStates();
+                }}, 1200);
+            }});
+            
+            collapseBtn.addEventListener('click', (e) => {{
+                e.preventDefault();
+                const parentWin = window.parent;
+                const parentDoc = parentWin.document;
+                
+                const scrollStates = [];
+                const allElements = parentDoc.querySelectorAll('*');
+                allElements.forEach(el => {{
+                    if (el.scrollTop > 0 || el.scrollLeft > 0) {{
+                        scrollStates.push({{
+                            element: el,
+                            scrollTop: el.scrollTop,
+                            scrollLeft: el.scrollLeft
+                        }});
+                    }}
+                }});
+                const docEl = parentDoc.documentElement;
+                const bodyEl = parentDoc.body;
+                const winScrollX = parentWin.scrollX || docEl.scrollLeft || bodyEl.scrollLeft;
+                const winScrollY = parentWin.scrollY || docEl.scrollTop || bodyEl.scrollTop;
+
+                isTransitioning = true;
+                collapseBtn.disabled = true;
+                expandBtn.disabled = false;
+
+                toggleAll(false);
+
+                collapseBtn.blur();
+                if (parentDoc.activeElement) {{
+                    parentDoc.activeElement.blur();
+                }}
+
+                const restoreScrolls = () => {{
+                    scrollStates.forEach(state => {{
+                        state.element.scrollTop = state.scrollTop;
+                        state.element.scrollLeft = state.scrollLeft;
+                    }});
+                    parentWin.scrollTo(winScrollX, winScrollY);
+                }};
+                restoreScrolls();
+                setTimeout(restoreScrolls, 10);
+                setTimeout(restoreScrolls, 50);
+                
+                setTimeout(() => {{
+                    isTransitioning = false;
+                    updateButtonStates();
+                }}, 1200);
+            }});
+            
+            root.addEventListener('toggle', (e) => {{
+                if (e.target.tagName && e.target.tagName.toLowerCase() === 'details') {{
+                    setTimeout(updateButtonStates, 100);
+                }}
+            }}, true);
+            
+            setTimeout(updateButtonStates, 200);
+            setInterval(updateButtonStates, 2000);
+        </script>
+    """, height=38)
+
 def get_image_thumbnail_base64(img_path, size=(24, 24)):
     if not img_path or not os.path.exists(img_path):
         return ""
@@ -2816,7 +3045,7 @@ def get_image_thumbnail_base64(img_path, size=(24, 24)):
     except Exception:
         return ""
 
-def render_result_group(group, selected_methods, expanded=True):
+def render_result_group(group, selected_methods, expanded=True, key_suffix=""):
     # Find input image path to generate thumbnail
     img_path = None
     for m in group.get("models", []):
@@ -2841,7 +3070,8 @@ def render_result_group(group, selected_methods, expanded=True):
     else:
         label = f"🖼️ **Results for Image {group['img_idx']}**"
         
-    with st.expander(label, expanded=expanded):
+    exp_key = f"res_group_exp_{group['img_idx']}_{key_suffix}" if key_suffix else None
+    with st.expander(label, expanded=expanded, key=exp_key):
         # Group entries by base model architecture
         architectures = []
         for m in group["models"]:
@@ -3854,10 +4084,14 @@ def render_configure_page():
 
 # --- PAGE 2: ACTIVE RUN ---
 def render_active_run_page():
-    st.markdown("""
-        <div style="text-align: left; margin-top: 0.8rem; margin-bottom: -1.8rem !important;">
+    title_text = "⚡ Benchmark Execution Engine"
+    if st.session_state.is_finished:
+        title_text += " | Results"
+        
+    st.markdown(f"""
+        <div style="text-align: center; margin-top: 0.8rem; margin-bottom: -2.5rem !important;">
             <h3 style="background: linear-gradient(90deg, #60a5fa, #2dd4bf); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 1.55rem; font-weight: 700; margin: 0; display: inline-block; letter-spacing: -0.02em;">
-                ⚡ Benchmark Execution Engine
+                {title_text}
             </h3>
         </div>
         """, unsafe_allow_html=True)
@@ -3880,7 +4114,7 @@ def render_active_run_page():
                         wrapper.style.height = "0";
                         wrapper.style.overflow = "hidden";
                     }
-                    setTimeout(() => button.click(), 650);
+                    setTimeout(() => button.click(), 1500);
                 }
 
                 function findButton() {
@@ -3929,7 +4163,7 @@ def render_active_run_page():
 
         # Render the summary bar of the active run configuration at the top (visually stable anchor)
         st.markdown(f"""
-            <div class="run-summary-bar" style="margin-top: 15px; margin-bottom: 8px;">
+            <div class="run-summary-bar" style="margin-top: 5px; margin-bottom: 8px;">
                 <span class="run-summary-item">Models <strong>{len(st.session_state.current_batch_models)}</strong></span>
                 <span class="run-summary-separator">|</span>
                 <span class="run-summary-item">Size variations <strong>{len(st.session_state.current_batch_sizes)}</strong></span>
@@ -3976,10 +4210,32 @@ def render_active_run_page():
             st.session_state.current_page = "Configure"
             rerun_app()
             
+        st.markdown('<div style="margin-top: 1.0rem;"></div>', unsafe_allow_html=True)
+        with st.expander("⚙️ Environment & Configuration Details", expanded=False, key=f"env_details_{st.session_state.current_batch_id}_active"):
+            meta_col1, meta_col_spacer, meta_col2 = st.columns([1.8, 0.2, 2.0])
+            with meta_col1:
+                st.markdown('<div style="font-weight: 600; margin-bottom: 8px; color: var(--xai-text);">Environment Summary</div>', unsafe_allow_html=True)
+                render_environment_summary(collect_environment_metadata(get_device_string(st.session_state.current_device_mode)))
+            with meta_col2:
+                st.markdown('<div style="font-weight: 600; margin-bottom: 8px; color: var(--xai-text);">Benchmark Configuration</div>', unsafe_allow_html=True)
+                active_settings = {
+                    "models": st.session_state.current_batch_models,
+                    "methods": st.session_state.current_batch_methods,
+                    "input_sizes": st.session_state.current_batch_sizes,
+                    "repeat_count": st.session_state.current_repeats,
+                    "warmup_runs": st.session_state.current_warmups,
+                    "memory_runs": st.session_state.current_memory_runs,
+                    "selected_quality_metrics": st.session_state.current_selected_quality_metrics if st.session_state.get("current_enable_quality_metrics", False) else []
+                }
+                render_configuration_summary(active_settings, st.session_state.last_run_results)
+            
+            # Render parameter mapping table if parameterized methods exist
+            render_parameters_mapping_table(st.session_state.get("current_batch_methods_info", []))
+            
         if st.session_state.last_run_results:
             render_detailed_results_header("current_live_results", "Completed Results So Far")
             for group in sorted_result_groups(st.session_state.last_run_results):
-                render_result_group(group, st.session_state.current_batch_methods)
+                render_result_group(group, st.session_state.current_batch_methods, key_suffix=f"live_{st.session_state.current_batch_id}")
                 
     elif st.session_state.is_finished:
 
@@ -4001,7 +4257,7 @@ def render_active_run_page():
             result_groups = sorted_result_groups(st.session_state.last_run_results)
             
 
-            st.markdown('<div style="margin-top: 1.5rem;"></div>', unsafe_allow_html=True)
+            st.markdown('<div style="margin-top: 0.8rem;"></div>', unsafe_allow_html=True)
             if st.session_state.total_execution_time:
                 st.markdown(format_run_duration(format_time(st.session_state.total_execution_time)), unsafe_allow_html=True)
             st.markdown(format_run_timestamps(st.session_state.batch_started_at, st.session_state.batch_completed_at), unsafe_allow_html=True)
@@ -4077,7 +4333,7 @@ def render_active_run_page():
                     rerun_app()
                     
             st.markdown('<div style="margin-top: 1.0rem;"></div>', unsafe_allow_html=True)
-            with st.expander("⚙️ Environment & Configuration Details", expanded=True):
+            with st.expander("⚙️ Environment & Configuration Details", expanded=True, key=f"env_details_{st.session_state.current_batch_id}_finished"):
                 meta_col1, meta_col_spacer, meta_col2 = st.columns([1.8, 0.2, 2.0])
                 with meta_col1:
                     st.markdown('<div style="font-weight: 600; margin-bottom: 8px; color: var(--xai-text);">Environment Summary</div>', unsafe_allow_html=True)
@@ -4103,7 +4359,7 @@ def render_active_run_page():
         st.markdown('<hr style="margin: 1.4rem 0 1.4rem 0; border: none; border-top: 1px solid var(--xai-border);">', unsafe_allow_html=True)
         render_detailed_results_header("current_final_results")
         for group in sorted_result_groups(st.session_state.last_run_results):
-            render_result_group(group, st.session_state.current_batch_methods)
+            render_result_group(group, st.session_state.current_batch_methods, key_suffix=f"finished_{st.session_state.current_batch_id}")
     else:
         st.info("No active benchmark run. Go to the **Configure Benchmark** page to set up and launch a run!")
 
@@ -4201,7 +4457,7 @@ def render_history_page():
                             st.rerun()
                             
                     st.markdown('<div style="margin-top: 1.0rem;"></div>', unsafe_allow_html=True)
-                    with st.expander("⚙️ Environment & Configuration Details", expanded=False):
+                    with st.expander("⚙️ Environment & Configuration Details", expanded=False, key=f"env_details_{bid}_history"):
                         meta_col1, meta_col_spacer, meta_col2 = st.columns([1.8, 0.2, 2.0])
                         with meta_col1:
                             st.markdown('<div style="font-weight: 600; margin-bottom: 8px; color: var(--xai-text);">Environment Summary</div>', unsafe_allow_html=True)
@@ -4219,7 +4475,7 @@ def render_history_page():
                 st.markdown('<hr style="margin: 1.4rem 0 1.4rem 0; border: none; border-top: 1px solid var(--xai-border);">', unsafe_allow_html=True)
                 render_detailed_results_header(f"history_results_{bid}")
                 for group in meta["results"]:
-                    render_result_group(group, meta["methods"])
+                    render_result_group(group, meta["methods"], key_suffix=f"history_{bid}")
 
             except Exception as e:
                 header_left, header_right = st.columns([4, 1.2])
