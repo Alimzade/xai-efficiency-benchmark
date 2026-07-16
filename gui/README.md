@@ -29,6 +29,17 @@ To launch the benchmark dashboard:
 
 ---
 
+## 🔬 Explanation Quality & Faithfulness Suite
+
+To complement timing and memory efficiency metrics, the framework includes a post-hoc evaluation suite to measure explanation accuracy and faithfulness. These metrics run **off the timing clock** to keep speed measurements clean:
+
+*   **Gini Index (Sparsity)**: Measures the spatial focus and sharpness of the attribution maps. A score near `1.0` represents highly focused attribution, whereas a score near `0.0` indicates uniform blur.
+*   **Deletion AUC**: Progressively masks the most important pixels (replacing them with a baseline like zero or mean) and measures the decay in prediction confidence. A lower Area Under the Curve (AUC) indicates a more faithful explanation.
+*   **Insertion AUC**: Progressively introduces the most important pixels to a baseline blank image and measures the recovery of prediction confidence. A higher AUC indicates a more faithful explanation.
+*   **Infidelity**: Measures the scale-invariant mean-squared error (MSE) between the difference in model predictions under Gaussian perturbations and the dot product of the input perturbation with the attribution map. Lower values are better.
+
+---
+
 ## 📂 Project Structure & File Roles
 
 The GUI files are structured as follows:
@@ -39,6 +50,7 @@ The GUI files are structured as follows:
 │   ├── benchmark_runner.py # Execution engine: manages warmups, repeats, timers, and VRAM
 │   ├── docs_reference.json # Method, model, and metric reference taxonomy (JSON)
 │   ├── exporter.py         # Report generator: compiles benchmark runs into CSV and PDF
+│   ├── quality_runner.py   # Explanation quality & faithfulness evaluator: computes Gini, Deletion/Insertion AUC, and Infidelity
 │   ├── session_manager.py  # File system coordinator: handles workspace outputs and cleanup
 │   └── sessions/           # Created dynamically: stores task CSVs, PDF reports, and heatmaps
 ```
