@@ -1301,6 +1301,28 @@ def serialize_and_persist_image_sources(img_sources, batch_id, base_dir="gui/ses
             
     return persisted_sources
 
+def check_and_reset_session_after_delete(deleted_bid):
+    if (st.session_state.get("current_batch_id") == deleted_bid or 
+        st.session_state.get("last_run_batch_id") == deleted_bid or 
+        st.session_state.get("completed_batch_id") == deleted_bid):
+        st.session_state.is_finished = False
+        st.session_state.benchmark_running = False
+        st.session_state.benchmark_ready_to_run = False
+        st.session_state.run_progress_idx = 0
+        st.session_state.task_queue = []
+        st.session_state.prepared_img_sources = []
+        st.session_state.current_batch_id = ""
+        st.session_state.batch_started_at = ""
+        st.session_state.batch_completed_at = ""
+        st.session_state.total_execution_time = 0
+        st.session_state.batch_start_time = None
+        st.session_state.last_run_results = []
+        st.session_state.completed_batch_id = ""
+        st.session_state.last_run_batch_id = ""
+        st.session_state.current_batch_methods = []
+        st.session_state.current_batch_models = []
+        st.session_state.current_batch_sizes = []
+
 def write_current_batch_results_json():
     batch_id = st.session_state.current_batch_id
     if not batch_id:
@@ -3511,6 +3533,7 @@ def render_configure_page():
             with col_b3:
                 if st.button("Delete 🗑️", key=f"del_inc_{b['id']}", use_container_width=True):
                     sm.delete_batch(b['id'])
+                    check_and_reset_session_after_delete(b['id'])
                     st.success(f"Deleted {b['id']}")
                     rerun_app()
         st.markdown('<div style="margin-top: 1.5rem; margin-bottom: 1.5rem; border-top: 1px solid rgba(148, 163, 184, 0.2); padding-top: 0.5rem;"></div>', unsafe_allow_html=True)
@@ -4309,27 +4332,29 @@ def render_active_run_page():
             # --- EXPORT & NAVIGATION BUTTONS (Above configurations) ---
             ex1, ex2, ex3, ex4 = st.columns([1, 1, 1.4, 1.6])
             with ex1:
-                csv_path = os.path.join(sm.base_dir, st.session_state.current_batch_id, f"{st.session_state.current_batch_id}.csv")
-                if not os.path.exists(csv_path):
-                    generate_csv_report(st.session_state.last_run_results, csv_path)
-                if os.path.exists(csv_path):
-                    with open(csv_path, "rb") as f:
-                        st.download_button("📥 Export CSV", data=f, file_name=f"{st.session_state.current_batch_id}.csv", mime="text/csv", use_container_width=True)
+                if st.session_state.current_batch_id and os.path.exists(os.path.join(sm.base_dir, st.session_state.current_batch_id)):
+                    csv_path = os.path.join(sm.base_dir, st.session_state.current_batch_id, f"{st.session_state.current_batch_id}.csv")
+                    if not os.path.exists(csv_path):
+                        generate_csv_report(st.session_state.last_run_results, csv_path)
+                    if os.path.exists(csv_path):
+                        with open(csv_path, "rb") as f:
+                            st.download_button("📥 Export CSV", data=f, file_name=f"{st.session_state.current_batch_id}.csv", mime="text/csv", use_container_width=True)
             with ex2:
-                pdf_path = os.path.join(sm.base_dir, st.session_state.current_batch_id, f"{st.session_state.current_batch_id}.pdf")
-                if not os.path.exists(pdf_path):
-                    with st.spinner("Generating PDF..."):
-                        generate_pdf_report(
-                             st.session_state.current_batch_id,
-                             st.session_state.last_run_results,
-                             st.session_state.current_batch_methods,
-                             pdf_path,
-                             st.session_state.total_execution_time,
-                             collect_environment_metadata(get_device_string(st.session_state.current_device_mode))
-                        )
-                if os.path.exists(pdf_path):
-                    with open(pdf_path, "rb") as f:
-                        st.download_button("📄 Export PDF", data=f, file_name=f"{st.session_state.current_batch_id}.pdf", mime="application/pdf", use_container_width=True)
+                if st.session_state.current_batch_id and os.path.exists(os.path.join(sm.base_dir, st.session_state.current_batch_id)):
+                    pdf_path = os.path.join(sm.base_dir, st.session_state.current_batch_id, f"{st.session_state.current_batch_id}.pdf")
+                    if not os.path.exists(pdf_path):
+                        with st.spinner("Generating PDF..."):
+                            generate_pdf_report(
+                                 st.session_state.current_batch_id,
+                                 st.session_state.last_run_results,
+                                 st.session_state.current_batch_methods,
+                                 pdf_path,
+                                 st.session_state.total_execution_time,
+                                 collect_environment_metadata(get_device_string(st.session_state.current_device_mode))
+                            )
+                    if os.path.exists(pdf_path):
+                        with open(pdf_path, "rb") as f:
+                            st.download_button("📄 Export PDF", data=f, file_name=f"{st.session_state.current_batch_id}.pdf", mime="application/pdf", use_container_width=True)
             with ex3:
                 if st.button("Repeat Config", key="repeat_current_active_btn", help="Load this configuration back into your workspace inputs to tweak or run it again.", use_container_width=True):
                     st.session_state.restore_config = {
@@ -4506,6 +4531,7 @@ def render_history_page():
                     with hx4:
                         if st.button("Delete Batch", key=f"del_{bid}", use_container_width=True):
                             sm.delete_batch(bid)
+                            check_and_reset_session_after_delete(bid)
                             st.success(f"Batch {bid} deleted.")
                             st.rerun()
                             
@@ -4538,6 +4564,7 @@ def render_history_page():
                     st.markdown('<div style="margin-top: 10px;"></div>', unsafe_allow_html=True)
                     if st.button("Delete Batch", key=f"del_corr_{bid}", use_container_width=True):
                         sm.delete_batch(bid)
+                        check_and_reset_session_after_delete(bid)
                         st.success(f"Batch {bid} deleted.")
                         st.rerun()
         else:
