@@ -1301,6 +1301,40 @@ def serialize_and_persist_image_sources(img_sources, batch_id, base_dir="gui/ses
             
     return persisted_sources
 
+def write_current_batch_results_json():
+    batch_id = st.session_state.current_batch_id
+    if not batch_id:
+        return
+    clean_results = []
+    for g in sorted_result_groups(st.session_state.last_run_results):
+        cg = g.copy()
+        if hasattr(cg["source"], 'name'): cg["source"] = cg["source"].name
+        clean_results.append(cg)
+        
+    results_path = os.path.join(sm.base_dir, batch_id, "batch_results.json")
+    with open(results_path, 'w') as f:
+        json.dump({
+            "results": clean_results, 
+            "methods": st.session_state.current_batch_methods,
+            "benchmark_settings": {
+                "warmup_runs": st.session_state.current_warmups,
+                "memory_runs": st.session_state.current_memory_runs,
+                "repeat_count": st.session_state.current_repeats,
+                "enable_quality_metrics": st.session_state.current_enable_quality_metrics,
+                "selected_quality_metrics": st.session_state.current_selected_quality_metrics,
+                "run_order": st.session_state.current_run_order,
+                "task_count": len(st.session_state.task_queue),
+                "models": st.session_state.current_batch_models,
+                "input_sizes": st.session_state.current_batch_sizes,
+                "methods": st.session_state.current_batch_methods
+            },
+            "environment": collect_environment_metadata(get_device_string(st.session_state.current_device_mode)),
+            "started_at": st.session_state.batch_started_at,
+            "completed_at": st.session_state.batch_completed_at,
+            "total_execution_time": st.session_state.total_execution_time,
+            "methods_info": st.session_state.get("current_batch_methods_info", [])
+        }, f, indent=4)
+
 def resume_batch(batch_id):
     cfg = sm.load_batch_config(batch_id)
     if not cfg:
@@ -1399,9 +1433,18 @@ def resume_batch(batch_id):
                 pass
         break
         
-    st.session_state.benchmark_running = True
     st.session_state.is_finished = (st.session_state.run_progress_idx >= len(st.session_state.task_queue))
-    st.session_state.benchmark_ready_to_run = not st.session_state.is_finished
+    if st.session_state.is_finished:
+        st.session_state.benchmark_running = False
+        st.session_state.benchmark_ready_to_run = False
+        st.session_state.completed_batch_id = batch_id
+        if not st.session_state.batch_completed_at:
+            st.session_state.batch_completed_at = timestamp_now()
+        write_current_batch_results_json()
+    else:
+        st.session_state.benchmark_running = True
+        st.session_state.benchmark_ready_to_run = True
+        
     st.session_state.stop_requested = False
     st.session_state.current_page = "Active Run"
     st.session_state.batch_start_time = time.time()
@@ -4316,6 +4359,16 @@ def render_active_run_page():
             with ex4:
                 if st.button("⬅️ Setup Another Run", key="back_from_run_btn", help="Reset all configuration inputs back to defaults to start a fresh benchmark from scratch.", use_container_width=True):
                     st.session_state.is_finished = False
+                    st.session_state.benchmark_running = False
+                    st.session_state.benchmark_ready_to_run = False
+                    st.session_state.run_progress_idx = 0
+                    st.session_state.task_queue = []
+                    st.session_state.prepared_img_sources = []
+                    st.session_state.current_batch_id = ""
+                    st.session_state.batch_started_at = ""
+                    st.session_state.batch_completed_at = ""
+                    st.session_state.total_execution_time = 0
+                    st.session_state.batch_start_time = None
                     st.session_state.current_page = "Configure"
                     st.session_state.selected_models = ["resnet50"]
                     st.session_state.selected_methods = ["Saliency", "Integrated_Gradients"]
@@ -4649,38 +4702,13 @@ if st.session_state.benchmark_running and not st.session_state.is_finished:
             st.session_state.completed_batch_id = st.session_state.current_batch_id
             st.session_state.total_execution_time = time.time() - st.session_state.batch_start_time
             st.session_state.batch_completed_at = timestamp_now()
-            
-            clean_results = []
-            for g in sorted_result_groups(st.session_state.last_run_results):
-                cg = g.copy()
-                if hasattr(cg["source"], 'name'): cg["source"] = cg["source"].name
-                clean_results.append(cg)
-            with open(os.path.join(sm.base_dir, st.session_state.current_batch_id, "batch_results.json"), 'w') as f:
-                json.dump({
-                    "results": clean_results, 
-                    "methods": st.session_state.current_batch_methods,
-                    "benchmark_settings": {
-                        "warmup_runs": st.session_state.current_warmups,
-                        "memory_runs": st.session_state.current_memory_runs,
-                        "repeat_count": st.session_state.current_repeats,
-                        "enable_quality_metrics": st.session_state.current_enable_quality_metrics,
-                        "selected_quality_metrics": st.session_state.current_selected_quality_metrics,
-                        "run_order": st.session_state.current_run_order,
-                        "task_count": len(task_queue),
-                        "models": st.session_state.current_batch_models,
-                        "input_sizes": st.session_state.current_batch_sizes,
-                        "methods": st.session_state.current_batch_methods
-                    },
-                    "environment": collect_environment_metadata(get_device_string(st.session_state.current_device_mode)),
-                    "started_at": st.session_state.batch_started_at,
-                    "completed_at": st.session_state.batch_completed_at,
-                    "total_execution_time": st.session_state.total_execution_time,
-                    "methods_info": st.session_state.get("current_batch_methods_info", [])
-                }, f, indent=4)
+            write_current_batch_results_json()
         st.rerun()
     else:
         st.session_state.is_finished = True
         st.session_state.benchmark_running = False
         st.session_state.completed_batch_id = st.session_state.current_batch_id
-        st.session_state.batch_completed_at = timestamp_now()
+        if not st.session_state.batch_completed_at:
+            st.session_state.batch_completed_at = timestamp_now()
+        write_current_batch_results_json()
         st.rerun()
