@@ -3352,8 +3352,31 @@ if st.session_state.get("restore_config"):
     st.session_state.config_restored_toast = True
 
 if st.session_state.get("config_restored_toast"):
-    st.toast("Configuration successfully loaded! Switch to 'Benchmark Workspace' to run.", icon="✅")
+    st.toast("Configuration successfully loaded! Switched to 'Benchmark Workspace'.", icon="✅")
     st.session_state.config_restored_toast = False
+    
+    # Inject JavaScript to automatically switch active tab to "Benchmark Workspace" (Index 0)
+    js_switch = """
+    <script>
+        function clickTabByIndex(index) {
+            var selectors = [
+                'button[role="tab"]',
+                'button[data-baseweb="tab"]',
+                'button[data-testid="stWidgetTab"]'
+            ];
+            for (var s = 0; s < selectors.length; s++) {
+                var tabs = window.parent.document.querySelectorAll(selectors[s]);
+                if (tabs.length > index) {
+                    tabs[index].click();
+                    return true;
+                }
+            }
+            return false;
+        }
+        setTimeout(function() { clickTabByIndex(0); }, 150);
+    </script>
+    """
+    components.html(js_switch, height=0)
 
 fragment_api = getattr(st, "fragment", getattr(st, "experimental_fragment", None))
 
