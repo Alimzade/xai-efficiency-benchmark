@@ -3229,6 +3229,7 @@ def show_lightbox(img):
     st.markdown(f'<div style="display: flex; justify-content: center;"><img src="data:image/png;base64,{st.session_state.current_img_base64}" style="max-height: 80vh; max-width: 100%; object-fit: contain;"></div>', unsafe_allow_html=True)
 
 # --- Initialize Session State ---
+if 'selected_history_batch' not in st.session_state: st.session_state.selected_history_batch = None
 if 'img_idx' not in st.session_state: st.session_state.img_idx = 0
 if 'persisted_urls' not in st.session_state: st.session_state.persisted_urls = ""
 if 'last_run_results' not in st.session_state: st.session_state.last_run_results = []
@@ -4450,12 +4451,22 @@ def render_history_page():
         st.info("No benchmark history found. Start a new run in the 'Configure Benchmark' page!")
         return
 
+    batch_ids = [b["id"] for b in batches]
+    default_idx = 0
+    if st.session_state.selected_history_batch in batch_ids:
+        default_idx = batch_ids.index(st.session_state.selected_history_batch)
+    else:
+        if batch_ids:
+            st.session_state.selected_history_batch = batch_ids[0]
+
     selected_bid = st.selectbox(
         "Select Benchmark Batch to View & Evaluate",
-        [b["id"] for b in batches],
+        batch_ids,
+        index=default_idx,
         format_func=lambda bid: get_batch_display_name(bid, sm.base_dir),
         help="Select a batch to view its results, charts, and exports."
     )
+    st.session_state.selected_history_batch = selected_bid
 
     if not selected_bid:
         st.info("Please select a batch from the list above.")
@@ -4530,8 +4541,18 @@ def render_history_page():
                                 rerun_app()
                     with hx4:
                         if st.button("Delete Batch", key=f"del_{bid}", use_container_width=True):
+                            # Pre-compute next batch selection
+                            next_bid = None
+                            if bid in batch_ids:
+                                idx = batch_ids.index(bid)
+                                if idx + 1 < len(batch_ids):
+                                    next_bid = batch_ids[idx + 1]
+                                elif idx - 1 >= 0:
+                                    next_bid = batch_ids[idx - 1]
+                            
                             sm.delete_batch(bid)
                             check_and_reset_session_after_delete(bid)
+                            st.session_state.selected_history_batch = next_bid
                             st.success(f"Batch {bid} deleted.")
                             st.rerun()
                             
@@ -4560,11 +4581,22 @@ def render_history_page():
                 header_left, header_right = st.columns([4, 1.2])
                 with header_left:
                     st.error(f"Error reading historical data: {str(e)}")
+                    st.exception(e)
                 with header_right:
                     st.markdown('<div style="margin-top: 10px;"></div>', unsafe_allow_html=True)
                     if st.button("Delete Batch", key=f"del_corr_{bid}", use_container_width=True):
+                        # Pre-compute next batch selection
+                        next_bid = None
+                        if bid in batch_ids:
+                            idx = batch_ids.index(bid)
+                            if idx + 1 < len(batch_ids):
+                                next_bid = batch_ids[idx + 1]
+                            elif idx - 1 >= 0:
+                                next_bid = batch_ids[idx - 1]
+                        
                         sm.delete_batch(bid)
                         check_and_reset_session_after_delete(bid)
+                        st.session_state.selected_history_batch = next_bid
                         st.success(f"Batch {bid} deleted.")
                         st.rerun()
         else:
