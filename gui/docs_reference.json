@@ -1,7 +1,7 @@
 {
   "xai_methods": [
     {
-      "category": "1. Gradient & Backpropagation-Based Methods",
+      "category": "1. Backpropagation-Based Methods",
       "methods": [
         {
           "name": "Saliency *(Vanilla Grad)*",
@@ -26,12 +26,7 @@
           "formulation": "$\\sum C_{\\Delta x_i \\Delta y} = f(x) - f(x')$",
           "complexity": "⚡ $O(1)$ pass",
           "characteristics": "Decomposes output w.r.t baseline; avoids zero-gradient saturation."
-        }
-      ]
-    },
-    {
-      "category": "2. Path-Integral & Sampling-Based Methods",
-      "methods": [
+        },
         {
           "name": "Integrated Gradients (IG)",
           "formulation": "$(x_i - x'_i) \\int_0^1 \\frac{\\partial f(x'+\\alpha(x-x'))}{\\partial x_i} d\\alpha$",
@@ -49,17 +44,29 @@
           "formulation": "$\\mathbb{E}_{x' \\sim D} \\left[ \\text{DeepLift}(x, x') \\right]$",
           "complexity": "🐢 $O(N)$ passes",
           "characteristics": "Combines DeepLift difference propagation with SHAP baseline sampling."
+        },
+        {
+          "name": "Grad-CAM",
+          "formulation": "$L_{\\text{Grad-CAM}}^c = \\text{ReLU}\\left(\\sum \\alpha_k^c A^k\\right)$",
+          "complexity": "⚡ $O(1)$ pass",
+          "characteristics": "Class-discriminative coarse spatial localization upsampled to input size."
         }
       ]
     },
     {
-      "category": "3. Class Activation Mapping (CAM)",
+      "category": "2. Perturbation-Based Methods",
       "methods": [
         {
-          "name": "Layer Grad-CAM",
-          "formulation": "$L_{\\text{Grad-CAM}}^c = \\text{ReLU}\\left(\\sum \\alpha_k^c A^k\\right)$",
-          "complexity": "⚡ $O(1)$ pass",
-          "characteristics": "Class-discriminative coarse spatial localization upsampled to input size."
+          "name": "Occlusion",
+          "formulation": "$A_i(x) = f(x) - f(x_{[i \\leftarrow x']})$",
+          "complexity": "🐢 $O(\\text{patches})$ passes",
+          "characteristics": "Simple, model-agnostic, and intuitive perturbation method. Replaces sliding windows with baseline values and measures output differences."
+        },
+        {
+          "name": "Lime *(Local Interpretable Model-agnostic Explanations)*",
+          "formulation": "$\\arg\\min_{g \\in G} \\mathcal{L}(f, g, \\pi_x) + \\Omega(g)$",
+          "complexity": "🐢 $O(M)$ passes",
+          "characteristics": "Surrogate-based local attribution. Generates superpixel perturbations, obtains prediction probabilities, and fits an interpretable linear model."
         }
       ]
     }
