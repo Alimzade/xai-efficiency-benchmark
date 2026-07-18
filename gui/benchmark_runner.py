@@ -175,13 +175,35 @@ def get_cpu_name():
 def collect_environment_metadata(device=None):
     cuda_devices = []
     if torch.cuda.is_available():
+        db = None
+        try:
+            from dbgpu import GPUDatabase
+            db = GPUDatabase.default()
+        except Exception:
+            pass
+
         for idx in range(torch.cuda.device_count()):
             props = torch.cuda.get_device_properties(idx)
+            gpu_name = torch.cuda.get_device_name(idx)
+            
+            tdp_val = None
+            matched_gpu = None
+            if db is not None:
+                try:
+                    spec = db.search(gpu_name)
+                    if spec and hasattr(spec, "thermal_design_power_w") and spec.thermal_design_power_w:
+                        tdp_val = int(spec.thermal_design_power_w)
+                        matched_gpu = getattr(spec, "name", None)
+                except Exception:
+                    pass
+
             cuda_devices.append({
                 "index": idx,
-                "name": torch.cuda.get_device_name(idx),
+                "name": gpu_name,
                 "total_memory_mb": round(props.total_memory / (1024 * 1024), 2),
                 "compute_capability": f"{props.major}.{props.minor}",
+                "tdp_w": tdp_val,
+                "matched_name": matched_gpu,
             })
 
     return {

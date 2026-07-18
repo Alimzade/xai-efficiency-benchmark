@@ -179,7 +179,19 @@ def generate_pdf_report(batch_id, results_data, selected_methods, output_path, t
                 plt.text(0.5, 0.87, f"Batch Wall Time: {time_str}", fontsize=12, ha='center', fontweight='bold')
 
             if environment:
-                gpu_names = ", ".join([d.get("name", "Unknown GPU") for d in environment.get("cuda_devices", [])]) or "None"
+                gpu_list = []
+                for d in environment.get("cuda_devices", []):
+                    name = d.get("name", "Unknown GPU")
+                    tdp = d.get("tdp_w")
+                    matched = d.get("matched_name")
+                    if tdp:
+                        if matched and matched.lower().strip() != name.lower().strip():
+                            gpu_list.append(f"{name} ({tdp}W TDP, matched to: {matched})")
+                        else:
+                            gpu_list.append(f"{name} ({tdp}W TDP)")
+                    else:
+                        gpu_list.append(name)
+                gpu_names = ", ".join(gpu_list) or "None"
                 env_lines = [
                     f"Git: {environment.get('git_commit', 'unknown')}",
                     f"Python: {environment.get('python_version', 'unknown')}",

@@ -2390,7 +2390,19 @@ def render_environment_summary(environment):
     cuda_devices = environment.get("cuda_devices", [])
     selected_device = str(environment.get("selected_device", "")).lower()
     if cuda_devices:
-        gpu_names = ", ".join([d.get("name", "Unknown GPU") for d in cuda_devices])
+        gpu_details = []
+        for d in cuda_devices:
+            name = d.get("name", "Unknown GPU")
+            tdp = d.get("tdp_w")
+            matched = d.get("matched_name")
+            if tdp:
+                if matched and matched.lower().strip() != name.lower().strip():
+                    gpu_details.append(f"{name} ({tdp}W TDP, matched to: {matched})")
+                else:
+                    gpu_details.append(f"{name} ({tdp}W TDP)")
+            else:
+                gpu_details.append(name)
+        gpu_names = ", ".join(gpu_details)
         env_rows.append(("GPU Device(s)", clean_val(gpu_names)))
     elif "mps" in selected_device:
         env_rows.append(("GPU Device", "Apple Silicon MPS"))
@@ -3895,9 +3907,24 @@ def render_configure_page():
             horizontal=True,
         )
         
+        tdp_line = ""
         if "GPU" in st.session_state.selected_device_mode:
             if torch.cuda.is_available():
                 gpu_desc = torch.cuda.get_device_name(0)
+                # Fuzzy match GPU TDP via dbgpu
+                try:
+                    from dbgpu import GPUDatabase
+                    db = GPUDatabase.default()
+                    spec = db.search(gpu_desc)
+                    if spec and hasattr(spec, "thermal_design_power_w") and spec.thermal_design_power_w:
+                        tdp_val = int(spec.thermal_design_power_w)
+                        matched_name = getattr(spec, "name", None)
+                        if matched_name and matched_name.lower().strip() != gpu_desc.lower().strip():
+                            tdp_line = f"<p>• <strong>GPU TDP</strong>: {tdp_val} W (matched to: {matched_name})</p>"
+                        else:
+                            tdp_line = f"<p>• <strong>GPU TDP</strong>: {tdp_val} W</p>"
+                except Exception:
+                    pass
             elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
                 gpu_desc = "Apple Silicon (MPS)"
             else:
@@ -3907,7 +3934,20 @@ def render_configure_page():
             status_text = f"💻 {get_cpu_info()}"
             
         import sys
-        cuda_line = f"<p>• <strong>CUDA Version</strong>: {torch.version.cuda}</p>" if torch.cuda.is_available() else ""
+        
+        # Build environment details lines dynamically to prevent blank lines
+        details_lines = [
+            f"<p>• <strong>OS/Platform</strong>: {platform.platform()}</p>",
+            f"<p>• <strong>Python Version</strong>: {sys.version.split()[0]}</p>",
+            f"<p>• <strong>PyTorch Version</strong>: {torch.__version__}</p>"
+        ]
+        
+        if torch.cuda.is_available():
+            details_lines.append(f"<p>• <strong>CUDA Version</strong>: {torch.version.cuda}</p>")
+        if tdp_line:
+            details_lines.append(tdp_line)
+            
+        details_content = "\n".join(details_lines)
         
         status_html = f"""
         <style>
@@ -3918,22 +3958,21 @@ def render_configure_page():
                 background: linear-gradient(135deg, rgba(96, 165, 250, 0.14) 0%, rgba(45, 212, 191, 0.08) 100%),
                             repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.015) 0px, rgba(255, 255, 255, 0.015) 2px, transparent 2px, transparent 10px) !important;
                 transition: border-color 0.2s ease !important;
+                margin-top: 5px !important;
             }}
             .hw-status-container:hover {{
-                border-color: rgba(45, 212, 191, 0.4) !important;
+                border-color: rgba(45, 212, 191, 0.35) !important;
             }}
             .hw-status-summary {{
                 display: flex !important;
-                align-items: center !important;
                 justify-content: space-between !important;
-                padding: 0.6rem 0.9rem !important;
-                cursor: pointer !important;
+                align-items: center !important;
+                padding: 0.75rem 0.9rem !important;
+                font-weight: 600 !important;
+                font-size: 0.85rem !important;
                 color: var(--xai-text) !important;
-                font-weight: 500 !important;
-                font-size: 0.88rem !important;
+                cursor: pointer !important;
                 list-style: none !important;
-                outline: none !important;
-                box-sizing: border-box !important;
             }}
             .hw-status-summary::-webkit-details-marker {{
                 display: none !important;
@@ -3963,14 +4002,14 @@ def render_configure_page():
             </summary>
             <div class="hw-status-details">
                 <p><strong>Hardware & Environment Details:</strong></p>
-                <p>• <strong>OS/Platform</strong>: {platform.platform()}</p>
-                <p>• <strong>Python Version</strong>: {sys.version.split()[0]}</p>
-                <p>• <strong>PyTorch Version</strong>: {torch.__version__}</p>
-                {cuda_line}
+                {details_content}
             </div>
         </details>
         """
-        st.markdown(status_html, unsafe_allow_html=True)
+        # Strip leading/trailing whitespaces from each line to prevent markdown from treating it as an indented code block,
+        # and remove empty lines to prevent Streamlit's markdown parser from splitting HTML blocks on blank lines.
+        clean_html = "\n".join([line.strip() for line in status_html.split("\n") if line.strip()])
+        st.markdown(clean_html, unsafe_allow_html=True)
 
     # Row 5: Quality Metrics (Post-Processing)
     st.divider()
