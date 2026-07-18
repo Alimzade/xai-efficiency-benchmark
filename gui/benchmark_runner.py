@@ -153,6 +153,14 @@ def get_cpu_name():
     try:
         system = platform.system()
         if system == "Windows":
+            try:
+                import winreg
+                key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"HARDWARE\DESCRIPTION\System\CentralProcessor\0")
+                val, _ = winreg.QueryValueEx(key, "ProcessorNameString")
+                if val:
+                    return val.strip()
+            except Exception:
+                pass
             return platform.processor()
         elif system == "Darwin":
             import subprocess
@@ -171,6 +179,101 @@ def get_cpu_name():
     except Exception:
         pass
     return platform.processor() or "Generic CPU"
+
+def find_cpu_tdp(cpu_name):
+    if not cpu_name or cpu_name.strip().lower() in ["", "generic cpu", "unknown"]:
+        return None, None
+        
+    query = cpu_name.lower().strip()
+    for term in ["(tm)", "(r)", "cpu", "@", "processor", "cores", "core", "graphics", "with", "\uFFFD", "®", "™"]:
+        query = query.replace(term, " ")
+    query = " ".join(query.split())
+    
+    is_intel = "intel" in query
+    is_amd = "amd" in query or "ryzen" in query or "athlon" in query or "epyc" in query
+    
+    import pandas as pd
+    import re
+    
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    intel_path = os.path.join(base_dir, "data", "intel-cpus.csv")
+    amd_path = os.path.join(base_dir, "data", "amd-cpus.csv")
+    
+    # Auto-download datasets if they don't exist locally
+    if not os.path.exists(intel_path) or not os.path.exists(amd_path):
+        try:
+            os.makedirs(os.path.join(base_dir, "data"), exist_ok=True)
+            import urllib.request
+            if not os.path.exists(intel_path):
+                urllib.request.urlretrieve(
+                    "https://raw.githubusercontent.com/felixsteinke/cpu-spec-dataset/main/dataset/intel-cpus.csv",
+                    intel_path
+                )
+            if not os.path.exists(amd_path):
+                urllib.request.urlretrieve(
+                    "https://raw.githubusercontent.com/felixsteinke/cpu-spec-dataset/main/dataset/amd-cpus.csv",
+                    amd_path
+                )
+        except Exception:
+            pass
+    
+    matches = []
+    
+    # 1. Search Intel
+    if (is_intel or not is_amd) and os.path.exists(intel_path):
+        try:
+            df = pd.read_csv(intel_path)
+            for _, row in df.iterrows():
+                pnum = str(row.get("ProcessorNumber", "")).lower().strip()
+                cname = str(row.get("CpuName", "")).lower().strip()
+                for term in ["\uFFFD", "®", "™"]:
+                    cname = cname.replace(term, "")
+                for term in ["intel", "processor", "graphics", "with", "(tm)", "(r)"]:
+                    cname = cname.replace(term, " ")
+                cname = " ".join(cname.split())
+                
+                if pnum and pnum in query:
+                    matches.append((row.get("CpuName"), row.get("MaxTDP"), len(pnum)))
+                elif cname and (cname in query or query in cname) and len(cname) > 4:
+                    matches.append((row.get("CpuName"), row.get("MaxTDP"), len(cname)))
+        except Exception:
+            pass
+            
+    # 2. Search AMD
+    if (is_amd or not is_intel) and os.path.exists(amd_path):
+        try:
+            df = pd.read_csv(amd_path)
+            for _, row in df.iterrows():
+                model = str(row.get("Model", "")).lower().strip()
+                model_clean = model
+                for term in ["\uFFFD", "®", "™"]:
+                    model_clean = model_clean.replace(term, "")
+                for term in ["amd", "ryzen", "athlon", "processor", "graphics", "with", "(tm)", "(r)"]:
+                    model_clean = model_clean.replace(term, " ")
+                model_clean = " ".join(model_clean.split())
+                
+                if model_clean and (model_clean in query or query in model_clean) and len(model_clean) > 3:
+                    matches.append((row.get("Model"), row.get("Default TDP"), len(model_clean)))
+        except Exception:
+            pass
+            
+    if not matches:
+        return None, None
+        
+    matches.sort(key=lambda x: x[2], reverse=True)
+    best_match_name, tdp_str, _ = matches[0]
+    
+    tdp_val = None
+    if tdp_str and pd.notna(tdp_str):
+        m = re.search(r"(\d+)", str(tdp_str))
+        if m:
+            tdp_val = int(m.group(1))
+            
+    if best_match_name:
+        best_match_name = best_match_name.replace("\uFFFD", "").replace("®", "").replace("™", "").strip()
+        best_match_name = " ".join(best_match_name.split())
+        
+    return tdp_val, best_match_name
 
 def collect_environment_metadata(device=None):
     cuda_devices = []
@@ -206,12 +309,22 @@ def collect_environment_metadata(device=None):
                 "matched_name": matched_gpu,
             })
 
+    cpu_name = get_cpu_name()
+    cpu_tdp = None
+    matched_cpu = None
+    try:
+        cpu_tdp, matched_cpu = find_cpu_tdp(cpu_name)
+    except Exception:
+        pass
+
     return {
         "app_version": "1.0.0",
         "git_commit": get_git_commit(),
         "python_version": sys.version.split()[0],
         "platform": platform.platform(),
-        "processor": get_cpu_name(),
+        "processor": cpu_name,
+        "cpu_tdp_w": cpu_tdp,
+        "matched_cpu_name": matched_cpu,
         "torch_version": torch.__version__,
         "torch_cuda_version": torch.version.cuda,
         "cuda_available": torch.cuda.is_available(),

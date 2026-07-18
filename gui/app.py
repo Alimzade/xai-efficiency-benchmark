@@ -223,7 +223,7 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"], [data-te
     import requests
     from io import BytesIO
     from session_manager import SessionManager
-    from benchmark_runner import collect_environment_metadata, run_benchmark_task, get_cpu_name
+    from benchmark_runner import collect_environment_metadata, run_benchmark_task, get_cpu_name, find_cpu_tdp
     from exporter import generate_pdf_report, generate_csv_report
     
     sm = SessionManager()
@@ -250,7 +250,7 @@ from PIL import Image
 import requests
 from io import BytesIO
 from session_manager import SessionManager
-from benchmark_runner import collect_environment_metadata, run_benchmark_task, get_cpu_name
+from benchmark_runner import collect_environment_metadata, run_benchmark_task, get_cpu_name, find_cpu_tdp
 from exporter import generate_pdf_report, generate_csv_report
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -2382,9 +2382,18 @@ def render_environment_summary(environment):
             return "-"
         return str(v)
 
+    cpu_display = clean_val(environment.get("processor"))
+    cpu_tdp = environment.get("cpu_tdp_w")
+    matched_cpu = environment.get("matched_cpu_name")
+    if cpu_tdp:
+        if matched_cpu and matched_cpu.lower().strip() != cpu_display.lower().strip():
+            cpu_display = f"{cpu_display} ({cpu_tdp}W TDP, matched to: {matched_cpu})"
+        else:
+            cpu_display = f"{cpu_display} ({cpu_tdp}W TDP)"
+
     env_rows = [
         ("Platform", clean_val(environment.get("platform"))),
-        ("CPU", clean_val(environment.get("processor"))),
+        ("CPU", cpu_display),
     ]
 
     cuda_devices = environment.get("cuda_devices", [])
@@ -3931,7 +3940,18 @@ def render_configure_page():
                 gpu_desc = "Active"
             status_text = f"🟢 {gpu_desc}"
         else:
-            status_text = f"💻 {get_cpu_info()}"
+            cpu_name = get_cpu_info()
+            status_text = f"💻 {cpu_name}"
+            # Fuzzy match CPU TDP via dataset
+            try:
+                cpu_tdp, matched_cpu = find_cpu_tdp(cpu_name)
+                if cpu_tdp:
+                    if matched_cpu and matched_cpu.lower().strip() != cpu_name.lower().strip():
+                        tdp_line = f"<p>• <strong>CPU TDP</strong>: {cpu_tdp} W (matched to: {matched_cpu})</p>"
+                    else:
+                        tdp_line = f"<p>• <strong>CPU TDP</strong>: {cpu_tdp} W</p>"
+            except Exception:
+                pass
             
         import sys
         

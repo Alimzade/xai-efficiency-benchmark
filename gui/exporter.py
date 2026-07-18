@@ -192,12 +192,22 @@ def generate_pdf_report(batch_id, results_data, selected_methods, output_path, t
                     else:
                         gpu_list.append(name)
                 gpu_names = ", ".join(gpu_list) or "None"
+                cpu_display = environment.get("processor", "unknown")
+                cpu_tdp = environment.get("cpu_tdp_w")
+                matched_cpu = environment.get("matched_cpu_name")
+                if cpu_tdp:
+                    if matched_cpu and matched_cpu.lower().strip() != cpu_display.lower().strip():
+                        cpu_display = f"{cpu_display} ({cpu_tdp}W TDP, matched to: {matched_cpu})"
+                    else:
+                        cpu_display = f"{cpu_display} ({cpu_tdp}W TDP)"
+
                 env_lines = [
                     f"Git: {environment.get('git_commit', 'unknown')}",
                     f"Python: {environment.get('python_version', 'unknown')}",
                     f"Torch: {environment.get('torch_version', 'unknown')}",
                     f"CUDA: {environment.get('torch_cuda_version') or 'not available'}",
                     f"Device: {environment.get('selected_device', 'unknown')}",
+                    f"CPU: {cpu_display}",
                     f"GPU(s): {gpu_names}",
                 ]
                 plt.text(0.5, 0.80, " | ".join(env_lines), fontsize=8, ha='center', wrap=True)
