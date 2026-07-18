@@ -524,8 +524,8 @@ st.markdown("""
         color: var(--xai-text);
         font-weight: 750;
     }
-    /* Subtle modern styling ONLY for documentation reference tables */
-    .doc-reference-table table {
+    /* Subtle modern styling for all tables (specifically documentation reference tables) */
+    .stApp table {
         width: 100% !important;
         border-collapse: separate !important;
         border-spacing: 0 !important;
@@ -536,7 +536,7 @@ st.markdown("""
         margin-bottom: 20px !important;
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
     }
-    .doc-reference-table th {
+    .stApp th {
         background: linear-gradient(180deg, rgba(45, 212, 191, 0.12), rgba(96, 165, 250, 0.06)) !important;
         color: var(--xai-text) !important;
         font-weight: 600 !important;
@@ -545,7 +545,7 @@ st.markdown("""
         font-size: 0.85rem !important;
         text-align: left !important;
     }
-    .doc-reference-table td {
+    .stApp td {
         background-color: rgba(255, 255, 255, 0.02) !important;
         border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
         padding: 8px 12px !important;
@@ -553,26 +553,30 @@ st.markdown("""
         line-height: 1.45 !important;
         color: var(--xai-muted) !important;
     }
-    .doc-reference-table td:first-child {
+    .stApp td:first-child {
         font-weight: 600 !important;
         color: #f1f5f9 !important;
     }
-    .doc-reference-table tr:hover td {
+    .stApp tr:hover td {
         background-color: rgba(45, 212, 191, 0.05) !important;
     }
-    /* Specific column widths for XAI methods table */
-    .col-xai-name { width: 18% !important; }
-    .col-xai-form { width: 28% !important; }
-    .col-xai-comp { width: 14% !important; }
-    .col-xai-char { width: 40% !important; }
-    /* Specific column widths for Models table */
-    .col-model-name { width: 25% !important; }
-    .col-model-params { width: 20% !important; }
-    .col-model-char { width: 55% !important; }
-    /* Specific column widths for Metrics table */
-    .col-metric-name { width: 25% !important; }
-    .col-metric-unit { width: 20% !important; }
-    .col-metric-def { width: 55% !important; }
+    /* Specific column widths based on column counts (using CSS selector math to keep it simple and robust) */
+    /* 4-column tables (e.g. XAI methods) */
+    .stApp table th:nth-child(1):nth-last-child(4),
+    .stApp table td:nth-child(1):nth-last-child(4) { width: 18% !important; }
+    .stApp table th:nth-child(2):nth-last-child(3),
+    .stApp table td:nth-child(2):nth-last-child(3) { width: 28% !important; }
+    .stApp table th:nth-child(3):nth-last-child(2),
+    .stApp table td:nth-child(3):nth-last-child(2) { width: 14% !important; }
+    .stApp table th:nth-child(4):nth-last-child(1),
+    .stApp table td:nth-child(4):nth-last-child(1) { width: 40% !important; }
+    /* 3-column tables (e.g. Models, Metrics) */
+    .stApp table th:nth-child(1):nth-last-child(3),
+    .stApp table td:nth-child(1):nth-last-child(3) { width: 25% !important; }
+    .stApp table th:nth-child(2):nth-last-child(2),
+    .stApp table td:nth-child(2):nth-last-child(2) { width: 20% !important; }
+    .stApp table th:nth-child(3):nth-last-child(1),
+    .stApp table td:nth-child(3):nth-last-child(1) { width: 55% !important; }
     div.stButton button,
     div.stDownloadButton button {
         border-radius: 8px !important;
@@ -4719,127 +4723,30 @@ def render_documentation_page():
         xai_groups = docs_data.get("xai_methods", [])
         for group in xai_groups:
             st.markdown(f"#### {group.get('category', '')}")
-            
-            rows = []
+            table_md = "| Algorithm | Mathematical Formulation | Complexity | Key Characteristics & Properties |\n| :--- | :--- | :--- | :--- |\n"
             for item in group.get("methods", []):
-                name = item.get('name', '')
-                formulation = item.get('formulation', '')
-                complexity = item.get('complexity', '')
-                characteristics = item.get('characteristics', '')
-                
-                # Convert markdown italic syntax from JSON to HTML tags
-                name_html = name.replace("*(", "<i>(").replace(")*", ")</i>").replace("*", "<i>")
-                
-                row = (
-                    "<tr>"
-                    f"<td>{name_html}</td>"
-                    f"<td>{formulation}</td>"
-                    f"<td>{complexity}</td>"
-                    f"<td>{characteristics}</td>"
-                    "</tr>"
-                )
-                rows.append(row)
-                
-            table_html = (
-                '<div class="doc-reference-table">'
-                '<table>'
-                '<thead>'
-                '<tr>'
-                '<th class="col-xai-name">Algorithm</th>'
-                '<th class="col-xai-form">Mathematical Formulation</th>'
-                '<th class="col-xai-comp">Complexity</th>'
-                '<th class="col-xai-char">Key Characteristics & Properties</th>'
-                '</tr>'
-                '</thead>'
-                '<tbody>'
-                + "".join(rows) +
-                '</tbody>'
-                '</table>'
-                '</div>'
-            )
-            st.markdown(table_html, unsafe_allow_html=True)
+                table_md += f"| **{item.get('name', '')}** | {item.get('formulation', '')} | {item.get('complexity', '')} | {item.get('characteristics', '')} |\n"
+            st.markdown(table_md)
 
     # Section 2: Model Architectures
     with st.expander("🏗️ Vision Model Architectures", expanded=False):
         model_groups = docs_data.get("models", [])
         for group in model_groups:
             st.markdown(f"#### {group.get('category', '')}")
-            
-            rows = []
+            table_md = "| Model Backbone | Parameters (M) | Design Paradigm & Key Innovations |\n| :--- | :--- | :--- |\n"
             for item in group.get("models", []):
-                name = item.get('name', '')
-                params = item.get('params', '')
-                characteristics = item.get('characteristics', '')
-                
-                name_html = name.replace("*(", "<i>(").replace(")*", ")</i>").replace("*", "<i>")
-                
-                row = (
-                    "<tr>"
-                    f"<td>{name_html}</td>"
-                    f"<td>{params}</td>"
-                    f"<td>{characteristics}</td>"
-                    "</tr>"
-                )
-                rows.append(row)
-                
-            table_html = (
-                '<div class="doc-reference-table">'
-                '<table>'
-                '<thead>'
-                '<tr>'
-                '<th class="col-model-name">Model Backbone</th>'
-                '<th class="col-model-params">Parameters (M)</th>'
-                '<th class="col-model-char">Design Paradigm & Key Innovations</th>'
-                '</tr>'
-                '</thead>'
-                '<tbody>'
-                + "".join(rows) +
-                '</tbody>'
-                '</table>'
-                '</div>'
-            )
-            st.markdown(table_html, unsafe_allow_html=True)
+                table_md += f"| **{item.get('name', '')}** | {item.get('params', '')} | {item.get('characteristics', '')} |\n"
+            st.markdown(table_md)
 
     # Section 3: Benchmark Metrics
     with st.expander("📊 Evaluation Metrics", expanded=False):
         metric_groups = docs_data.get("metrics", [])
         for group in metric_groups:
             st.markdown(f"#### {group.get('category', '')}")
-            
-            rows = []
+            table_md = "| Metric Name | Measurement Unit | Definition & Evaluation Logic |\n| :--- | :--- | :--- |\n"
             for item in group.get("metrics", []):
-                name = item.get('name', '')
-                unit = item.get('unit', '')
-                definition = item.get('definition', '')
-                
-                name_html = name.replace("*(", "<i>(").replace(")*", ")</i>").replace("*", "<i>")
-                
-                row = (
-                    "<tr>"
-                    f"<td>{name_html}</td>"
-                    f"<td>{unit}</td>"
-                    f"<td>{definition}</td>"
-                    "</tr>"
-                )
-                rows.append(row)
-                
-            table_html = (
-                '<div class="doc-reference-table">'
-                '<table>'
-                '<thead>'
-                '<tr>'
-                '<th class="col-metric-name">Metric Name</th>'
-                '<th class="col-metric-unit">Measurement Unit</th>'
-                '<th class="col-metric-def">Definition & Evaluation Logic</th>'
-                '</tr>'
-                '</thead>'
-                '<tbody>'
-                + "".join(rows) +
-                '</tbody>'
-                '</table>'
-                '</div>'
-            )
-            st.markdown(table_html, unsafe_allow_html=True)
+                table_md += f"| **{item.get('name', '')}** | {item.get('unit', '')} | {item.get('definition', '')} |\n"
+            st.markdown(table_md)
 
 # --- TABS WORKSPACE ---
 tab1, tab2, tab3, tab4 = st.tabs([
