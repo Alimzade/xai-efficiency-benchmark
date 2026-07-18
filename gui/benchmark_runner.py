@@ -540,6 +540,7 @@ def run_benchmark_task(config, session_dir):
         json.dump({
             **config,
             "prediction": predicted_class,
+            "original_resolution": original_dims,
             "timing_scope": "attribution_only",
             "memory_scope": "attribution_peak",
             "task_started_at": task_started_at,

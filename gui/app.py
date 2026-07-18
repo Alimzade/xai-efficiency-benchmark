@@ -1408,11 +1408,13 @@ def resume_batch(batch_id):
         config_path = os.path.normpath(os.path.join(s_dir, "config.json"))
         
         pred_val = "Unknown"
+        orig_res_val = "Unknown"
         if os.path.exists(config_path):
             try:
                 with open(config_path, "r") as f:
                     t_cfg = json.load(f)
                 pred_val = t_cfg.get("prediction", "Unknown")
+                orig_res_val = t_cfg.get("original_resolution", "Unknown")
             except Exception:
                 pass
         
@@ -1431,9 +1433,14 @@ def resume_batch(batch_id):
                             "input_size": target_size,
                             "results": [],
                             "session_dir": s_dir,
-                            "src_path": st.session_state.prepared_img_sources[img_i]
+                            "src_path": st.session_state.prepared_img_sources[img_i],
+                            "prediction": pred_val,
+                            "original_resolution": orig_res_val
                         }
                         target_group["models"].append(model_entry)
+                    else:
+                        model_entry["prediction"] = pred_val
+                        model_entry["original_resolution"] = orig_res_val
                     
                     res_dicts = method_rows.to_dict(orient="records")
                     task_id = f"img{img_i}_{model_name}_{target_size}px_{method_name.lower()}"
@@ -3148,7 +3155,9 @@ def render_result_group(group, selected_methods, expanded=True, key_suffix=""):
                 key=lambda m: m.get("input_size", 0)
             )
             sample_m = arch_models[0]
-            pred_class = sample_m["results"][0].get("Prediction", "Unknown") if (sample_m.get("results") and len(sample_m["results"]) > 0) else "Unknown"
+            pred_class = sample_m.get("prediction", "Unknown")
+            if pred_class == "Unknown" and sample_m.get("results") and len(sample_m["results"]) > 0:
+                pred_class = sample_m["results"][0].get("Prediction", "Unknown")
             
             st.markdown(f"#### Model: `{arch}`")
             st.markdown(f"<div style='margin-top: -12px; margin-bottom: 12px; font-size: 0.9rem; color: #94a3b8;'>Prediction: <strong style='color: #e5edf6;'>{pred_class}</strong></div>", unsafe_allow_html=True)
@@ -3159,8 +3168,10 @@ def render_result_group(group, selected_methods, expanded=True, key_suffix=""):
             # 1. Show Input Image once for this Architecture
             img_path = os.path.join(sample_m["session_dir"], "input_image.jpg")
             if os.path.exists(img_path):
-                # Pull original resolution from the first result entry
-                orig_res = sample_m["results"][0].get("Original Resolution", "Unknown") if sample_m["results"] else "Unknown"
+                # Pull original resolution from the model_entry or fallback to the first result entry
+                orig_res = sample_m.get("original_resolution", "Unknown")
+                if orig_res == "Unknown" and sample_m["results"]:
+                    orig_res = sample_m["results"][0].get("Original Resolution", "Unknown")
                 col_left.image(img_path, caption=f"Input Image ({orig_res})", use_container_width=True)
             
             # 2. Show Heatmap Thumbnails (Grid layout when 1 size, Row layout when multiple sizes)
@@ -3230,6 +3241,7 @@ def show_lightbox(img):
 
 # --- Initialize Session State ---
 if 'selected_history_batch' not in st.session_state: st.session_state.selected_history_batch = None
+if 'first_run_render' not in st.session_state: st.session_state.first_run_render = False
 if 'img_idx' not in st.session_state: st.session_state.img_idx = 0
 if 'persisted_urls' not in st.session_state: st.session_state.persisted_urls = ""
 if 'last_run_results' not in st.session_state: st.session_state.last_run_results = []
@@ -3367,7 +3379,11 @@ if st.session_state.get("config_restored_toast"):
             for (var s = 0; s < selectors.length; s++) {
                 var tabs = window.parent.document.querySelectorAll(selectors[s]);
                 if (tabs.length > index) {
-                    tabs[index].click();
+                    var tab = tabs[index];
+                    if (tab.getAttribute("aria-selected") === "true") {
+                        return false;
+                    }
+                    tab.click();
                     return true;
                 }
             }
@@ -4007,9 +4023,9 @@ def render_configure_page():
         
         with st.expander("Paste Image URLs", expanded=False):
             st.text_area(
-                "Input URLs here",
+                "Image URLs",
                 height=100,
-                label_visibility="collapsed",
+                help="Please put each URL on a new line, without commas or other separators.",
                 key="persisted_urls"
             )
     with col_preview:
@@ -4239,6 +4255,7 @@ def render_active_run_page():
             st.session_state.total_execution_time = 0
             st.session_state.benchmark_ready_to_run = False
             st.session_state.benchmark_running = True
+            st.session_state.first_run_render = True
             rerun_app()
             
     elif st.session_state.benchmark_running and not st.session_state.is_finished:
@@ -4327,6 +4344,42 @@ def render_active_run_page():
             for group in sorted_result_groups(st.session_state.last_run_results):
                 render_result_group(group, st.session_state.current_batch_methods, key_suffix=f"live_{st.session_state.current_batch_id}")
                 
+        if st.session_state.get("first_run_render"):
+            components.html("""
+                <script>
+                    const targetLabel = "Trigger engine step";
+                    function scanAndHide() {
+                        const buttons = Array.from(window.parent.document.querySelectorAll("button"));
+                        const btn = buttons.find((button) => button.textContent.trim() === targetLabel);
+                        if (btn) {
+                            const wrapper = btn.closest('[data-testid="stElementContainer"]') || btn.closest('[data-testid="stButton"]') || btn.parentElement;
+                            if (wrapper) {
+                                wrapper.style.display = "none";
+                            }
+                            // Wait 600ms before clicking to let the page fully render
+                            setTimeout(() => {
+                                btn.click();
+                            }, 600);
+                            return true;
+                        }
+                        return false;
+                    }
+                    // Poll to hide it as early as possible
+                    let interval = setInterval(function() {
+                        if (scanAndHide()) {
+                            clearInterval(interval);
+                        }
+                    }, 50);
+                    // Disconnect after 2 seconds just in case
+                    setTimeout(function() { clearInterval(interval); }, 2000);
+                </script>
+            """, height=0)
+            st.markdown('<div style="display:none;">', unsafe_allow_html=True)
+            if st.button("Trigger engine step", key="trigger_engine_step_btn", use_container_width=True):
+                st.session_state.first_run_render = False
+                rerun_app()
+            st.markdown('</div>', unsafe_allow_html=True)
+            
     elif st.session_state.is_finished:
 
         if st.session_state.completion_notice_batch_id != st.session_state.current_batch_id:
@@ -4715,7 +4768,7 @@ with tab4:
 }""", language="bibtex")
 
 # --- ENGINE ---
-if st.session_state.benchmark_running and not st.session_state.is_finished:
+if st.session_state.benchmark_running and not st.session_state.is_finished and not st.session_state.get("first_run_render"):
     idx = st.session_state.run_progress_idx
     task_queue = st.session_state.task_queue
     run_img_sources = st.session_state.prepared_img_sources
@@ -4746,8 +4799,51 @@ if st.session_state.benchmark_running and not st.session_state.is_finished:
                 fs = tp
             else:
                 fs = src
-            model_entry = {"model": model_name, "model_label": model_label, "input_size": target_size, "results": [], "session_dir": s_dir, "src_path": fs}
+            
+            # Check if prediction and original resolution are already computed (e.g. from a resumed run)
+            pred_val = "Unknown"
+            orig_res_val = "Unknown"
+            config_path = os.path.normpath(os.path.join(s_dir, "config.json"))
+            if os.path.exists(config_path):
+                try:
+                    with open(config_path, "r") as f:
+                        t_cfg = json.load(f)
+                    pred_val = t_cfg.get("prediction", "Unknown")
+                    orig_res_val = t_cfg.get("original_resolution", "Unknown")
+                except Exception:
+                    pass
+                    
+            model_entry = {"model": model_name, "model_label": model_label, "input_size": target_size, "results": [], "session_dir": s_dir, "src_path": fs, "prediction": pred_val, "original_resolution": orig_res_val}
             target_group["models"].append(model_entry)
+            
+            # If the prediction is unknown, run a fast prediction-only pass to get it immediately
+            if pred_val == "Unknown":
+                run_benchmark_task({
+                    "model_name": model_name, 
+                    "image_source": model_entry["src_path"], 
+                    "methods": [], 
+                    "method_params": {},
+                    "force_device": get_device_string(st.session_state.current_device_mode), 
+                    "input_size": target_size,
+                    "warmup_runs": 0,
+                    "memory_runs": 0,
+                    "repeat_count": 1,
+                    "run_order": st.session_state.current_run_order,
+                    "enable_quality_metrics": False,
+                    "selected_quality_metrics": []
+                }, s_dir)
+                
+                # Load the newly saved prediction and original resolution
+                if os.path.exists(config_path):
+                    try:
+                        with open(config_path, "r") as f:
+                            t_cfg = json.load(f)
+                        model_entry["prediction"] = t_cfg.get("prediction", "Unknown")
+                        model_entry["original_resolution"] = t_cfg.get("original_resolution", "Unknown")
+                    except Exception:
+                        pass
+                
+                st.rerun()
         
         results = run_benchmark_task({
             "model_name": model_name, 
@@ -4776,6 +4872,18 @@ if st.session_state.benchmark_running and not st.session_state.is_finished:
                 model_entry["results"][existing_tasks[t_id]] = res
             else:
                 model_entry["results"].append(res)
+                
+        # Read the latest prediction and original resolution from config.json and update model_entry
+        config_path = os.path.normpath(os.path.join(model_entry["session_dir"], "config.json"))
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, "r") as f:
+                    t_cfg = json.load(f)
+                model_entry["prediction"] = t_cfg.get("prediction", "Unknown")
+                model_entry["original_resolution"] = t_cfg.get("original_resolution", "Unknown")
+            except Exception:
+                pass
+                
         st.session_state.run_progress_idx += 1
         
         if st.session_state.run_progress_idx >= len(task_queue):
