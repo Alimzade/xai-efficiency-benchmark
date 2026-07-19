@@ -368,6 +368,24 @@ def run_benchmark_task(config, session_dir):
         custom_gpu_tdp=config.get('custom_gpu_tdp')
     )
 
+    # Determine active device TDP and convert to kW
+    active_tdp_w = None
+    if device.type in ['cuda', 'mps']:
+        active_tdp_w = config.get('custom_gpu_tdp')
+        if active_tdp_w is None and environment_metadata.get("cuda_devices"):
+            active_tdp_w = environment_metadata["cuda_devices"][0].get("tdp_w")
+    else:
+        active_tdp_w = config.get('custom_cpu_tdp')
+        if active_tdp_w is None:
+            active_tdp_w = environment_metadata.get("cpu_tdp_w")
+            
+    active_tdp_kw = None
+    if active_tdp_w is not None:
+        try:
+            active_tdp_kw = round(float(active_tdp_w) / 1000.0, 4)
+        except Exception:
+            pass
+
     # Get specific device name for logging
     if device.type == 'cuda':
         device_info = torch.cuda.get_device_name(device)
@@ -620,12 +638,21 @@ def run_benchmark_task(config, session_dir):
             fig.savefig(os.path.join(heatmaps_dir, f"{method_name}.png"), bbox_inches='tight', pad_inches=0)
             plt.close(fig)
             
+            # Calculate estimated energy consumption in kW
+            est_energy = None
+            if active_tdp_w is not None:
+                try:
+                    est_energy = round((float(runtime_median) * float(active_tdp_w)) / (3600.0 * 1000.0), 8)
+                except Exception:
+                    pass
+
             results.append({
                 "Method": method_name, "Model": model_name, "Resolution": img_dims,
                 "Input Size (px)": target_size,
                 "Original Resolution": original_dims,
                 "Prediction": predicted_class,
                 "Device": device_info,
+                "Estimated Energy Consumption (kW)": est_energy,
                 "Model Cache": "reused" if was_model_cached else "loaded",
                 "Timing Scope": "attribution_only",
                 "Runtime (sec)": round(runtime_median, 4),
@@ -669,6 +696,7 @@ def run_benchmark_task(config, session_dir):
                 "Original Resolution": original_dims,
                 "Prediction": predicted_class if 'predicted_class' in locals() else "N/A",
                 "Device": device_info,
+                "Estimated Energy Consumption (kW)": None,
                 "Model Cache": "reused" if was_model_cached else "loaded",
                 "Timing Scope": "attribution_only",
                 "Runtime (sec)": 0.0, "Attribution Runtime (sec)": 0.0,

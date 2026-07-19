@@ -976,6 +976,7 @@ PRESENTATION_COL_ORDER = [
     "Attribution Runtime Min (sec)",
     "Attribution Runtime Max (sec)",
     ATTR_MEMORY_COL,
+    "Estimated Energy Consumption (kW)",
     "Gini Index",
     "Deletion AUC",
     "Insertion AUC",
@@ -1513,6 +1514,10 @@ def resume_batch(batch_id):
         seed=batch_id
     )
     
+    # Calculate TDP in W for the resumed session
+    dev_mode_str = get_device_string(cfg.get("device_mode", "CPU"))
+    res_tdp_w = cfg.get("custom_gpu_tdp") if dev_mode_str in ["cuda", "mps"] else cfg.get("custom_cpu_tdp")
+
     # Reload completed results from the filesystem
     st.session_state.last_run_results = []
     st.session_state.run_progress_idx = 0
@@ -1566,6 +1571,16 @@ def resume_batch(batch_id):
                     task_id = f"img{img_i}_{model_name}_{target_size}px_{method_name.lower()}"
                     for r in res_dicts:
                         r["_task_id"] = task_id
+                        # Back-calculate energy consumption if missing
+                        if res_tdp_w is not None:
+                            try:
+                                rt = r.get("Attribution Runtime (sec)")
+                                if rt is None:
+                                    rt = r.get("Runtime (sec)")
+                                if rt is not None and ("Estimated Energy Consumption (kW)" not in r or r["Estimated Energy Consumption (kW)"] is None or pd.isna(r["Estimated Energy Consumption (kW)"])):
+                                    r["Estimated Energy Consumption (kW)"] = round((float(rt) * float(res_tdp_w)) / (3600.0 * 1000.0), 8)
+                            except Exception:
+                                pass
                         
                     existing_tasks = {r.get("_task_id"): idx_r for idx_r, r in enumerate(model_entry["results"]) if r.get("_task_id")}
                     for r in res_dicts:
@@ -1645,6 +1660,7 @@ def style_dataframe(df, raw_precision=False):
         "Std Across Images (sec)", "Repeat Run Std (sec)",
         "Mean Peak Attribution Memory (MB)", "Peak Memory (MB)", "Peak Attribution Memory (MB)",
         "Std Peak Memory (MB)", "Peak Memory Std (MB)", "Attribution Memory Std (MB)", "Repeat Memory Std (MB)",
+        "Estimated Energy Consumption (kW)",
         "Gini Index", "Mean Gini Index",
         "Deletion AUC", "Mean Deletion AUC",
         "Insertion AUC", "Mean Insertion AUC",
@@ -1671,11 +1687,15 @@ def style_dataframe(df, raw_precision=False):
                     return f"{int(round(v))} x {int(round(v))}"
                 elif col_name in ["Input Size (px)", "Samples", "Methods", "Resolutions", "Images", "Repeats", "Total Attribution Runs"]:
                     return f"{int(round(v))}"
+                elif "kW" in col_name or "Energy" in col_name:
+                    return f"{v:.8f}".rstrip('0').rstrip('.')
                 s = f"{v:.6f}".rstrip('0').rstrip('.')
                 return s if s else "0"
             else:
                 if "MB" in col_name or col_name in [ATTR_MEMORY_COL, "Mean Peak Attribution Memory (MB)", "Std Peak Memory (MB)", "Peak Memory Std (MB)", "Attribution Memory Std (MB)"]:
                     return f"{v:.2f}"
+                elif "kW" in col_name or "Energy" in col_name:
+                    return f"{v:.8f}".rstrip('0').rstrip('.')
                 elif "sec" in col_name or "Infidelity" in col_name or col_name in ["Gini Index", "Mean Gini Index", "Deletion AUC", "Mean Deletion AUC", "Insertion AUC", "Mean Insertion AUC"]:
                     return f"{v:.4f}"
                 elif col_name == "Resolution":
@@ -2008,15 +2028,17 @@ def image_size_summary(df):
     if "Input Size (px)" not in df.columns or df["Input Size (px)"].nunique() < 2:
         return pd.DataFrame()
 
-    summary = df.groupby(["Input Size (px)"]).agg(
-        **{
-            "Mean Attribution Runtime (sec)": (runtime_col, "mean"),
-            "Std Across Images (sec)": (runtime_col, "std"),
-            "Samples": (runtime_col, "count"),
-            "Mean Peak Attribution Memory (MB)": (memory_col, "mean"),
-            "Std Peak Memory (MB)": (memory_col, "std"),
-        }
-    ).reset_index()
+    agg_ops = {
+        "Mean Attribution Runtime (sec)": (runtime_col, "mean"),
+        "Std Across Images (sec)": (runtime_col, "std"),
+        "Mean Peak Attribution Memory (MB)": (memory_col, "mean"),
+        "Std Peak Memory (MB)": (memory_col, "std"),
+    }
+    if "Estimated Energy Consumption (kW)" in df.columns and df["Estimated Energy Consumption (kW)"].notna().any():
+        agg_ops["Mean Estimated Energy Consumption (kW)"] = ("Estimated Energy Consumption (kW)", "mean")
+    agg_ops["Samples"] = (runtime_col, "count")
+
+    summary = df.groupby(["Input Size (px)"]).agg(**agg_ops).reset_index()
     # Rename Column to Resolution
     summary = summary.rename(columns={"Input Size (px)": "Resolution"})
     return summary.sort_values("Resolution")
@@ -2085,8 +2107,9 @@ def method_detail_summary(df):
         "Attribution Runtime Std (sec)": (std_runtime_src, std_runtime_func),
         "Mean Peak Attribution Memory (MB)": (memory_col, "mean"),
         "Peak Memory Std (MB)": (std_mem_src, std_mem_func),
-        "Samples": (runtime_col, "count"),
     }
+    if "Estimated Energy Consumption (kW)" in df.columns and df["Estimated Energy Consumption (kW)"].notna().any():
+        agg_dict["Mean Estimated Energy Consumption (kW)"] = ("Estimated Energy Consumption (kW)", "mean")
     if "Gini Index" in df.columns and df["Gini Index"].notna().any():
         agg_dict["Mean Gini Index"] = ("Gini Index", "mean")
     if "Deletion AUC" in df.columns and df["Deletion AUC"].notna().any():
@@ -2097,6 +2120,7 @@ def method_detail_summary(df):
         agg_dict["Mean Infidelity"] = ("Infidelity", "mean")
     if "Quality Eval Time (sec)" in df.columns and df["Quality Eval Time (sec)"].notna().any():
         agg_dict["Mean Quality Eval Time (sec)"] = ("Quality Eval Time (sec)", "mean")
+    agg_dict["Samples"] = (runtime_col, "count")
     summary = df.groupby("Method", sort=False).agg(**agg_dict).reset_index()
     return summary
 
@@ -2244,8 +2268,9 @@ def render_analytics_sections(fdf, result_groups):
             "Attribution Runtime Std (sec)": (std_runtime_src, std_runtime_func),
             "Mean Peak Attribution Memory (MB)": (memory_col, "mean"),
             "Peak Memory Std (MB)": (std_mem_src, std_mem_func),
-            "Samples": (runtime_col, "count"),
         }
+        if "Estimated Energy Consumption (kW)" in fdf.columns and fdf["Estimated Energy Consumption (kW)"].notna().any():
+            agg_dict_config["Mean Estimated Energy Consumption (kW)"] = ("Estimated Energy Consumption (kW)", "mean")
         if "Gini Index" in fdf.columns and fdf["Gini Index"].notna().any():
             agg_dict_config["Mean Gini Index"] = ("Gini Index", "mean")
         if "Deletion AUC" in fdf.columns and fdf["Deletion AUC"].notna().any():
@@ -2256,6 +2281,7 @@ def render_analytics_sections(fdf, result_groups):
             agg_dict_config["Mean Infidelity"] = ("Infidelity", "mean")
         if "Quality Eval Time (sec)" in fdf.columns and fdf["Quality Eval Time (sec)"].notna().any():
             agg_dict_config["Mean Quality Eval Time (sec)"] = ("Quality Eval Time (sec)", "mean")
+        agg_dict_config["Samples"] = (runtime_col, "count")
         summary_df = fdf.groupby(group_cols).agg(**agg_dict_config).reset_index()
         with st.expander("📋 Configuration Averages", expanded=True):
             _c_images  = int(fdf["Image Index"].nunique()) if "Image Index" in fdf.columns else 1
@@ -2420,8 +2446,9 @@ def render_analytics_sections(fdf, result_groups):
                 model_agg_dict = {
                     "Mean Attribution Runtime (sec)": (runtime_col, "mean"),
                     "Mean Peak Attribution Memory (MB)": (memory_col, "mean"),
-                    "Samples": (runtime_col, "count"),
                 }
+                if "Estimated Energy Consumption (kW)" in fdf.columns and fdf["Estimated Energy Consumption (kW)"].notna().any():
+                    model_agg_dict["Mean Estimated Energy Consumption (kW)"] = ("Estimated Energy Consumption (kW)", "mean")
                 if "Gini Index" in fdf.columns and fdf["Gini Index"].notna().any():
                     model_agg_dict["Mean Gini Index"] = ("Gini Index", "mean")
                 if "Deletion AUC" in fdf.columns and fdf["Deletion AUC"].notna().any():
@@ -2432,6 +2459,7 @@ def render_analytics_sections(fdf, result_groups):
                     model_agg_dict["Mean Infidelity"] = ("Infidelity", "mean")
                 if "Quality Eval Time (sec)" in fdf.columns and fdf["Quality Eval Time (sec)"].notna().any():
                     model_agg_dict["Mean Quality Eval Time (sec)"] = ("Quality Eval Time (sec)", "mean")
+                model_agg_dict["Samples"] = (runtime_col, "count")
                 model_summary = fdf.groupby("Model").agg(**model_agg_dict).reset_index().sort_values("Mean Attribution Runtime (sec)")
                 st.table(style_dataframe(model_summary))
                 
@@ -3371,7 +3399,7 @@ def render_result_group(group, selected_methods, expanded=True, key_suffix=""):
             
             if arch_results:
                 raw_df = presentation_df(pd.DataFrame(arch_results))
-                display_cols = [c for c in ["Method", "Resolution", ATTR_RUNTIME_COL, "Attribution Runtime Std (sec)", ATTR_MEMORY_COL, "Attribution Memory Std (MB)", "Gini Index", "Deletion AUC", "Insertion AUC", "Infidelity", "Quality Eval Time (sec)"] if c in raw_df.columns]
+                display_cols = [c for c in ["Method", "Resolution", ATTR_RUNTIME_COL, "Attribution Runtime Std (sec)", ATTR_MEMORY_COL, "Attribution Memory Std (MB)", "Estimated Energy Consumption (kW)", "Gini Index", "Deletion AUC", "Insertion AUC", "Infidelity", "Quality Eval Time (sec)"] if c in raw_df.columns]
                 if "Status" in raw_df.columns and raw_df["Status"].astype(str).str.startswith("Failed").any():
                     display_cols.append("Status")
                 st.table(style_dataframe(raw_df[display_cols], raw_precision=True))
@@ -4887,6 +4915,23 @@ def render_active_run_page():
             st.toast("Benchmark complete. Results are ready.", icon="✅")
             st.session_state.completion_notice_batch_id = st.session_state.current_batch_id
 
+        # Determine live TDP
+        dev_mode = get_device_string(st.session_state.current_device_mode)
+        live_tdp_w = st.session_state.get("current_gpu_tdp") if dev_mode in ["cuda", "mps"] else st.session_state.get("current_cpu_tdp")
+
+        if live_tdp_w is not None:
+            for g in sorted_result_groups(st.session_state.last_run_results):
+                for m in g["models"]:
+                    for r in m["results"]:
+                        try:
+                            rt = r.get("Attribution Runtime (sec)")
+                            if rt is None:
+                                rt = r.get("Runtime (sec)")
+                            if rt is not None and ("Estimated Energy Consumption (kW)" not in r or r["Estimated Energy Consumption (kW)"] is None or pd.isna(r["Estimated Energy Consumption (kW)"])):
+                                r["Estimated Energy Consumption (kW)"] = round((float(rt) * float(live_tdp_w)) / (3600.0 * 1000.0), 8)
+                        except Exception:
+                            pass
+
         all_r = []
         for g in sorted_result_groups(st.session_state.last_run_results):
             img_idx = g["img_idx"]
@@ -5068,6 +5113,34 @@ def render_history_page():
                 with open(batch_meta_p, 'r') as f:
                     meta = json.load(f)
                 
+                # Determine historical TDP
+                env = meta.get("environment", {})
+                selected_dev = env.get("selected_device", "cpu")
+                h_tdp_w = None
+                if selected_dev in ["cuda", "mps"]:
+                    cuda_devices = env.get("cuda_devices", [])
+                    if cuda_devices:
+                        h_tdp_w = cuda_devices[0].get("tdp_w")
+                    if h_tdp_w is None:
+                        h_tdp_w = meta.get("benchmark_settings", {}).get("custom_gpu_tdp")
+                else:
+                    h_tdp_w = env.get("cpu_tdp_w")
+                    if h_tdp_w is None:
+                        h_tdp_w = meta.get("benchmark_settings", {}).get("custom_cpu_tdp")
+
+                if h_tdp_w is not None:
+                    for g in meta["results"]:
+                        for m in g["models"]:
+                            for r in m["results"]:
+                                try:
+                                    rt = r.get("Attribution Runtime (sec)")
+                                    if rt is None:
+                                        rt = r.get("Runtime (sec)")
+                                    if rt is not None and ("Estimated Energy Consumption (kW)" not in r or r["Estimated Energy Consumption (kW)"] is None or pd.isna(r["Estimated Energy Consumption (kW)"])):
+                                        r["Estimated Energy Consumption (kW)"] = round((float(rt) * float(h_tdp_w)) / (3600.0 * 1000.0), 8)
+                                except Exception:
+                                    pass
+
                 all_h_r = []
                 for g in meta["results"]:
                     img_idx = g["img_idx"]
