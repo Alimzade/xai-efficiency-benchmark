@@ -275,7 +275,7 @@ def find_cpu_tdp(cpu_name):
         
     return tdp_val, best_match_name
 
-def collect_environment_metadata(device=None):
+def collect_environment_metadata(device=None, custom_cpu_tdp=None, custom_gpu_tdp=None):
     cuda_devices = []
     if torch.cuda.is_available():
         db = None
@@ -300,6 +300,10 @@ def collect_environment_metadata(device=None):
                 except Exception:
                     pass
 
+            if custom_gpu_tdp is not None:
+                tdp_val = custom_gpu_tdp
+                matched_gpu = "User Override"
+
             cuda_devices.append({
                 "index": idx,
                 "name": gpu_name,
@@ -309,6 +313,17 @@ def collect_environment_metadata(device=None):
                 "matched_name": matched_gpu,
             })
 
+    if device == "mps" and custom_gpu_tdp is not None:
+        if not cuda_devices:
+            cuda_devices.append({
+                "index": 0,
+                "name": "Apple Silicon GPU (MPS)",
+                "total_memory_mb": 0.0,
+                "compute_capability": "N/A",
+                "tdp_w": custom_gpu_tdp,
+                "matched_name": "User Override",
+            })
+
     cpu_name = get_cpu_name()
     cpu_tdp = None
     matched_cpu = None
@@ -316,6 +331,10 @@ def collect_environment_metadata(device=None):
         cpu_tdp, matched_cpu = find_cpu_tdp(cpu_name)
     except Exception:
         pass
+
+    if custom_cpu_tdp is not None:
+        cpu_tdp = custom_cpu_tdp
+        matched_cpu = "User Override"
 
     return {
         "app_version": "1.0.0",
@@ -327,8 +346,8 @@ def collect_environment_metadata(device=None):
         "matched_cpu_name": matched_cpu,
         "torch_version": torch.__version__,
         "torch_cuda_version": torch.version.cuda,
-        "cuda_available": torch.cuda.is_available(),
-        "cuda_device_count": torch.cuda.device_count() if torch.cuda.is_available() else 0,
+        "cuda_available": torch.cuda.is_available() or (device == "mps"),
+        "cuda_device_count": len(cuda_devices),
         "cuda_devices": cuda_devices,
         "selected_device": str(device) if device is not None else None,
     }
@@ -343,7 +362,11 @@ def run_benchmark_task(config, session_dir):
     # 1. Setup Device & Environment
     force_dev = config.get('force_device')
     device = torch.device(force_dev if force_dev else ("cuda" if torch.cuda.is_available() else "cpu"))
-    environment_metadata = collect_environment_metadata(device)
+    environment_metadata = collect_environment_metadata(
+        device,
+        custom_cpu_tdp=config.get('custom_cpu_tdp'),
+        custom_gpu_tdp=config.get('custom_gpu_tdp')
+    )
 
     # Get specific device name for logging
     if device.type == 'cuda':

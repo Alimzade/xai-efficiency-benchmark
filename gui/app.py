@@ -623,13 +623,59 @@ st.markdown("""
     }
     [data-testid="stExpander"] {
         background: rgba(255, 255, 255, 0.045);
-        border: 1px solid var(--xai-border);
+        border: 1px solid var(--xai-border) !important;
         border-radius: 8px;
         overflow: hidden;
+        margin-top: 0px !important;
+        margin-bottom: 0px !important;
+        transition: border-color 0.2s ease !important;
+    }
+    [data-testid="stExpander"] details {
+        border: none !important;
+    }
+    [data-testid="stExpander"]:hover {
+        border-color: rgba(96, 165, 250, 0.3) !important;
     }
     [data-testid="stExpander"] details summary {
-        color: var(--xai-text);
+        transition: background-color 0.2s ease !important;
     }
+    [data-testid="stExpander"] details summary:hover {
+        background-color: rgba(255, 255, 255, 0.08) !important;
+    }
+    [data-testid="stExpander"] details summary,
+    [data-testid="stExpander"] details summary p,
+    [data-testid="stExpander"] details summary span {
+        color: var(--xai-text) !important;
+        font-size: 0.9rem !important;
+    }
+    /* Custom TDP override card styled with greenish gradient and pattern */
+    div[data-testid="stVerticalBlock"]:has(> div[class*="st-key-custom_cpu_tdp"]),
+    div[data-testid="stVerticalBlock"]:has(> div[class*="st-key-custom_gpu_tdp"]) {
+        border: 1px solid var(--xai-border) !important;
+        border-radius: 8px !important;
+        padding: 12px 14px 16px 14px !important;
+        background: linear-gradient(135deg, rgba(96, 165, 250, 0.14) 0%, rgba(45, 212, 191, 0.08) 100%),
+                    repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.015) 0px, rgba(255, 255, 255, 0.015) 2px, transparent 2px, transparent 10px) !important;
+        margin-top: 0px !important;
+        margin-bottom: 0px !important;
+        gap: 4px !important;
+        height: auto !important;
+        min-height: min-content !important;
+        overflow: visible !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(> div[class*="st-key-custom_cpu_tdp"]) div[class*="st-key-custom_cpu_tdp"],
+    div[data-testid="stVerticalBlock"]:has(> div[class*="st-key-custom_gpu_tdp"]) div[class*="st-key-custom_gpu_tdp"] {
+        margin-top: 0px !important;
+        margin-bottom: 0px !important;
+    }
+    div.tdp-caption-wrapper {
+        word-wrap: break-word !important;
+        white-space: normal !important;
+        line-height: 1.45 !important;
+        margin-top: 6px !important;
+        margin-bottom: 6px !important;
+    }
+
     [data-testid="stAlert"] {
         border-radius: 8px;
         border: 1px solid var(--xai-border);
@@ -677,61 +723,98 @@ st.markdown("""
     .stButton button { padding: 2px 10px !important; font-size: 0.9em !important; }
     [data-testid="stVerticalBlockBorderWrapper"] { border: none !important; }
     .status-pulse { color: #22d3ee; font-weight: bold; animation: pulse 1.5s infinite; font-size: 1.1em; }
+    /* Device toggle buttons — selected/unselected distinction */
+    div[class*="st-key-device_btn_"] button[kind="primary"] {
+        background: linear-gradient(135deg, rgba(96, 165, 250, 0.14) 0%, rgba(45, 212, 191, 0.08) 100%),
+                    repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.015) 0px, rgba(255, 255, 255, 0.015) 2px, transparent 2px, transparent 10px) !important;
+        border: 1px solid rgba(45, 212, 191, 0.45) !important;
+        color: var(--xai-text) !important;
+        box-shadow: 0 0 8px rgba(45, 212, 191, 0.15) !important;
+    }
+    div[class*="st-key-device_btn_"] button[kind="secondary"] {
+        background: rgba(255, 255, 255, 0.03) !important;
+        background-image: repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.012) 0px, rgba(255, 255, 255, 0.012) 2px, transparent 2px, transparent 10px) !important;
+        border: 1px solid var(--xai-border) !important;
+        color: rgba(229, 237, 246, 0.75) !important;
+    }
+    div[class*="st-key-device_btn_"] button[kind="secondary"]:hover {
+        border-color: rgba(96, 165, 250, 0.3) !important;
+        background-color: rgba(255, 255, 255, 0.06) !important;
+    }
+    .custom-hw-label {
+        display: block !important;
+        margin-top: 0px !important;
+        margin-bottom: 2px !important;
+        font-size: 14px !important;
+        font-weight: 400 !important;
+        color: var(--xai-text) !important;
+    }
+    div[class*="st-key-device_btn_"] {
+        margin-top: -12px !important;
+    }
     @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
-    /* Segmented Radio Buttons styling for modern Target Device Selection */
-    div[data-testid="stRadio"] {
+    /* Segmented Radio Buttons — full-width pills */
+    div[data-testid="stRadio"],
+    div[data-testid="stRadio"] > div {
         width: 100% !important;
+        box-sizing: border-box !important;
     }
     div[data-testid="stRadio"] [role="radiogroup"] {
         display: flex !important;
         flex-direction: row !important;
         flex-wrap: nowrap !important;
-        align-items: center !important;
+        justify-content: center !important;
+        align-items: stretch !important;
         gap: 10px !important;
-        min-height: 40px !important;
         width: 100% !important;
+        box-sizing: border-box !important;
     }
     div[data-testid="stRadio"] [role="radiogroup"] > div,
-    div[data-testid="stRadio"] [role="radiogroup"] [data-testid="stRadioOption"] {
+    div[data-testid="stRadio"] [data-testid="stRadioOption"] {
         flex: 1 1 0% !important;
         min-width: 0 !important;
-        width: 100% !important;
-        max-width: 100% !important;
+        display: flex !important;
+        align-items: stretch !important;
+        box-sizing: border-box !important;
     }
     div[data-testid="stRadio"] [role="radiogroup"] label > div:first-of-type {
         display: none !important;
     }
     div[data-testid="stRadio"] [role="radiogroup"] label {
-        flex: 1 1 0% !important;
+        flex: 1 !important;
         width: 100% !important;
-        max-width: 100% !important;
-        min-width: 100% !important;
-        background: rgba(255, 255, 255, 0.045) !important;
-        border: 1px solid rgba(148, 163, 184, 0.2) !important;
+        min-width: 0 !important;
+        background: rgba(255, 255, 255, 0.03) !important;
+        background-image: repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.012) 0px, rgba(255, 255, 255, 0.012) 2px, transparent 2px, transparent 10px) !important;
+        border: 1px solid var(--xai-border) !important;
+        border-radius: 6px !important;
         padding: 6px 18px !important;
-        border-radius: 8px !important;
         cursor: pointer !important;
-        transition: all 0.2s ease !important;
+        transition: background-color 0.2s, border-color 0.2s !important;
         margin: 0 !important;
         color: rgba(229, 237, 246, 0.75) !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        box-sizing: border-box !important;
     }
     div[data-testid="stRadio"] [role="radiogroup"] label:has(input:checked) {
-        background: linear-gradient(180deg, rgba(96, 165, 250, 0.24), rgba(45, 212, 191, 0.18)) !important;
-        border-color: rgba(45, 212, 191, 0.55) !important;
+        border-color: rgba(45, 212, 191, 0.45) !important;
+        background: linear-gradient(135deg, rgba(96, 165, 250, 0.14) 0%, rgba(45, 212, 191, 0.08) 100%),
+                    repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.015) 0px, rgba(255, 255, 255, 0.015) 2px, transparent 2px, transparent 10px) !important;
         color: var(--xai-text) !important;
-        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+        box-shadow: 0 0 8px rgba(45, 212, 191, 0.15) !important;
     }
     div[data-testid="stRadio"] [role="radiogroup"] label:hover {
-        border-color: rgba(45, 212, 191, 0.35) !important;
-        background: rgba(255, 255, 255, 0.08) !important;
+        border-color: rgba(96, 165, 250, 0.3) !important;
+        background-color: rgba(255, 255, 255, 0.06) !important;
         color: var(--xai-text) !important;
     }
     /* Style Text Inputs, Number Inputs and Select Dropdowns globally */
     [data-testid="stTextInput"] [data-baseweb="input"],
-    [data-testid="stTextInput"] [data-baseweb="input"] > div,
     div[data-testid="stNumberInputContainer"] {
         background-color: rgba(255, 255, 255, 0.045) !important;
         border: 1px solid rgba(148, 163, 184, 0.2) !important;
@@ -739,6 +822,13 @@ st.markdown("""
         color: var(--xai-text) !important;
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
         transition: all 0.2s ease !important;
+    }
+    
+    /* Remove duplicate inner border/background on text inputs */
+    [data-testid="stTextInput"] [data-baseweb="input"] > div {
+        border: none !important;
+        background-color: transparent !important;
+        box-shadow: none !important;
     }
     
     [data-testid="stTextInput"] input,
@@ -751,7 +841,6 @@ st.markdown("""
     /* Hover states */
     [data-baseweb="select"] > div:hover,
     [data-testid="stTextInput"] [data-baseweb="input"]:hover,
-    [data-testid="stTextInput"] [data-baseweb="input"]:hover > div,
     div[data-testid="stNumberInputContainer"]:hover,
     textarea:hover {
         border-color: rgba(45, 212, 191, 0.35) !important;
@@ -761,7 +850,6 @@ st.markdown("""
     /* Focus states */
     [data-baseweb="select"] > div:focus-within,
     [data-testid="stTextInput"] [data-baseweb="input"]:focus-within,
-    [data-testid="stTextInput"] [data-baseweb="input"]:focus-within > div,
     div[data-testid="stNumberInputContainer"]:focus-within,
     div[data-testid="stNumberInputContainer"].focused,
     textarea:focus {
@@ -790,8 +878,7 @@ st.markdown("""
     }
     
     /* Disabled text input styles */
-    [data-testid="stTextInput"]:has(input:disabled) [data-baseweb="input"],
-    [data-testid="stTextInput"]:has(input:disabled) [data-baseweb="input"] > div {
+    [data-testid="stTextInput"]:has(input:disabled) [data-baseweb="input"] {
         background-color: rgba(255, 255, 255, 0.02) !important;
         border-color: rgba(148, 163, 184, 0.1) !important;
         cursor: not-allowed !important;
@@ -1367,7 +1454,11 @@ def write_current_batch_results_json():
                 "selected_methods": st.session_state.sh_methods if st.session_state.get("sh_methods") else st.session_state.selected_methods,
                 "xai_params": st.session_state.get("sh_xai_params", {})
             },
-            "environment": collect_environment_metadata(get_device_string(st.session_state.current_device_mode)),
+            "environment": collect_environment_metadata(
+                get_device_string(st.session_state.current_device_mode),
+                custom_cpu_tdp=st.session_state.get("current_cpu_tdp"),
+                custom_gpu_tdp=st.session_state.get("current_gpu_tdp")
+            ),
             "started_at": st.session_state.batch_started_at,
             "completed_at": st.session_state.batch_completed_at,
             "total_execution_time": st.session_state.total_execution_time,
@@ -1395,6 +1486,10 @@ def resume_batch(batch_id):
     st.session_state.current_selected_quality_metrics = list(cfg.get("selected_quality_metrics", []))
     st.session_state.prepared_img_sources = list(cfg.get("image_sources", []))
     st.session_state.batch_started_at = cfg.get("started_at", "")
+    st.session_state.current_cpu_tdp = cfg.get("custom_cpu_tdp")
+    st.session_state.current_gpu_tdp = cfg.get("custom_gpu_tdp")
+    st.session_state.custom_cpu_tdp = cfg.get("custom_cpu_tdp")
+    st.session_state.custom_gpu_tdp = cfg.get("custom_gpu_tdp")
     
     # Rebuild the exact same task queue using parameter-expanded methods
     expanded_methods = cfg.get("methods_info", [])
@@ -3329,6 +3424,11 @@ if 'current_enable_quality_metrics' not in st.session_state: st.session_state.cu
 if 'current_selected_quality_metrics' not in st.session_state: st.session_state.current_selected_quality_metrics = ["Gini Index (Sparsity)"]
 if 'current_page' not in st.session_state: st.session_state.current_page = "Configure"
 
+if 'custom_cpu_tdp' not in st.session_state: st.session_state.custom_cpu_tdp = None
+if 'custom_gpu_tdp' not in st.session_state: st.session_state.custom_gpu_tdp = None
+if 'current_cpu_tdp' not in st.session_state: st.session_state.current_cpu_tdp = None
+if 'current_gpu_tdp' not in st.session_state: st.session_state.current_gpu_tdp = None
+
 if 'ig_steps_str' not in st.session_state: st.session_state.ig_steps_str = "50"
 if 'ig_internal_batch_str' not in st.session_state: st.session_state.ig_internal_batch_str = "2"
 if 'ig_baseline_mode' not in st.session_state: st.session_state.ig_baseline_mode = "Zeros (Black)"
@@ -3484,6 +3584,11 @@ if st.session_state.get("restore_config"):
         else:
             st.session_state.selected_device_mode = "CPU"
             
+    st.session_state.custom_cpu_tdp = settings.get("custom_cpu_tdp")
+    st.session_state.custom_gpu_tdp = settings.get("custom_gpu_tdp")
+    st.session_state.current_cpu_tdp = settings.get("custom_cpu_tdp")
+    st.session_state.current_gpu_tdp = settings.get("custom_gpu_tdp")
+
     # Clear the restoration request so it only runs once
     del st.session_state.restore_config
     st.session_state.config_restored_toast = True
@@ -3732,9 +3837,9 @@ def render_configure_page():
                 help="Dedicated memory measurement runs (default 1). Set to 0 to skip memory profiling entirely.",
             )
 
-    # Row 2
-    row2_left, row2_right = st.columns([2, 1])
-    with row2_left:
+    # Row 2 (Inputs Row - Top)
+    row2_top_left, row2_top_right = st.columns([2, 1])
+    with row2_top_left:
         fixed_models = [m for m in selected_models_widget if m in ["vit-b-16", "swin-t"]]
         if fixed_models:
             st.text_input("Input Sizes (px)", value="224", disabled=True)
@@ -3755,7 +3860,8 @@ def render_configure_page():
                 st.error("Invalid size format. Using 224.")
             elif any(s < 32 for s in parsed_sizes):
                 st.error("⚠️ Input size must be at least 32px. CNN models will crash at lower resolutions.")
-    with row2_right:
+
+    with row2_top_right:
         st.number_input(
             "Measured repeats",
             min_value=1,
@@ -3765,9 +3871,9 @@ def render_configure_page():
             help="Timed attribution repeats per image/model/size/method. Use 30-100 for stronger size studies when methods are fast enough.",
         )
 
-    # Row 3
-    row3_left, row3_right = st.columns([2, 1])
-    with row3_left:
+    # Row 2 (Inputs Row - Bottom)
+    row2_mid_left, row2_mid_right = st.columns([2, 1])
+    with row2_mid_left:
         # Dynamically build options for XAI Methods.
         # This allows users to select the same method multiple times (e.g. Integrated_Gradients, Integrated_Gradients_2)
         base_xai_opts = [
@@ -3858,6 +3964,118 @@ def render_configure_page():
                     if f"lime_batch_str_{method}" not in st.session_state: st.session_state[f"lime_batch_str_{method}"] = st.session_state.get("lime_batch_str", "10")
                     if f"lime_segments_str_{method}" not in st.session_state: st.session_state[f"lime_segments_str_{method}"] = st.session_state.get("lime_segments_str", "50")
 
+    with row2_mid_right:
+        has_cuda = torch.cuda.is_available()
+        has_mps = hasattr(torch.backends, "mps") and torch.backends.mps.is_available()
+        device_options = ["CPU"]
+        if has_cuda:
+            device_options.insert(0, "GPU (CUDA)")
+        elif has_mps:
+            device_options.insert(0, "GPU (MPS)")
+
+        if st.session_state.selected_device_mode not in device_options:
+            st.session_state.selected_device_mode = device_options[0]
+        st.markdown('<label class="custom-hw-label" data-testid="stWidgetLabel">Hardware Device</label>', unsafe_allow_html=True)
+        _btn_cols = st.columns(len(device_options))
+        for _i, _opt in enumerate(device_options):
+            with _btn_cols[_i]:
+                _is_selected = st.session_state.selected_device_mode == _opt
+                if st.button(
+                    _opt,
+                    key=f"device_btn_{_opt}",
+                    use_container_width=True,
+                    type="primary" if _is_selected else "secondary",
+                ):
+                    st.session_state.selected_device_mode = _opt
+                    st.rerun()
+
+    # Determine current hardware details
+    cpu_name = get_cpu_info()
+    gpu_desc = ""
+    if torch.cuda.is_available():
+        gpu_desc = torch.cuda.get_device_name(0)
+    elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+        gpu_desc = "Apple Silicon (MPS)"
+    else:
+        gpu_desc = "Generic GPU"
+
+    detected_cpu_tdp = None
+    matched_cpu = None
+    try:
+        detected_cpu_tdp, matched_cpu = find_cpu_tdp(cpu_name)
+    except Exception:
+        pass
+
+    detected_gpu_tdp = None
+    matched_gpu = None
+    if torch.cuda.is_available():
+        try:
+            from dbgpu import GPUDatabase
+            db = GPUDatabase.default()
+            spec = db.search(gpu_desc)
+            if spec and hasattr(spec, "thermal_design_power_w") and spec.thermal_design_power_w:
+                detected_gpu_tdp = int(spec.thermal_design_power_w)
+                matched_gpu = getattr(spec, "name", None)
+        except Exception:
+            pass
+
+    # Initialize session state keys if None using auto-detected values or fallbacks
+    if st.session_state.custom_cpu_tdp is None:
+        st.session_state.custom_cpu_tdp = int(detected_cpu_tdp) if detected_cpu_tdp else 65
+    if st.session_state.custom_gpu_tdp is None:
+        st.session_state.custom_gpu_tdp = int(detected_gpu_tdp) if detected_gpu_tdp else 250
+
+    # Adjust TDP input UI depending on selected mode
+    is_gpu = "GPU" in st.session_state.selected_device_mode
+    
+    tdp_line = ""
+    if is_gpu:
+        active_tdp = st.session_state.custom_gpu_tdp
+        if active_tdp:
+            if detected_gpu_tdp and active_tdp != detected_gpu_tdp:
+                tdp_line = f"<p>• <strong>GPU TDP</strong>: {active_tdp} W (User Override, auto-detected: {detected_gpu_tdp} W)</p>"
+            elif detected_gpu_tdp:
+                if matched_gpu and matched_gpu.lower().strip() != gpu_desc.lower().strip():
+                    tdp_line = f"<p>• <strong>GPU TDP</strong>: {active_tdp} W (matched to: {matched_gpu})</p>"
+                else:
+                    tdp_line = f"<p>• <strong>GPU TDP</strong>: {active_tdp} W</p>"
+            else:
+                tdp_line = f"<p>• <strong>GPU TDP</strong>: {active_tdp} W (User Specified)</p>"
+        status_text = f"🟢 {gpu_desc}"
+    else:
+        active_tdp = st.session_state.custom_cpu_tdp
+        if active_tdp:
+            if detected_cpu_tdp and active_tdp != detected_cpu_tdp:
+                tdp_line = f"<p>• <strong>CPU TDP</strong>: {active_tdp} W (User Override, auto-detected: {detected_cpu_tdp} W)</p>"
+            elif detected_cpu_tdp:
+                if matched_cpu and matched_cpu.lower().strip() != cpu_name.lower().strip():
+                    tdp_line = f"<p>• <strong>CPU TDP</strong>: {active_tdp} W (matched to: {matched_cpu})</p>"
+                else:
+                    tdp_line = f"<p>• <strong>CPU TDP</strong>: {active_tdp} W</p>"
+            else:
+                tdp_line = f"<p>• <strong>CPU TDP</strong>: {active_tdp} W (User Specified)</p>"
+        status_text = f"💻 {cpu_name}"
+        
+    import sys
+    
+    # Build environment details lines dynamically to prevent blank lines
+    details_lines = [
+        f"<p>• <strong>OS/Platform</strong>: {platform.platform()}</p>",
+        f"<p>• <strong>Python Version</strong>: {sys.version.split()[0]}</p>",
+        f"<p>• <strong>PyTorch Version</strong>: {torch.__version__}</p>"
+    ]
+    
+    if torch.cuda.is_available():
+        details_lines.append(f"<p>• <strong>CUDA Version</strong>: {torch.version.cuda}</p>")
+    if tdp_line:
+        details_lines.append(tdp_line)
+        
+    details_content = "\n".join(details_lines)
+
+    # Row 4
+    row4_left, row4_right = st.columns([2, 1])
+    with row4_left:
+        if modifiable_selected:
             with st.expander("⚙️ Algorithm Parameter Tuning", expanded=False):
                 st.markdown('<div style="font-size: 0.8em; color: var(--xai-muted); margin-bottom: 12px;">Customize algorithm inputs below. Use comma-separated values (e.g. <b>50, 100</b>) to test multiple parameter variations.</div>', unsafe_allow_html=True)
                 
@@ -3969,91 +4187,15 @@ def render_configure_page():
                                 key=f"lime_segments_str_{method}",
                                 help="Target number of superpixels for SLIC segmentation.\n\n- Default: 50\n- Fewer superpixels speeds up LIME."
                             )
-                    st.markdown('<div style="margin-bottom: 5px;"></div>', unsafe_allow_html=True)
-        
-        # Measurement Details directly below parameters inside left column
-        st.markdown('<div style="margin-top: 25px; font-weight: bold; margin-bottom: 8px; font-size: 1.1em; color: var(--xai-text);">Measurement Details</div>', unsafe_allow_html=True)
-        st.markdown("""
-        <ul class="nice-bullets">
-            <li><b>Warmups</b> are not reported in statistics. Measured repeats are timed and summarized with median, mean, and standard deviation.</li>
-            <li><b>Task Ordering</b>: Benchmark runs are executed in a <b>Balanced</b> order (automatically rotating resolutions and model architectures) to mitigate PyTorch/CUDA caching allocator and execution-order bias.</li>
-            <li><b>Separate Timing & Memory</b>: By default, CPU memory is measured once in a dedicated run. The timed repeats are then executed cleanly without the memory profiler to ensure accurate speed statistics.</li>
-        </ul>
-        """, unsafe_allow_html=True)
 
-    with row3_right:
-        has_cuda = torch.cuda.is_available()
-        has_mps = hasattr(torch.backends, "mps") and torch.backends.mps.is_available()
-        device_options = ["CPU"]
-        if has_cuda:
-            device_options.insert(0, "GPU (CUDA)")
-        elif has_mps:
-            device_options.insert(0, "GPU (MPS)")
-
-        if st.session_state.selected_device_mode not in device_options:
-            st.session_state.selected_device_mode = device_options[0]
-        st.radio(
-            "Hardware Device",
-            device_options,
-            key="selected_device_mode",
-            horizontal=True,
-        )
-        
-        tdp_line = ""
-        if "GPU" in st.session_state.selected_device_mode:
-            if torch.cuda.is_available():
-                gpu_desc = torch.cuda.get_device_name(0)
-                # Fuzzy match GPU TDP via dbgpu
-                try:
-                    from dbgpu import GPUDatabase
-                    db = GPUDatabase.default()
-                    spec = db.search(gpu_desc)
-                    if spec and hasattr(spec, "thermal_design_power_w") and spec.thermal_design_power_w:
-                        tdp_val = int(spec.thermal_design_power_w)
-                        matched_name = getattr(spec, "name", None)
-                        if matched_name and matched_name.lower().strip() != gpu_desc.lower().strip():
-                            tdp_line = f"<p>• <strong>GPU TDP</strong>: {tdp_val} W (matched to: {matched_name})</p>"
-                        else:
-                            tdp_line = f"<p>• <strong>GPU TDP</strong>: {tdp_val} W</p>"
-                except Exception:
-                    pass
-            elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-                gpu_desc = "Apple Silicon (MPS)"
-            else:
-                gpu_desc = "Active"
-            status_text = f"🟢 {gpu_desc}"
-        else:
-            cpu_name = get_cpu_info()
-            status_text = f"💻 {cpu_name}"
-            # Fuzzy match CPU TDP via dataset
-            try:
-                cpu_tdp, matched_cpu = find_cpu_tdp(cpu_name)
-                if cpu_tdp:
-                    if matched_cpu and matched_cpu.lower().strip() != cpu_name.lower().strip():
-                        tdp_line = f"<p>• <strong>CPU TDP</strong>: {cpu_tdp} W (matched to: {matched_cpu})</p>"
-                    else:
-                        tdp_line = f"<p>• <strong>CPU TDP</strong>: {cpu_tdp} W</p>"
-            except Exception:
-                pass
-            
-        import sys
-        
-        # Build environment details lines dynamically to prevent blank lines
-        details_lines = [
-            f"<p>• <strong>OS/Platform</strong>: {platform.platform()}</p>",
-            f"<p>• <strong>Python Version</strong>: {sys.version.split()[0]}</p>",
-            f"<p>• <strong>PyTorch Version</strong>: {torch.__version__}</p>"
-        ]
-        
-        if torch.cuda.is_available():
-            details_lines.append(f"<p>• <strong>CUDA Version</strong>: {torch.version.cuda}</p>")
-        if tdp_line:
-            details_lines.append(tdp_line)
-            
-        details_content = "\n".join(details_lines)
-        
+    with row4_right:
         status_html = f"""
         <style>
+            [data-testid="stExpander"] details summary:hover,
+            .hw-status-summary:hover,
+            .meas-details-summary:hover {{
+                background-color: rgba(255, 255, 255, 0.05) !important;
+            }}
             .hw-status-container {{
                 border: 1px solid var(--xai-border) !important;
                 border-radius: 8px !important;
@@ -4062,6 +4204,7 @@ def render_configure_page():
                             repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.015) 0px, rgba(255, 255, 255, 0.015) 2px, transparent 2px, transparent 10px) !important;
                 transition: border-color 0.2s ease !important;
                 margin-top: 0px !important;
+                margin-bottom: 16px !important;
             }}
             .hw-status-container:hover {{
                 border-color: rgba(45, 212, 191, 0.35) !important;
@@ -4109,10 +4252,118 @@ def render_configure_page():
             </div>
         </details>
         """
-        # Strip leading/trailing whitespaces from each line to prevent markdown from treating it as an indented code block,
-        # and remove empty lines to prevent Streamlit's markdown parser from splitting HTML blocks on blank lines.
         clean_html = "\n".join([line.strip() for line in status_html.split("\n") if line.strip()])
         st.markdown(clean_html, unsafe_allow_html=True)
+
+    # Row 5
+    row5_left, row5_right = st.columns([2, 1])
+    with row5_left:
+        # Measurement Details collapsible below parameters inside left column
+        meas_details_html = """
+        <style>
+            .meas-details-container {
+                border: 1px solid var(--xai-border) !important;
+                border-radius: 8px !important;
+                overflow: hidden !important;
+                background: rgba(11, 18, 27, 0.25) !important;
+                transition: border-color 0.2s ease !important;
+                margin-top: 0px !important;
+                margin-bottom: 0px !important;
+            }
+            .meas-details-container:hover {
+                border-color: rgba(96, 165, 250, 0.3) !important;
+            }
+            .meas-details-summary {
+                display: flex !important;
+                justify-content: space-between !important;
+                align-items: center !important;
+                padding: 0.6rem 1rem !important;
+                font-weight: 600 !important;
+                font-size: 0.9rem !important;
+                color: var(--xai-text) !important;
+                cursor: pointer !important;
+                list-style: none !important;
+                background: rgba(255, 255, 255, 0.04) !important;
+                transition: background-color 0.2s ease !important;
+            }
+            .meas-details-summary:hover {
+                background-color: rgba(255, 255, 255, 0.08) !important;
+            }
+            .meas-details-summary::-webkit-details-marker {
+                display: none !important;
+            }
+            .meas-details-container[open] .meas-chevron {
+                transform: rotate(180deg) !important;
+            }
+            .meas-details-content {
+                padding: 1rem !important;
+                border-top: 1px solid var(--xai-border) !important;
+                font-size: 0.875rem !important;
+                color: var(--xai-muted) !important;
+                background: rgba(11, 18, 27, 0.45) !important;
+            }
+            div[class*="st-key-custom_cpu_tdp"],
+            div[class*="st-key-custom_gpu_tdp"],
+            div[class*="st-key-custom_cpu_tdp"] [data-testid="stNumberInput"],
+            div[class*="st-key-custom_gpu_tdp"] [data-testid="stNumberInput"] {
+                margin-top: 0px !important;
+                padding-top: 0px !important;
+            }
+        </style>
+        <details class="meas-details-container" open>
+            <summary class="meas-details-summary">
+                <span>Measurement Details</span>
+                <span class="meas-chevron" style="transition: transform 0.2s; font-size: 0.75rem; display: inline-block;">▼</span>
+            </summary>
+            <div class="meas-details-content">
+                <ul class="nice-bullets" style="margin-top: 0px; margin-bottom: 0px; padding-left: 20px; list-style-type: disc;">
+                    <li style="margin-bottom: 8px;"><b>Warmups & Repeats</b>: Warmups are excluded. Repeats measure device duration and report stats (median, mean, std).</li>
+                    <li style="margin-bottom: 8px;"><b>Task Ordering</b>: Executions run in a <b>Balanced</b> order (rotating architectures/sizes) to prevent allocator cache bias.</li>
+                    <li style="margin-bottom: 8px;"><b>Timing & Memory Isolation</b>: Memory profiling runs in a dedicated iteration to keep timing runs clean of overhead.</li>
+                    <li style="margin-bottom: 0px;"><b>Energy Estimation</b>: TDP is used as a proxy scaling factor: <code>Energy (Wh) = Runtime (sec) * TDP (W) / 3600</code>. Dynamic profiling is unreliable on standard systems, especially for sub-second runs.</li>
+                </ul>
+            </div>
+        </details>
+        """
+        st.markdown("\n".join([line.strip() for line in meas_details_html.split("\n") if line.strip()]), unsafe_allow_html=True)
+
+    with row5_right:
+        if is_gpu:
+            with st.container():
+                st.number_input(
+                    "Device TDP (Watts)",
+                    min_value=1,
+                    max_value=1500,
+                    value=int(st.session_state.custom_gpu_tdp),
+                    key="custom_gpu_tdp",
+                    help="Adjust the Thermal Design Power (TDP) in Watts for your active GPU. This affects energy estimation logic."
+                )
+                if detected_gpu_tdp:
+                    if matched_gpu and matched_gpu.lower().strip() != gpu_desc.lower().strip():
+                        text = f"Auto-detected: {detected_gpu_tdp}W (matched to: <i>{matched_gpu}</i>)"
+                    else:
+                        text = f"Auto-detected: {detected_gpu_tdp}W"
+                else:
+                    text = "Could not auto-detect GPU TDP. Using default fallback. Adjust if incorrect."
+                st.markdown(f'<div class="tdp-caption-wrapper" style="font-size: 0.8rem; color: var(--xai-muted);">{text}</div>', unsafe_allow_html=True)
+        else:
+            with st.container():
+                st.number_input(
+                    "Device TDP (Watts)",
+                    min_value=1,
+                    max_value=1000,
+                    value=int(st.session_state.custom_cpu_tdp),
+                    key="custom_cpu_tdp",
+                    help="Adjust the Thermal Design Power (TDP) in Watts for your active CPU. This affects energy estimation logic."
+                )
+                if detected_cpu_tdp:
+                    if matched_cpu and matched_cpu.lower().strip() != cpu_name.lower().strip():
+                        text = f"Auto-detected: {detected_cpu_tdp}W (matched to: <i>{matched_cpu}</i>)"
+                    else:
+                        text = f"Auto-detected: {detected_cpu_tdp}W"
+                else:
+                    text = "Could not auto-detect CPU TDP. Using default fallback. Adjust if incorrect."
+                st.markdown(f'<div class="tdp-caption-wrapper" style="font-size: 0.8rem; color: var(--xai-muted);">{text}</div>', unsafe_allow_html=True)
 
     # Row 5: Quality Metrics (Post-Processing)
     st.divider()
@@ -4309,6 +4560,8 @@ def render_configure_page():
             st.session_state.current_memory_runs = st.session_state.selected_memory_runs
             st.session_state.current_enable_quality_metrics = st.session_state.enable_quality_metrics
             st.session_state.current_selected_quality_metrics = list(st.session_state.get('selected_quality_metrics', ["Gini Index (Sparsity)"]))
+            st.session_state.current_cpu_tdp = st.session_state.get("custom_cpu_tdp")
+            st.session_state.current_gpu_tdp = st.session_state.get("custom_gpu_tdp")
             
             # Persist and serialize image sources to survive app restarts and system sleep/shuts
             persisted_imgs = serialize_and_persist_image_sources(img_sources, batch_id, sm.base_dir)
@@ -4338,7 +4591,9 @@ def render_configure_page():
                 "methods_info": expanded_methods,
                 "device_mode": st.session_state.current_device_mode,
                 "image_sources": persisted_imgs,
-                "started_at": ""
+                "started_at": "",
+                "custom_cpu_tdp": st.session_state.current_cpu_tdp,
+                "custom_gpu_tdp": st.session_state.current_gpu_tdp
             }
             sm.save_batch_config(batch_id, batch_config)
             
@@ -4486,7 +4741,11 @@ def render_active_run_page():
             meta_col1, meta_col_spacer, meta_col2 = st.columns([1.8, 0.2, 2.0])
             with meta_col1:
                 st.markdown('<div style="font-weight: 600; margin-bottom: 8px; color: var(--xai-text);">Environment Summary</div>', unsafe_allow_html=True)
-                render_environment_summary(collect_environment_metadata(get_device_string(st.session_state.current_device_mode)))
+                render_environment_summary(collect_environment_metadata(
+                    get_device_string(st.session_state.current_device_mode),
+                    custom_cpu_tdp=st.session_state.get("current_cpu_tdp"),
+                    custom_gpu_tdp=st.session_state.get("current_gpu_tdp")
+                ))
             with meta_col2:
                 st.markdown('<div style="font-weight: 600; margin-bottom: 8px; color: var(--xai-text);">Benchmark Configuration</div>', unsafe_allow_html=True)
                 active_settings = {
@@ -4591,7 +4850,11 @@ def render_active_run_page():
                                  st.session_state.current_batch_methods,
                                  pdf_path,
                                  st.session_state.total_execution_time,
-                                 collect_environment_metadata(get_device_string(st.session_state.current_device_mode))
+                                 collect_environment_metadata(
+                                     get_device_string(st.session_state.current_device_mode),
+                                     custom_cpu_tdp=st.session_state.get("current_cpu_tdp"),
+                                     custom_gpu_tdp=st.session_state.get("current_gpu_tdp")
+                                 )
                             )
                     if os.path.exists(pdf_path):
                         with open(pdf_path, "rb") as f:
@@ -4659,7 +4922,11 @@ def render_active_run_page():
                 meta_col1, meta_col_spacer, meta_col2 = st.columns([1.8, 0.2, 2.0])
                 with meta_col1:
                     st.markdown('<div style="font-weight: 600; margin-bottom: 8px; color: var(--xai-text);">Environment Summary</div>', unsafe_allow_html=True)
-                    render_environment_summary(collect_environment_metadata(get_device_string(st.session_state.current_device_mode)))
+                    render_environment_summary(collect_environment_metadata(
+                        get_device_string(st.session_state.current_device_mode),
+                        custom_cpu_tdp=st.session_state.get("current_cpu_tdp"),
+                        custom_gpu_tdp=st.session_state.get("current_gpu_tdp")
+                    ))
                 with meta_col2:
                     st.markdown('<div style="font-weight: 600; margin-bottom: 8px; color: var(--xai-text);">Benchmark Configuration</div>', unsafe_allow_html=True)
                     active_settings = {
@@ -4994,7 +5261,9 @@ if st.session_state.benchmark_running and not st.session_state.is_finished and n
                     "repeat_count": 1,
                     "run_order": st.session_state.current_run_order,
                     "enable_quality_metrics": False,
-                    "selected_quality_metrics": []
+                    "selected_quality_metrics": [],
+                    "custom_cpu_tdp": st.session_state.get("current_cpu_tdp"),
+                    "custom_gpu_tdp": st.session_state.get("current_gpu_tdp")
                 }, s_dir)
                 
                 # Load the newly saved prediction and original resolution
@@ -5021,7 +5290,9 @@ if st.session_state.benchmark_running and not st.session_state.is_finished and n
             "repeat_count": st.session_state.current_repeats,
             "run_order": st.session_state.current_run_order,
             "enable_quality_metrics": st.session_state.current_enable_quality_metrics,
-            "selected_quality_metrics": st.session_state.current_selected_quality_metrics
+            "selected_quality_metrics": st.session_state.current_selected_quality_metrics,
+            "custom_cpu_tdp": st.session_state.get("current_cpu_tdp"),
+            "custom_gpu_tdp": st.session_state.get("current_gpu_tdp")
         }, model_entry["session_dir"])
         
         # Explicit composite Task ID (Image + Model + Resolution + Method) to guarantee 100% mathematical uniqueness
