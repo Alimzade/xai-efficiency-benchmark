@@ -750,7 +750,11 @@ st.markdown("""
         color: var(--xai-text) !important;
     }
     div[class*="st-key-device_btn_"] {
-        margin-top: -12px !important;
+        margin-top: -10.5px !important;
+    }
+    div[class*="st-key-device_btn_"] button[disabled] {
+        opacity: 1.0 !important;
+        cursor: default !important;
     }
     @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
     /* Segmented Radio Buttons — full-width pills */
@@ -926,6 +930,10 @@ st.markdown("""
         color: var(--xai-accent) !important;
         font-size: 1.25rem !important;
         line-height: 1 !important;
+    }
+    /* Align nested columns with their parent's left boundary */
+    div[data-testid="column"] div[data-testid="stHorizontalBlock"] {
+        margin-left: -12px !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -3399,7 +3407,16 @@ if 'current_batch_methods' not in st.session_state: st.session_state.current_bat
 if 'current_batch_models' not in st.session_state: st.session_state.current_batch_models = []
 if 'current_batch_sizes' not in st.session_state: st.session_state.current_batch_sizes = []
 if 'selected_models' not in st.session_state: st.session_state.selected_models = ["resnet50"]
-if 'input_size_str' not in st.session_state: st.session_state.input_size_str = "224"
+if 'input_sizes_options' not in st.session_state:
+    st.session_state.input_sizes_options = [
+        "32", "64", "96", "128", "160", "192", "224", "256", "288", "299", 
+        "320", "352", "384", "416", "448", "480", "512", "576", "640", "704", 
+        "768", "832", "896", "960", "1024"
+    ]
+if 'selected_input_sizes' not in st.session_state:
+    st.session_state.selected_input_sizes = ["224"]
+if 'input_size_str' not in st.session_state:
+    st.session_state.input_size_str = "224"
 if 'selected_methods' not in st.session_state: st.session_state.selected_methods = ["Saliency", "Integrated_Gradients"]
 if 'selected_warmups' not in st.session_state: st.session_state.selected_warmups = 1
 if 'selected_repeats' not in st.session_state: st.session_state.selected_repeats = 5
@@ -3562,11 +3579,21 @@ if st.session_state.get("restore_config"):
     
     raw_sizes = settings.get("input_sizes") or settings.get("input_size_str") or [224]
     if isinstance(raw_sizes, list) and len(raw_sizes) > 0:
-        st.session_state.input_size_str = ", ".join([str(s) for s in raw_sizes])
+        st.session_state.selected_input_sizes = [str(s) for s in raw_sizes]
     elif isinstance(raw_sizes, (str, int)):
-        st.session_state.input_size_str = str(raw_sizes)
+        if isinstance(raw_sizes, str):
+            st.session_state.selected_input_sizes = [s.strip() for s in raw_sizes.split(",") if s.strip()]
+        else:
+            st.session_state.selected_input_sizes = [str(raw_sizes)]
     else:
-        st.session_state.input_size_str = "224"
+        st.session_state.selected_input_sizes = ["224"]
+    
+    # Ensure options contains all selected ones
+    for s in st.session_state.selected_input_sizes:
+        if s not in st.session_state.input_sizes_options:
+            st.session_state.input_sizes_options.append(s)
+            
+    st.session_state.input_size_str = ", ".join(st.session_state.selected_input_sizes)
     st.session_state.selected_repeats = settings.get("repeat_count", 5)
     st.session_state.selected_warmups = settings.get("warmup_runs", 1)
     st.session_state.selected_memory_runs = settings.get("memory_runs", 1)
@@ -3748,6 +3775,33 @@ def keep_local_images_expanded():
 
 # --- PAGE 1: CONFIGURE ---
 def render_configure_page():
+    # Callback to handle dynamically adding a custom size without raising StreamlitAPIException
+    def add_custom_size_callback():
+        val = st.session_state.get("new_custom_size_input", "").strip()
+        if val:
+            if val.isdigit():
+                val_int = int(val)
+                if val_int >= 32:
+                    if val not in st.session_state.input_sizes_options:
+                        st.session_state.input_sizes_options.append(val)
+                    if val not in st.session_state.selected_input_sizes:
+                        st.session_state.selected_input_sizes.append(val)
+                    
+                    # Sort them immediately
+                    st.session_state.input_sizes_options = sorted(
+                        list(set(st.session_state.input_sizes_options)),
+                        key=lambda x: int(x) if x.isdigit() else 0
+                    )
+                    st.session_state.selected_input_sizes = sorted(
+                        list(set(st.session_state.selected_input_sizes)),
+                        key=lambda x: int(x) if x.isdigit() else 0
+                    )
+                else:
+                    st.warning("⚠️ Input size must be at least 32px.")
+            else:
+                st.warning("⚠️ Please enter a valid number.")
+        st.session_state.new_custom_size_input = ""
+
     # Detect and initialize auto-loaded folder images state (Safe from widget lock here!)
     local_all = []
     images_dir = os.path.join(PROJECT_ROOT, "gui", "images")
@@ -3779,6 +3833,10 @@ def render_configure_page():
         st.session_state.selected_models = st.session_state.sh_models
         st.session_state.selected_methods = st.session_state.sh_methods
         st.session_state.input_size_str = st.session_state.sh_input_size_str
+        st.session_state.selected_input_sizes = [s.strip() for s in st.session_state.sh_input_size_str.split(",") if s.strip()]
+        for s in st.session_state.selected_input_sizes:
+            if s not in st.session_state.input_sizes_options:
+                st.session_state.input_sizes_options.append(s)
         st.session_state.selected_repeats = st.session_state.sh_repeats
         st.session_state.selected_warmups = st.session_state.sh_warmups
         st.session_state.selected_run_order = st.session_state.sh_run_order
@@ -3842,24 +3900,46 @@ def render_configure_page():
     with row2_top_left:
         fixed_models = [m for m in selected_models_widget if m in ["vit-b-16", "swin-t"]]
         if fixed_models:
-            st.text_input("Input Sizes (px)", value="224", disabled=True)
+            st.multiselect(
+                "Input Sizes (px)",
+                options=["224"],
+                default=["224"],
+                disabled=True,
+                help="Only applicable to CNN-based architectures."
+            )
+            st.session_state.input_size_str = "224"
             if len(fixed_models) == 1:
                 st.caption(f"⚠️ *Fixed-size architecture selected (Locked to 224px):* **`{fixed_models[0]}`**")
             else:
                 formatted_models = ", ".join([f"**`{m}`**" for m in fixed_models])
                 st.caption(f"⚠️ *Fixed-size architectures selected (Locked to 224px):* {formatted_models}")
         else:
-            st.text_input(
-                "Input Sizes (px)",
-                key="input_size_str",
-                help="Only applicable to CNN-based architectures."
-            )
-            st.markdown('<div style="margin-top: -15px; margin-bottom: 15px; font-size: 0.85em; color: gray;">Separate by commas (e.g., 224, 448, 512).</div>', unsafe_allow_html=True)
-            parsed_sizes = parse_input_sizes(st.session_state.input_size_str)
-            if parsed_sizes == [224] and st.session_state.input_size_str.strip() not in ["", "224"]:
-                st.error("Invalid size format. Using 224.")
-            elif any(s < 32 for s in parsed_sizes):
-                st.error("⚠️ Input size must be at least 32px. CNN models will crash at lower resolutions.")
+            # Sort selected input sizes numerically so bubble tags are always in order
+            if st.session_state.get("selected_input_sizes"):
+                st.session_state.selected_input_sizes = sorted(
+                    list(set(st.session_state.selected_input_sizes)),
+                    key=lambda x: int(x) if x.isdigit() else 0
+                )
+                
+            col_sel, col_add = st.columns([3, 1])
+            with col_sel:
+                st.multiselect(
+                    "Input Sizes (px)",
+                    options=st.session_state.input_sizes_options,
+                    key="selected_input_sizes",
+                    help="Only applicable to CNN-based architectures."
+                )
+            with col_add:
+                st.text_input(
+                    "Add size (px)",
+                    key="new_custom_size_input",
+                    placeholder="e.g. 416",
+                    help="Type a custom size and press Enter to add it as a bubble tag.",
+                    autocomplete="off",
+                    on_change=add_custom_size_callback,
+                )
+            
+            st.session_state.input_size_str = ", ".join(st.session_state.selected_input_sizes)
 
     with row2_top_right:
         st.number_input(
@@ -3985,9 +4065,11 @@ def render_configure_page():
                     key=f"device_btn_{_opt}",
                     use_container_width=True,
                     type="primary" if _is_selected else "secondary",
+                    disabled=_is_selected,
                 ):
-                    st.session_state.selected_device_mode = _opt
-                    st.rerun()
+                    if st.session_state.selected_device_mode != _opt:
+                        st.session_state.selected_device_mode = _opt
+                        st.rerun()
 
     # Determine current hardware details
     cpu_name = get_cpu_info()
