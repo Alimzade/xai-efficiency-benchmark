@@ -958,7 +958,7 @@ def parse_comma_sep_floats(val_str, default_val):
         return [default_val]
 
 def expand_xai_methods_with_params(selected_methods):
-    expanded = []
+    raw_runs = []
     for method in selected_methods:
         import re
         base_name = re.sub(r'_\d+$', '', method)
@@ -973,19 +973,11 @@ def expand_xai_methods_with_params(selected_methods):
                 for b in batch_list:
                     combos.append({"n_steps": s, "internal_batch_size": b, "baseline_mode": base_mode})
                     
-            if len(combos) > 1:
-                for idx, params in enumerate(combos):
-                    name = f"{method}_{idx + 1}"
-                    expanded.append({
-                        "display_name": name,
-                        "base_name": "integrated_gradients",
-                        "params": params
-                    })
-            else:
-                expanded.append({
-                    "display_name": method,
-                    "base_name": "integrated_gradients",
-                    "params": combos[0]
+            for params in combos:
+                raw_runs.append({
+                    "base_name_display": base_name,
+                    "base_name_lower": "integrated_gradients",
+                    "params": params
                 })
                 
         elif base_name == "Gradient_Shap":
@@ -998,19 +990,11 @@ def expand_xai_methods_with_params(selected_methods):
                 for std in stdevs_list:
                     combos.append({"n_samples": s, "stdevs": std, "baseline_mode": base_mode})
                     
-            if len(combos) > 1:
-                for idx, params in enumerate(combos):
-                    name = f"{method}_{idx + 1}"
-                    expanded.append({
-                        "display_name": name,
-                        "base_name": "gradient_shap",
-                        "params": params
-                    })
-            else:
-                expanded.append({
-                    "display_name": method,
-                    "base_name": "gradient_shap",
-                    "params": combos[0]
+            for params in combos:
+                raw_runs.append({
+                    "base_name_display": base_name,
+                    "base_name_lower": "gradient_shap",
+                    "params": params
                 })
                 
         elif base_name == "Occlusion":
@@ -1027,19 +1011,11 @@ def expand_xai_methods_with_params(selected_methods):
                         "occlude_color": occ_val
                     })
                     
-            if len(combos) > 1:
-                for idx, params in enumerate(combos):
-                    name = f"{method}_{idx + 1}"
-                    expanded.append({
-                        "display_name": name,
-                        "base_name": "occlusion",
-                        "params": params
-                    })
-            else:
-                expanded.append({
-                    "display_name": method,
-                    "base_name": "occlusion",
-                    "params": combos[0]
+            for params in combos:
+                raw_runs.append({
+                    "base_name_display": base_name,
+                    "base_name_lower": "occlusion",
+                    "params": params
                 })
                 
         elif base_name == "Lime":
@@ -1053,27 +1029,45 @@ def expand_xai_methods_with_params(selected_methods):
                     for seg in seg_list:
                         combos.append({"n_samples": s, "perturbations_per_eval": b, "n_segments": seg})
                         
-            if len(combos) > 1:
-                for idx, params in enumerate(combos):
-                    name = f"{method}_{idx + 1}"
-                    expanded.append({
-                        "display_name": name,
-                        "base_name": "lime",
-                        "params": params
-                    })
-            else:
-                expanded.append({
-                    "display_name": method,
-                    "base_name": "lime",
-                    "params": combos[0]
+            for params in combos:
+                raw_runs.append({
+                    "base_name_display": base_name,
+                    "base_name_lower": "lime",
+                    "params": params
                 })
         else:
-            expanded.append({
-                "display_name": method,
-                "base_name": method.lower().replace("-", "_"),
+            raw_runs.append({
+                "base_name_display": base_name,
+                "base_name_lower": base_name.lower().replace("-", "_"),
                 "params": {}
             })
-    return assign_display_name_suffixes(expanded)
+            
+    # Now group and assign globally sequential numbered suffixes
+    base_counts = {}
+    for run in raw_runs:
+        bname = run["base_name_display"]
+        base_counts[bname] = base_counts.get(bname, 0) + 1
+        
+    expanded = []
+    current_indices = {}
+    for run in raw_runs:
+        bname = run["base_name_display"]
+        total_count = base_counts[bname]
+        
+        if total_count > 1:
+            idx = current_indices.get(bname, 0) + 1
+            current_indices[bname] = idx
+            display_name = f"{bname}_{idx}"
+        else:
+            display_name = bname
+            
+        expanded.append({
+            "display_name": display_name,
+            "base_name": run["base_name_lower"],
+            "params": run["params"]
+        })
+        
+    return expanded
 
 def assign_display_name_suffixes(expanded_methods):
     display_names = [m["display_name"] for m in expanded_methods]
@@ -1369,7 +1363,9 @@ def write_current_batch_results_json():
                 "task_count": len(st.session_state.task_queue),
                 "models": st.session_state.current_batch_models,
                 "input_sizes": st.session_state.current_batch_sizes,
-                "methods": st.session_state.current_batch_methods
+                "methods": st.session_state.current_batch_methods,
+                "selected_methods": st.session_state.sh_methods if st.session_state.get("sh_methods") else st.session_state.selected_methods,
+                "xai_params": st.session_state.get("sh_xai_params", {})
             },
             "environment": collect_environment_metadata(get_device_string(st.session_state.current_device_mode)),
             "started_at": st.session_state.batch_started_at,
@@ -3367,14 +3363,101 @@ if st.session_state.get("restore_config"):
     settings = restore_data.get("settings", {})
     environment = restore_data.get("environment", {})
     
+    # Restore algorithm-specific parameter values if present
+    xai_params = settings.get("xai_params", {})
+    for k, v in xai_params.items():
+        st.session_state[k] = v
+        
     st.session_state.selected_models = settings.get("models", ["resnet50"])
     
+    # Map and restore each method version individually from methods_info
     methods_map = {m.lower().replace("_", ""): m for m in xai_opts}
     restored_methods = []
-    for m in settings.get("methods", []):
-        m_norm = m.lower().replace("_", "")
-        if m_norm in methods_map:
-            restored_methods.append(methods_map[m_norm])
+    
+    # We retrieve methods_info from settings or top-level restore data
+    methods_info = settings.get("methods_info") or restore_data.get("methods_info")
+    
+    if methods_info:
+        version_counts = {}
+        for run in methods_info:
+            base_lower = run.get("base_name", "")
+            base_norm = base_lower.replace("_", "").replace("-", "")
+            
+            # Find matching base name from available XAI options
+            official_base = None
+            for m_opt in xai_opts:
+                if m_opt.lower().replace("_", "") == base_norm:
+                    official_base = m_opt
+                    break
+                    
+            if not official_base:
+                continue
+                
+            version_counts[official_base] = version_counts.get(official_base, 0) + 1
+            count = version_counts[official_base]
+            restored_name = f"{official_base}_{count}" if count > 1 else official_base
+            
+            if restored_name not in restored_methods:
+                restored_methods.append(restored_name)
+                
+            # Restore settings into session state for this restored_name
+            params = run.get("params", {})
+            if official_base == "Integrated_Gradients":
+                st.session_state[f"ig_steps_str_{restored_name}"] = str(params.get("n_steps", 50))
+                st.session_state[f"ig_internal_batch_str_{restored_name}"] = str(params.get("internal_batch_size", 2))
+                st.session_state[f"ig_baseline_mode_{restored_name}"] = params.get("baseline_mode", "Zeros (Black)")
+            elif official_base == "Gradient_Shap":
+                st.session_state[f"gs_samples_str_{restored_name}"] = str(params.get("n_samples", 10))
+                st.session_state[f"gs_stdevs_str_{restored_name}"] = str(params.get("stdevs", 0.0001))
+                st.session_state[f"gs_baseline_mode_{restored_name}"] = params.get("baseline_mode", "Zeros & Mean")
+            elif official_base == "Occlusion":
+                sliding = params.get("sliding_window_shapes", (3, 15, 15))
+                strds = params.get("strides", (3, 8, 8))
+                st.session_state[f"occlusion_window_str_{restored_name}"] = str(sliding[1] if len(sliding) > 1 else 15)
+                st.session_state[f"occlusion_stride_str_{restored_name}"] = str(strds[1] if len(strds) > 1 else 8)
+                st.session_state[f"occlusion_value_str_{restored_name}"] = str(params.get("occlude_color", 0))
+            elif official_base == "Lime":
+                st.session_state[f"lime_samples_str_{restored_name}"] = str(params.get("n_samples", 500))
+                st.session_state[f"lime_batch_str_{restored_name}"] = str(params.get("perturbations_per_eval", 10))
+                st.session_state[f"lime_segments_str_{restored_name}"] = str(params.get("n_segments", 50))
+    else:
+        # Fallback parsing for legacy configs that only have expanded current_batch_methods
+        legacy_methods = settings.get("methods", [])
+        for base in ["Integrated_Gradients", "Gradient_Shap", "Occlusion", "Lime"]:
+            has_v1 = False
+            for m in legacy_methods:
+                if m.startswith(base):
+                    import re
+                    if m == base or re.match(rf"^{base}_1(?:_\d+)?$", m):
+                        has_v1 = True
+                        break
+            if not has_v1:
+                for m in legacy_methods:
+                    if m.startswith(base) and not any(m.startswith(f"{base}_{v}") for v in [2, 3, 4, 5]):
+                        has_v1 = True
+                        break
+            if has_v1:
+                if base in methods_map.values():
+                    restored_methods.append(base)
+                
+            for v in range(2, 6):
+                for m in legacy_methods:
+                    if m.startswith(f"{base}_{v}"):
+                        restored_name = f"{base}_{v}"
+                        if restored_name not in restored_methods:
+                            restored_methods.append(restored_name)
+                        break
+                        
+        for m in legacy_methods:
+            import re
+            base_m = re.sub(r'_\d+$', '', m)
+            if base_m not in ["Integrated_Gradients", "Gradient_Shap", "Occlusion", "Lime"]:
+                base_norm = base_m.lower().replace("_", "")
+                if base_norm in methods_map:
+                    restored_name = methods_map[base_norm]
+                    if restored_name not in restored_methods:
+                        restored_methods.append(restored_name)
+                    
     st.session_state.selected_methods = restored_methods if restored_methods else ["Saliency", "Integrated_Gradients"]
     
     raw_sizes = settings.get("input_sizes") or settings.get("input_size_str") or [224]
@@ -4205,6 +4288,7 @@ def render_configure_page():
             st.session_state.sh_memory_runs = st.session_state.selected_memory_runs
             st.session_state.sh_run_order = st.session_state.selected_run_order
             st.session_state.sh_device_mode = st.session_state.selected_device_mode
+            st.session_state.sh_xai_params = {k: v for k, v in st.session_state.items() if any(prefix in k for prefix in ["ig_", "gs_", "occlusion_", "lime_"]) and any(suffix in k for suffix in ["_str", "_mode"])}
 
             batch_id = sm.start_batch()
             st.session_state.current_batch_id = batch_id
@@ -4518,13 +4602,16 @@ def render_active_run_page():
                         "settings": {
                             "models": st.session_state.current_batch_models if st.session_state.current_batch_models else st.session_state.selected_models,
                             "methods": st.session_state.current_batch_methods if st.session_state.current_batch_methods else st.session_state.selected_methods,
+                            "selected_methods": st.session_state.sh_methods if st.session_state.get("sh_methods") else st.session_state.selected_methods,
+                            "methods_info": st.session_state.get("current_batch_methods_info", []),
                             "input_sizes": st.session_state.current_batch_sizes if st.session_state.current_batch_sizes else parse_input_sizes(st.session_state.get("input_size_str", "224")),
                             "repeat_count": st.session_state.current_repeats,
                             "warmup_runs": st.session_state.current_warmups,
                             "memory_runs": st.session_state.current_memory_runs,
                             "run_order": st.session_state.current_run_order,
                             "enable_quality_metrics": st.session_state.current_enable_quality_metrics,
-                            "selected_quality_metrics": st.session_state.current_selected_quality_metrics
+                            "selected_quality_metrics": st.session_state.current_selected_quality_metrics,
+                            "xai_params": st.session_state.get("sh_xai_params", {})
                         },
                         "environment": {
                             "selected_device": st.session_state.current_device_mode
@@ -4685,7 +4772,8 @@ def render_history_page():
                             if settings:
                                 st.session_state.restore_config = {
                                     "settings": settings,
-                                    "environment": meta.get("environment", {})
+                                    "environment": meta.get("environment", {}),
+                                    "methods_info": meta.get("methods_info", [])
                                 }
                                 st.session_state.is_finished = False
                                 st.session_state.benchmark_running = False

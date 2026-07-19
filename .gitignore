@@ -16,3 +16,4 @@ gui/__pycache__/
 gui/sessions/
 gui/images/
 .streamlit/credentials.toml
+.agents/
