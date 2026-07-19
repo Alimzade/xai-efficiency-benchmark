@@ -27,8 +27,8 @@ PRESENTATION_COL_ORDER = [
     "Attribution Runtime Std (sec)",
     "Attribution Runtime Min (sec)",
     "Attribution Runtime Max (sec)",
-    ATTR_MEMORY_COL,
     "Estimated Energy Consumption (kW)",
+    ATTR_MEMORY_COL,
     "Gini Index",
     "Deletion AUC",
     "Insertion AUC",
@@ -136,7 +136,8 @@ def generate_pdf_report(batch_id, results_data, selected_methods, output_path, t
                         if res: arch_results.append(res)
                 
                 if arch_results:
-                    cols = ["Method", "Input Size (px)", "Prediction", "Warmup Runs", "Memory Runs", "Measured Runs", ATTR_RUNTIME_COL, ATTR_MEMORY_COL, "Estimated Energy Consumption (kW)"]
+                    df = presentation_df(pd.DataFrame(arch_results))
+                    cols = ["Method", "Input Size (px)", "Prediction", "Warmup Runs", "Memory Runs", "Measured Runs", ATTR_RUNTIME_COL, "Estimated Energy Consumption (kW)", ATTR_MEMORY_COL]
                     if "Gini Index" in df.columns and any(df["Gini Index"].notna()): cols.append("Gini Index")
                     if "Deletion AUC" in df.columns and any(df["Deletion AUC"].notna()): cols.append("Deletion AUC")
                     if "Insertion AUC" in df.columns and any(df["Insertion AUC"].notna()): cols.append("Insertion AUC")
@@ -218,9 +219,10 @@ def generate_pdf_report(batch_id, results_data, selected_methods, output_path, t
             if "Original Resolution" in fdf.columns: group_cols.append("Original Resolution")
             
             fdf = normalize_metric_columns(fdf)
-            agg_dict = {ATTR_RUNTIME_COL: "mean", ATTR_MEMORY_COL: "mean"}
+            agg_dict = {ATTR_RUNTIME_COL: "mean"}
             if "Estimated Energy Consumption (kW)" in fdf.columns:
                 agg_dict["Estimated Energy Consumption (kW)"] = "mean"
+            agg_dict[ATTR_MEMORY_COL] = "mean"
             summary_df = fdf.groupby(group_cols).agg(agg_dict).reset_index()
             tbl_sum = ax_sum_tbl.table(cellText=summary_df.values, colLabels=summary_df.columns, loc='center', cellLoc='center')
             tbl_sum.auto_set_font_size(False)

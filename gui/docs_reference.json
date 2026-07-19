@@ -136,6 +136,11 @@
           "name": "Peak Memory",
           "unit": "Megabytes (MB)",
           "definition": "Maximum allocated VRAM/RAM captured via PyTorch allocators or CPU process profiling."
+        },
+        {
+          "name": "Estimated Energy Consumption",
+          "unit": "Kilowatts ($kW$)",
+          "definition": "Estimated hardware energy draw calculated as: $\\text{Runtime (sec)} \\times \\text{TDP (W)} / (3600 \\times 1000)$."
         }
       ]
     },

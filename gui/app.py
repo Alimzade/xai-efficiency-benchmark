@@ -524,8 +524,8 @@ st.markdown("""
         color: var(--xai-text);
         font-weight: 750;
     }
-    /* Subtle modern styling for all tables (specifically documentation reference tables) */
-    .stApp table {
+    /* Subtle modern styling for documentation reference tables */
+    .doc-reference-table table {
         width: 100% !important;
         border-collapse: separate !important;
         border-spacing: 0 !important;
@@ -536,7 +536,7 @@ st.markdown("""
         margin-bottom: 20px !important;
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
     }
-    .stApp th {
+    .doc-reference-table th {
         background: linear-gradient(180deg, rgba(45, 212, 191, 0.12), rgba(96, 165, 250, 0.06)) !important;
         color: var(--xai-text) !important;
         font-weight: 600 !important;
@@ -545,7 +545,7 @@ st.markdown("""
         font-size: 0.85rem !important;
         text-align: left !important;
     }
-    .stApp td {
+    .doc-reference-table td {
         background-color: rgba(255, 255, 255, 0.02) !important;
         border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
         padding: 8px 12px !important;
@@ -553,30 +553,30 @@ st.markdown("""
         line-height: 1.45 !important;
         color: var(--xai-muted) !important;
     }
-    .stApp td:first-child {
+    .doc-reference-table td:first-child {
         font-weight: 600 !important;
         color: #f1f5f9 !important;
     }
-    .stApp tr:hover td {
+    .doc-reference-table tr:hover td {
         background-color: rgba(45, 212, 191, 0.05) !important;
     }
     /* Specific column widths based on column counts (using CSS selector math to keep it simple and robust) */
     /* 4-column tables (e.g. XAI methods) */
-    .stApp table th:nth-child(1):nth-last-child(4),
-    .stApp table td:nth-child(1):nth-last-child(4) { width: 18% !important; }
-    .stApp table th:nth-child(2):nth-last-child(3),
-    .stApp table td:nth-child(2):nth-last-child(3) { width: 28% !important; }
-    .stApp table th:nth-child(3):nth-last-child(2),
-    .stApp table td:nth-child(3):nth-last-child(2) { width: 14% !important; }
-    .stApp table th:nth-child(4):nth-last-child(1),
-    .stApp table td:nth-child(4):nth-last-child(1) { width: 40% !important; }
+    .doc-reference-table table th:nth-child(1):nth-last-child(4),
+    .doc-reference-table table td:nth-child(1):nth-last-child(4) { width: 18% !important; }
+    .doc-reference-table table th:nth-child(2):nth-last-child(3),
+    .doc-reference-table table td:nth-child(2):nth-last-child(3) { width: 28% !important; }
+    .doc-reference-table table th:nth-child(3):nth-last-child(2),
+    .doc-reference-table table td:nth-child(3):nth-last-child(2) { width: 14% !important; }
+    .doc-reference-table table th:nth-child(4):nth-last-child(1),
+    .doc-reference-table table td:nth-child(4):nth-last-child(1) { width: 40% !important; }
     /* 3-column tables (e.g. Models, Metrics) */
-    .stApp table th:nth-child(1):nth-last-child(3),
-    .stApp table td:nth-child(1):nth-last-child(3) { width: 25% !important; }
-    .stApp table th:nth-child(2):nth-last-child(2),
-    .stApp table td:nth-child(2):nth-last-child(2) { width: 20% !important; }
-    .stApp table th:nth-child(3):nth-last-child(1),
-    .stApp table td:nth-child(3):nth-last-child(1) { width: 55% !important; }
+    .doc-reference-table table th:nth-child(1):nth-last-child(3),
+    .doc-reference-table table td:nth-child(1):nth-last-child(3) { width: 25% !important; }
+    .doc-reference-table table th:nth-child(2):nth-last-child(2),
+    .doc-reference-table table td:nth-child(2):nth-last-child(2) { width: 20% !important; }
+    .doc-reference-table table th:nth-child(3):nth-last-child(1),
+    .doc-reference-table table td:nth-child(3):nth-last-child(1) { width: 55% !important; }
     div.stButton button,
     div.stDownloadButton button {
         border-radius: 8px !important;
@@ -975,8 +975,8 @@ PRESENTATION_COL_ORDER = [
     "Attribution Runtime Std (sec)",
     "Attribution Runtime Min (sec)",
     "Attribution Runtime Max (sec)",
-    ATTR_MEMORY_COL,
     "Estimated Energy Consumption (kW)",
+    ATTR_MEMORY_COL,
     "Gini Index",
     "Deletion AUC",
     "Insertion AUC",
@@ -1660,7 +1660,7 @@ def style_dataframe(df, raw_precision=False):
         "Std Across Images (sec)", "Repeat Run Std (sec)",
         "Mean Peak Attribution Memory (MB)", "Peak Memory (MB)", "Peak Attribution Memory (MB)",
         "Std Peak Memory (MB)", "Peak Memory Std (MB)", "Attribution Memory Std (MB)", "Repeat Memory Std (MB)",
-        "Estimated Energy Consumption (kW)",
+        "Estimated Energy Consumption (kW)", "Mean Estimated Energy Consumption (kW)",
         "Gini Index", "Mean Gini Index",
         "Deletion AUC", "Mean Deletion AUC",
         "Insertion AUC", "Mean Insertion AUC",
@@ -2030,12 +2030,12 @@ def image_size_summary(df):
 
     agg_ops = {
         "Mean Attribution Runtime (sec)": (runtime_col, "mean"),
-        "Std Across Images (sec)": (runtime_col, "std"),
-        "Mean Peak Attribution Memory (MB)": (memory_col, "mean"),
-        "Std Peak Memory (MB)": (memory_col, "std"),
+        "Attribution Runtime Std (sec)": (runtime_col, "std"),
     }
     if "Estimated Energy Consumption (kW)" in df.columns and df["Estimated Energy Consumption (kW)"].notna().any():
         agg_ops["Mean Estimated Energy Consumption (kW)"] = ("Estimated Energy Consumption (kW)", "mean")
+    agg_ops["Mean Peak Attribution Memory (MB)"] = (memory_col, "mean")
+    agg_ops["Peak Memory Std (MB)"] = (memory_col, "std")
     agg_ops["Samples"] = (runtime_col, "count")
 
     summary = df.groupby(["Input Size (px)"]).agg(**agg_ops).reset_index()
@@ -2049,7 +2049,7 @@ def plot_image_size_runtime_scaling(summary_df):
     ax.errorbar(
         summary_df["Resolution"],
         summary_df["Mean Attribution Runtime (sec)"],
-        yerr=summary_df["Std Across Images (sec)"],
+        yerr=summary_df["Attribution Runtime Std (sec)"],
         marker="o",
         linestyle="-",
         linewidth=2,
@@ -2072,7 +2072,7 @@ def plot_image_size_memory_scaling(summary_df):
     ax.errorbar(
         summary_df["Resolution"],
         summary_df["Mean Peak Attribution Memory (MB)"],
-        yerr=summary_df["Std Peak Memory (MB)"],
+        yerr=summary_df["Peak Memory Std (MB)"],
         marker="o",
         linestyle="-",
         linewidth=2,
@@ -2105,11 +2105,11 @@ def method_detail_summary(df):
     agg_dict = {
         "Mean Attribution Runtime (sec)": (runtime_col, "mean"),
         "Attribution Runtime Std (sec)": (std_runtime_src, std_runtime_func),
-        "Mean Peak Attribution Memory (MB)": (memory_col, "mean"),
-        "Peak Memory Std (MB)": (std_mem_src, std_mem_func),
     }
     if "Estimated Energy Consumption (kW)" in df.columns and df["Estimated Energy Consumption (kW)"].notna().any():
         agg_dict["Mean Estimated Energy Consumption (kW)"] = ("Estimated Energy Consumption (kW)", "mean")
+    agg_dict["Mean Peak Attribution Memory (MB)"] = (memory_col, "mean")
+    agg_dict["Peak Memory Std (MB)"] = (std_mem_src, std_mem_func)
     if "Gini Index" in df.columns and df["Gini Index"].notna().any():
         agg_dict["Mean Gini Index"] = ("Gini Index", "mean")
     if "Deletion AUC" in df.columns and df["Deletion AUC"].notna().any():
@@ -2266,11 +2266,11 @@ def render_analytics_sections(fdf, result_groups):
         agg_dict_config = {
             "Mean Attribution Runtime (sec)": (runtime_col, "mean"),
             "Attribution Runtime Std (sec)": (std_runtime_src, std_runtime_func),
-            "Mean Peak Attribution Memory (MB)": (memory_col, "mean"),
-            "Peak Memory Std (MB)": (std_mem_src, std_mem_func),
         }
         if "Estimated Energy Consumption (kW)" in fdf.columns and fdf["Estimated Energy Consumption (kW)"].notna().any():
             agg_dict_config["Mean Estimated Energy Consumption (kW)"] = ("Estimated Energy Consumption (kW)", "mean")
+        agg_dict_config["Mean Peak Attribution Memory (MB)"] = (memory_col, "mean")
+        agg_dict_config["Peak Memory Std (MB)"] = (std_mem_src, std_mem_func)
         if "Gini Index" in fdf.columns and fdf["Gini Index"].notna().any():
             agg_dict_config["Mean Gini Index"] = ("Gini Index", "mean")
         if "Deletion AUC" in fdf.columns and fdf["Deletion AUC"].notna().any():
@@ -2445,10 +2445,10 @@ def render_analytics_sections(fdf, result_groups):
                 # Performance comparison table
                 model_agg_dict = {
                     "Mean Attribution Runtime (sec)": (runtime_col, "mean"),
-                    "Mean Peak Attribution Memory (MB)": (memory_col, "mean"),
                 }
                 if "Estimated Energy Consumption (kW)" in fdf.columns and fdf["Estimated Energy Consumption (kW)"].notna().any():
                     model_agg_dict["Mean Estimated Energy Consumption (kW)"] = ("Estimated Energy Consumption (kW)", "mean")
+                model_agg_dict["Mean Peak Attribution Memory (MB)"] = (memory_col, "mean")
                 if "Gini Index" in fdf.columns and fdf["Gini Index"].notna().any():
                     model_agg_dict["Mean Gini Index"] = ("Gini Index", "mean")
                 if "Deletion AUC" in fdf.columns and fdf["Deletion AUC"].notna().any():
@@ -3399,7 +3399,7 @@ def render_result_group(group, selected_methods, expanded=True, key_suffix=""):
             
             if arch_results:
                 raw_df = presentation_df(pd.DataFrame(arch_results))
-                display_cols = [c for c in ["Method", "Resolution", ATTR_RUNTIME_COL, "Attribution Runtime Std (sec)", ATTR_MEMORY_COL, "Attribution Memory Std (MB)", "Estimated Energy Consumption (kW)", "Gini Index", "Deletion AUC", "Insertion AUC", "Infidelity", "Quality Eval Time (sec)"] if c in raw_df.columns]
+                display_cols = [c for c in ["Method", "Resolution", ATTR_RUNTIME_COL, "Attribution Runtime Std (sec)", "Estimated Energy Consumption (kW)", ATTR_MEMORY_COL, "Attribution Memory Std (MB)", "Gini Index", "Deletion AUC", "Insertion AUC", "Infidelity", "Quality Eval Time (sec)"] if c in raw_df.columns]
                 if "Status" in raw_df.columns and raw_df["Status"].astype(str).str.startswith("Failed").any():
                     display_cols.append("Status")
                 st.table(style_dataframe(raw_df[display_cols], raw_precision=True))
@@ -5291,7 +5291,7 @@ def render_documentation_page():
             table_md = "| Algorithm | Mathematical Formulation | Complexity | Key Characteristics & Properties |\n| :--- | :--- | :--- | :--- |\n"
             for item in group.get("methods", []):
                 table_md += f"| **{item.get('name', '')}** | {item.get('formulation', '')} | {item.get('complexity', '')} | {item.get('characteristics', '')} |\n"
-            st.markdown(table_md)
+            st.markdown(f'<div class="doc-reference-table">\n\n{table_md}\n\n</div>', unsafe_allow_html=True)
 
     # Section 2: Model Architectures
     with st.expander("🏗️ Vision Model Architectures", expanded=False):
@@ -5301,7 +5301,7 @@ def render_documentation_page():
             table_md = "| Model Backbone | Parameters (M) | Design Paradigm & Key Innovations |\n| :--- | :--- | :--- |\n"
             for item in group.get("models", []):
                 table_md += f"| **{item.get('name', '')}** | {item.get('params', '')} | {item.get('characteristics', '')} |\n"
-            st.markdown(table_md)
+            st.markdown(f'<div class="doc-reference-table">\n\n{table_md}\n\n</div>', unsafe_allow_html=True)
 
     # Section 3: Benchmark Metrics
     with st.expander("📊 Evaluation Metrics", expanded=False):
@@ -5311,7 +5311,7 @@ def render_documentation_page():
             table_md = "| Metric Name | Measurement Unit | Definition & Evaluation Logic |\n| :--- | :--- | :--- |\n"
             for item in group.get("metrics", []):
                 table_md += f"| **{item.get('name', '')}** | {item.get('unit', '')} | {item.get('definition', '')} |\n"
-            st.markdown(table_md)
+            st.markdown(f'<div class="doc-reference-table">\n\n{table_md}\n\n</div>', unsafe_allow_html=True)
 
 # --- TABS WORKSPACE ---
 tab1, tab2, tab3, tab4 = st.tabs([
