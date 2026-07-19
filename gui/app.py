@@ -3978,7 +3978,7 @@ def render_configure_page():
                 background: linear-gradient(135deg, rgba(96, 165, 250, 0.14) 0%, rgba(45, 212, 191, 0.08) 100%),
                             repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.015) 0px, rgba(255, 255, 255, 0.015) 2px, transparent 2px, transparent 10px) !important;
                 transition: border-color 0.2s ease !important;
-                margin-top: 5px !important;
+                margin-top: 0px !important;
             }}
             .hw-status-container:hover {{
                 border-color: rgba(45, 212, 191, 0.35) !important;
@@ -3987,9 +3987,9 @@ def render_configure_page():
                 display: flex !important;
                 justify-content: space-between !important;
                 align-items: center !important;
-                padding: 0.75rem 0.9rem !important;
-                font-weight: 600 !important;
-                font-size: 0.85rem !important;
+                padding: 0.5rem 1rem !important;
+                font-weight: 400 !important;
+                font-size: 0.875rem !important;
                 color: var(--xai-text) !important;
                 cursor: pointer !important;
                 list-style: none !important;
@@ -4001,15 +4001,15 @@ def render_configure_page():
                 transform: rotate(180deg) !important;
             }}
             .hw-status-details {{
-                padding: 0.9rem !important;
+                padding: 1rem !important;
                 border-top: 1px solid var(--xai-border) !important;
-                font-size: 0.85rem !important;
+                font-size: 0.875rem !important;
                 color: var(--xai-muted) !important;
                 background: rgba(11, 18, 27, 0.45) !important;
             }}
             .hw-status-details p {{
                 margin: 0 0 6px 0 !important;
-                line-height: 1.4 !important;
+                line-height: 1.6 !important;
             }}
             .hw-status-details p:last-child {{
                 margin-bottom: 0 !important;
