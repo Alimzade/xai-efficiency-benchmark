@@ -4072,9 +4072,9 @@ def render_configure_page():
         
     details_content = "\n".join(details_lines)
 
-    # Row 4
-    row4_left, row4_right = st.columns([2, 1])
-    with row4_left:
+    # Bottom Layout Columns (isolating expansion on the left and right)
+    bottom_left, bottom_right = st.columns([2, 1])
+    with bottom_left:
         if modifiable_selected:
             with st.expander("⚙️ Algorithm Parameter Tuning", expanded=False):
                 st.markdown('<div style="font-size: 0.8em; color: var(--xai-muted); margin-bottom: 12px;">Customize algorithm inputs below. Use comma-separated values (e.g. <b>50, 100</b>) to test multiple parameter variations.</div>', unsafe_allow_html=True)
@@ -4188,76 +4188,6 @@ def render_configure_page():
                                 help="Target number of superpixels for SLIC segmentation.\n\n- Default: 50\n- Fewer superpixels speeds up LIME."
                             )
 
-    with row4_right:
-        status_html = f"""
-        <style>
-            [data-testid="stExpander"] details summary:hover,
-            .hw-status-summary:hover,
-            .meas-details-summary:hover {{
-                background-color: rgba(255, 255, 255, 0.05) !important;
-            }}
-            .hw-status-container {{
-                border: 1px solid var(--xai-border) !important;
-                border-radius: 8px !important;
-                overflow: hidden !important;
-                background: linear-gradient(135deg, rgba(96, 165, 250, 0.14) 0%, rgba(45, 212, 191, 0.08) 100%),
-                            repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.015) 0px, rgba(255, 255, 255, 0.015) 2px, transparent 2px, transparent 10px) !important;
-                transition: border-color 0.2s ease !important;
-                margin-top: 0px !important;
-                margin-bottom: 16px !important;
-            }}
-            .hw-status-container:hover {{
-                border-color: rgba(45, 212, 191, 0.35) !important;
-            }}
-            .hw-status-summary {{
-                display: flex !important;
-                justify-content: space-between !important;
-                align-items: center !important;
-                padding: 0.5rem 1rem !important;
-                font-weight: 400 !important;
-                font-size: 0.875rem !important;
-                color: var(--xai-text) !important;
-                cursor: pointer !important;
-                list-style: none !important;
-            }}
-            .hw-status-summary::-webkit-details-marker {{
-                display: none !important;
-            }}
-            .hw-status-container[open] .hw-chevron {{
-                transform: rotate(180deg) !important;
-            }}
-            .hw-status-details {{
-                padding: 1rem !important;
-                border-top: 1px solid var(--xai-border) !important;
-                font-size: 0.875rem !important;
-                color: var(--xai-muted) !important;
-                background: rgba(11, 18, 27, 0.45) !important;
-            }}
-            .hw-status-details p {{
-                margin: 0 0 6px 0 !important;
-                line-height: 1.6 !important;
-            }}
-            .hw-status-details p:last-child {{
-                margin-bottom: 0 !important;
-            }}
-        </style>
-        <details class="hw-status-container">
-            <summary class="hw-status-summary">
-                <span>{status_text}</span>
-                <span class="hw-chevron" style="transition: transform 0.2s; font-size: 0.75rem; display: inline-block;">▼</span>
-            </summary>
-            <div class="hw-status-details">
-                <p><strong>Hardware & Environment Details:</strong></p>
-                {details_content}
-            </div>
-        </details>
-        """
-        clean_html = "\n".join([line.strip() for line in status_html.split("\n") if line.strip()])
-        st.markdown(clean_html, unsafe_allow_html=True)
-
-    # Row 5
-    row5_left, row5_right = st.columns([2, 1])
-    with row5_left:
         # Measurement Details collapsible below parameters inside left column
         meas_details_html = """
         <style>
@@ -4327,7 +4257,73 @@ def render_configure_page():
         """
         st.markdown("\n".join([line.strip() for line in meas_details_html.split("\n") if line.strip()]), unsafe_allow_html=True)
 
-    with row5_right:
+    with bottom_right:
+        status_html = f"""
+        <style>
+            [data-testid="stExpander"] details summary:hover,
+            .hw-status-summary:hover,
+            .meas-details-summary:hover {{
+                background-color: rgba(255, 255, 255, 0.05) !important;
+            }}
+            .hw-status-container {{
+                border: 1px solid var(--xai-border) !important;
+                border-radius: 8px !important;
+                overflow: hidden !important;
+                background: linear-gradient(135deg, rgba(96, 165, 250, 0.14) 0%, rgba(45, 212, 191, 0.08) 100%),
+                            repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.015) 0px, rgba(255, 255, 255, 0.015) 2px, transparent 2px, transparent 10px) !important;
+                transition: border-color 0.2s ease !important;
+                margin-top: 0px !important;
+                margin-bottom: 16px !important;
+            }}
+            .hw-status-container:hover {{
+                border-color: rgba(45, 212, 191, 0.35) !important;
+            }}
+            .hw-status-summary {{
+                display: flex !important;
+                justify-content: space-between !important;
+                align-items: center !important;
+                padding: 0.5rem 1rem !important;
+                font-weight: 400 !important;
+                font-size: 0.875rem !important;
+                color: var(--xai-text) !important;
+                cursor: pointer !important;
+                list-style: none !important;
+            }}
+            .hw-status-summary::-webkit-details-marker {{
+                display: none !important;
+            }}
+            .hw-status-container[open] .hw-chevron {{
+                transform: rotate(180deg) !important;
+            }}
+            .hw-status-details {{
+                padding: 1rem !important;
+                border-top: 1px solid var(--xai-border) !important;
+                font-size: 0.875rem !important;
+                color: var(--xai-muted) !important;
+                background: rgba(11, 18, 27, 0.45) !important;
+            }}
+            .hw-status-details p {{
+                margin: 0 0 6px 0 !important;
+                line-height: 1.6 !important;
+            }}
+            .hw-status-details p:last-child {{
+                margin-bottom: 0 !important;
+            }}
+        </style>
+        <details class="hw-status-container">
+            <summary class="hw-status-summary">
+                <span>{status_text}</span>
+                <span class="hw-chevron" style="transition: transform 0.2s; font-size: 0.75rem; display: inline-block;">▼</span>
+            </summary>
+            <div class="hw-status-details">
+                <p><strong>Hardware & Environment Details:</strong></p>
+                {details_content}
+            </div>
+        </details>
+        """
+        clean_html = "\n".join([line.strip() for line in status_html.split("\n") if line.strip()])
+        st.markdown(clean_html, unsafe_allow_html=True)
+
         if is_gpu:
             with st.container():
                 st.number_input(
