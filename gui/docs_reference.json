@@ -139,7 +139,7 @@
         },
         {
           "name": "Estimated Energy Consumption",
-          "unit": "Kilowatts ($kW$)",
+          "unit": "Kilowatt-hours ($kWh$)",
           "definition": "Estimated hardware energy draw calculated as: $\\text{Runtime (sec)} \\times \\text{TDP (W)} / (3600 \\times 1000)$."
         }
       ]

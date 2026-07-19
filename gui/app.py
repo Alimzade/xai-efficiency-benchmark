@@ -975,7 +975,7 @@ PRESENTATION_COL_ORDER = [
     "Attribution Runtime Std (sec)",
     "Attribution Runtime Min (sec)",
     "Attribution Runtime Max (sec)",
-    "Estimated Energy Consumption (kW)",
+    "Estimated Energy Consumption (kWh)",
     ATTR_MEMORY_COL,
     "Gini Index",
     "Deletion AUC",
@@ -1577,8 +1577,8 @@ def resume_batch(batch_id):
                                 rt = r.get("Attribution Runtime (sec)")
                                 if rt is None:
                                     rt = r.get("Runtime (sec)")
-                                if rt is not None and ("Estimated Energy Consumption (kW)" not in r or r["Estimated Energy Consumption (kW)"] is None or pd.isna(r["Estimated Energy Consumption (kW)"])):
-                                    r["Estimated Energy Consumption (kW)"] = round((float(rt) * float(res_tdp_w)) / (3600.0 * 1000.0), 8)
+                                if rt is not None and ("Estimated Energy Consumption (kWh)" not in r or r["Estimated Energy Consumption (kWh)"] is None or pd.isna(r["Estimated Energy Consumption (kWh)"])):
+                                    r["Estimated Energy Consumption (kWh)"] = round((float(rt) * float(res_tdp_w)) / (3600.0 * 1000.0), 8)
                             except Exception:
                                 pass
                         
@@ -1660,7 +1660,7 @@ def style_dataframe(df, raw_precision=False):
         "Std Across Images (sec)", "Repeat Run Std (sec)",
         "Mean Peak Attribution Memory (MB)", "Peak Memory (MB)", "Peak Attribution Memory (MB)",
         "Std Peak Memory (MB)", "Peak Memory Std (MB)", "Attribution Memory Std (MB)", "Repeat Memory Std (MB)",
-        "Estimated Energy Consumption (kW)", "Mean Estimated Energy Consumption (kW)",
+        "Estimated Energy Consumption (kWh)", "Mean Estimated Energy Consumption (kWh)",
         "Gini Index", "Mean Gini Index",
         "Deletion AUC", "Mean Deletion AUC",
         "Insertion AUC", "Mean Insertion AUC",
@@ -1687,14 +1687,14 @@ def style_dataframe(df, raw_precision=False):
                     return f"{int(round(v))} x {int(round(v))}"
                 elif col_name in ["Input Size (px)", "Samples", "Methods", "Resolutions", "Images", "Repeats", "Total Attribution Runs"]:
                     return f"{int(round(v))}"
-                elif "kW" in col_name or "Energy" in col_name:
+                elif "kWh" in col_name or "Energy" in col_name:
                     return f"{v:.8f}".rstrip('0').rstrip('.')
                 s = f"{v:.6f}".rstrip('0').rstrip('.')
                 return s if s else "0"
             else:
                 if "MB" in col_name or col_name in [ATTR_MEMORY_COL, "Mean Peak Attribution Memory (MB)", "Std Peak Memory (MB)", "Peak Memory Std (MB)", "Attribution Memory Std (MB)"]:
                     return f"{v:.2f}"
-                elif "kW" in col_name or "Energy" in col_name:
+                elif "kWh" in col_name or "Energy" in col_name:
                     return f"{v:.8f}".rstrip('0').rstrip('.')
                 elif "sec" in col_name or "Infidelity" in col_name or col_name in ["Gini Index", "Mean Gini Index", "Deletion AUC", "Mean Deletion AUC", "Insertion AUC", "Mean Insertion AUC"]:
                     return f"{v:.4f}"
@@ -2032,8 +2032,8 @@ def image_size_summary(df):
         "Mean Attribution Runtime (sec)": (runtime_col, "mean"),
         "Attribution Runtime Std (sec)": (runtime_col, "std"),
     }
-    if "Estimated Energy Consumption (kW)" in df.columns and df["Estimated Energy Consumption (kW)"].notna().any():
-        agg_ops["Mean Estimated Energy Consumption (kW)"] = ("Estimated Energy Consumption (kW)", "mean")
+    if "Estimated Energy Consumption (kWh)" in df.columns and df["Estimated Energy Consumption (kWh)"].notna().any():
+        agg_ops["Mean Estimated Energy Consumption (kWh)"] = ("Estimated Energy Consumption (kWh)", "mean")
     agg_ops["Mean Peak Attribution Memory (MB)"] = (memory_col, "mean")
     agg_ops["Peak Memory Std (MB)"] = (memory_col, "std")
     agg_ops["Samples"] = (runtime_col, "count")
@@ -2106,8 +2106,8 @@ def method_detail_summary(df):
         "Mean Attribution Runtime (sec)": (runtime_col, "mean"),
         "Attribution Runtime Std (sec)": (std_runtime_src, std_runtime_func),
     }
-    if "Estimated Energy Consumption (kW)" in df.columns and df["Estimated Energy Consumption (kW)"].notna().any():
-        agg_dict["Mean Estimated Energy Consumption (kW)"] = ("Estimated Energy Consumption (kW)", "mean")
+    if "Estimated Energy Consumption (kWh)" in df.columns and df["Estimated Energy Consumption (kWh)"].notna().any():
+        agg_dict["Mean Estimated Energy Consumption (kWh)"] = ("Estimated Energy Consumption (kWh)", "mean")
     agg_dict["Mean Peak Attribution Memory (MB)"] = (memory_col, "mean")
     agg_dict["Peak Memory Std (MB)"] = (std_mem_src, std_mem_func)
     if "Gini Index" in df.columns and df["Gini Index"].notna().any():
@@ -2267,8 +2267,8 @@ def render_analytics_sections(fdf, result_groups):
             "Mean Attribution Runtime (sec)": (runtime_col, "mean"),
             "Attribution Runtime Std (sec)": (std_runtime_src, std_runtime_func),
         }
-        if "Estimated Energy Consumption (kW)" in fdf.columns and fdf["Estimated Energy Consumption (kW)"].notna().any():
-            agg_dict_config["Mean Estimated Energy Consumption (kW)"] = ("Estimated Energy Consumption (kW)", "mean")
+        if "Estimated Energy Consumption (kWh)" in fdf.columns and fdf["Estimated Energy Consumption (kWh)"].notna().any():
+            agg_dict_config["Mean Estimated Energy Consumption (kWh)"] = ("Estimated Energy Consumption (kWh)", "mean")
         agg_dict_config["Mean Peak Attribution Memory (MB)"] = (memory_col, "mean")
         agg_dict_config["Peak Memory Std (MB)"] = (std_mem_src, std_mem_func)
         if "Gini Index" in fdf.columns and fdf["Gini Index"].notna().any():
@@ -2446,8 +2446,8 @@ def render_analytics_sections(fdf, result_groups):
                 model_agg_dict = {
                     "Mean Attribution Runtime (sec)": (runtime_col, "mean"),
                 }
-                if "Estimated Energy Consumption (kW)" in fdf.columns and fdf["Estimated Energy Consumption (kW)"].notna().any():
-                    model_agg_dict["Mean Estimated Energy Consumption (kW)"] = ("Estimated Energy Consumption (kW)", "mean")
+                if "Estimated Energy Consumption (kWh)" in fdf.columns and fdf["Estimated Energy Consumption (kWh)"].notna().any():
+                    model_agg_dict["Mean Estimated Energy Consumption (kWh)"] = ("Estimated Energy Consumption (kWh)", "mean")
                 model_agg_dict["Mean Peak Attribution Memory (MB)"] = (memory_col, "mean")
                 if "Gini Index" in fdf.columns and fdf["Gini Index"].notna().any():
                     model_agg_dict["Mean Gini Index"] = ("Gini Index", "mean")
@@ -3399,7 +3399,7 @@ def render_result_group(group, selected_methods, expanded=True, key_suffix=""):
             
             if arch_results:
                 raw_df = presentation_df(pd.DataFrame(arch_results))
-                display_cols = [c for c in ["Method", "Resolution", ATTR_RUNTIME_COL, "Attribution Runtime Std (sec)", "Estimated Energy Consumption (kW)", ATTR_MEMORY_COL, "Attribution Memory Std (MB)", "Gini Index", "Deletion AUC", "Insertion AUC", "Infidelity", "Quality Eval Time (sec)"] if c in raw_df.columns]
+                display_cols = [c for c in ["Method", "Resolution", ATTR_RUNTIME_COL, "Attribution Runtime Std (sec)", "Estimated Energy Consumption (kWh)", ATTR_MEMORY_COL, "Attribution Memory Std (MB)", "Gini Index", "Deletion AUC", "Insertion AUC", "Infidelity", "Quality Eval Time (sec)"] if c in raw_df.columns]
                 if "Status" in raw_df.columns and raw_df["Status"].astype(str).str.startswith("Failed").any():
                     display_cols.append("Status")
                 st.table(style_dataframe(raw_df[display_cols], raw_precision=True))
@@ -4927,8 +4927,8 @@ def render_active_run_page():
                             rt = r.get("Attribution Runtime (sec)")
                             if rt is None:
                                 rt = r.get("Runtime (sec)")
-                            if rt is not None and ("Estimated Energy Consumption (kW)" not in r or r["Estimated Energy Consumption (kW)"] is None or pd.isna(r["Estimated Energy Consumption (kW)"])):
-                                r["Estimated Energy Consumption (kW)"] = round((float(rt) * float(live_tdp_w)) / (3600.0 * 1000.0), 8)
+                            if rt is not None and ("Estimated Energy Consumption (kWh)" not in r or r["Estimated Energy Consumption (kWh)"] is None or pd.isna(r["Estimated Energy Consumption (kWh)"])):
+                                r["Estimated Energy Consumption (kWh)"] = round((float(rt) * float(live_tdp_w)) / (3600.0 * 1000.0), 8)
                         except Exception:
                             pass
 
@@ -5136,8 +5136,8 @@ def render_history_page():
                                     rt = r.get("Attribution Runtime (sec)")
                                     if rt is None:
                                         rt = r.get("Runtime (sec)")
-                                    if rt is not None and ("Estimated Energy Consumption (kW)" not in r or r["Estimated Energy Consumption (kW)"] is None or pd.isna(r["Estimated Energy Consumption (kW)"])):
-                                        r["Estimated Energy Consumption (kW)"] = round((float(rt) * float(h_tdp_w)) / (3600.0 * 1000.0), 8)
+                                    if rt is not None and ("Estimated Energy Consumption (kWh)" not in r or r["Estimated Energy Consumption (kWh)"] is None or pd.isna(r["Estimated Energy Consumption (kWh)"])):
+                                        r["Estimated Energy Consumption (kWh)"] = round((float(rt) * float(h_tdp_w)) / (3600.0 * 1000.0), 8)
                                 except Exception:
                                     pass
 
