@@ -75,6 +75,7 @@ While the interface resides in the `gui/` folder, it strictly depends on the fol
 *   **Benchmark Precision & Outliers**: Warmup runs are excluded from statistics. Timed repeats measure hardware duration using device synchronization (CUDA/MPS) and record median runtime to avoid background process spikes.
 *   **Memory Tracking**: GPU memory (CUDA/MPS) is tracked directly by PyTorch allocators. CPU memory samples system RAM every 100 ms, which may miss short memory spikes for fast runs under 100 ms.
 *   **Cache Cleanup & Crash Prevention**: Memory caches (CUDA/MPS) are cleared between runs to isolate methods. Heavy methods (like Integrated Gradients) run in small mini-batches to prevent Out-Of-Memory GPU crashes.
+*   **Energy Estimation & TDP Limitations**: Estimated energy consumption is calculated as: `Energy (Wh) = Runtime (sec) * TDP (Watts) / 3600`. Modern computer hardware lacks standard, low-overhead, and cross-platform APIs to measure actual power consumption dynamically in real-time. Because of this, obtaining a direct, reliable reading of dynamic power draw for short-lived executions (especially sub-second runs that finish before sensors can sample) is not possible. Therefore, Thermal Design Power (TDP) serves as a standardized, constant proxy scaling factor to compare relative power and carbon footprints across varying hardware configurations.
 
 ---
 
