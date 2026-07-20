@@ -622,21 +622,24 @@ st.markdown("""
         border: 1px solid rgba(148, 163, 184, 0.12);
     }
     [data-testid="stExpander"] {
-        background: rgba(255, 255, 255, 0.045);
+        background: rgba(11, 18, 27, 0.25) !important;
         border: 1px solid var(--xai-border) !important;
-        border-radius: 8px;
-        overflow: hidden;
+        border-radius: 8px !important;
+        overflow: hidden !important;
         margin-top: 0px !important;
         margin-bottom: 0px !important;
         transition: border-color 0.2s ease !important;
     }
-    [data-testid="stExpander"] details {
-        border: none !important;
-    }
     [data-testid="stExpander"]:hover {
         border-color: rgba(96, 165, 250, 0.3) !important;
     }
+    [data-testid="stExpander"] details {
+        border: none !important;
+        background: transparent !important;
+    }
     [data-testid="stExpander"] details summary {
+        padding: 0.6rem 1rem !important;
+        background: rgba(255, 255, 255, 0.04) !important;
         transition: background-color 0.2s ease !important;
     }
     [data-testid="stExpander"] details summary:hover {
@@ -647,6 +650,14 @@ st.markdown("""
     [data-testid="stExpander"] details summary span {
         color: var(--xai-text) !important;
         font-size: 0.9rem !important;
+        font-weight: 600 !important;
+    }
+    [data-testid="stExpander"] details[open] summary {
+        border-bottom: 1px solid var(--xai-border) !important;
+    }
+    [data-testid="stExpander"] details [data-testid="stExpanderDetails"] {
+        padding: 1rem !important;
+        background: rgba(11, 18, 27, 0.45) !important;
     }
     /* Custom TDP override card styled with greenish gradient and pattern */
     div[data-testid="stVerticalBlock"]:has(> div[class*="st-key-custom_cpu_tdp"]),
@@ -931,6 +942,36 @@ st.markdown("""
         font-size: 1.25rem !important;
         line-height: 1 !important;
     }
+    /* Disabled multiselect tags/circles turned-off styling */
+    [data-testid="stMultiSelect"]:has(input:disabled) [data-baseweb="tag"],
+    [data-baseweb="select"]:has(input:disabled) [data-baseweb="tag"],
+    div[aria-disabled="true"] [data-baseweb="tag"] {
+        background-color: rgba(255, 255, 255, 0.035) !important;
+        border: 1px solid rgba(148, 163, 184, 0.15) !important;
+        color: rgba(229, 237, 246, 0.65) !important;
+        opacity: 0.75 !important;
+        box-shadow: none !important;
+    }
+    
+    [data-testid="stMultiSelect"]:has(input:disabled) [data-baseweb="select"] > div {
+        background-color: rgba(15, 23, 42, 0.25) !important;
+        border-color: rgba(148, 163, 184, 0.12) !important;
+    }
+    
+    [data-testid="stMultiSelect"]:has(input:disabled) label {
+        color: rgba(148, 163, 184, 0.65) !important;
+    }
+
+    /* Turned-off toggle switch circle & track */
+    [data-testid="stToggle"] input:not(:checked) + div {
+        background-color: rgba(30, 41, 59, 0.8) !important;
+        border: 1px solid rgba(148, 163, 184, 0.2) !important;
+    }
+    [data-testid="stToggle"] input:not(:checked) + div > div {
+        background-color: #94a3b8 !important;
+        box-shadow: none !important;
+    }
+
     /* Align nested columns with their parent's left boundary */
     div[data-testid="column"] div[data-testid="stHorizontalBlock"] {
         margin-left: -12px !important;
@@ -3451,7 +3492,7 @@ if 'selected_repeats' not in st.session_state: st.session_state.selected_repeats
 if 'selected_memory_runs' not in st.session_state: st.session_state.selected_memory_runs = 1
 if 'selected_run_order' not in st.session_state: st.session_state.selected_run_order = "Balanced"
 if 'enable_quality_metrics' not in st.session_state: st.session_state.enable_quality_metrics = False
-if 'selected_quality_metrics' not in st.session_state: st.session_state.selected_quality_metrics = []
+if 'selected_quality_metrics' not in st.session_state: st.session_state.selected_quality_metrics = ["Gini Index (Sparsity)", "Deletion AUC", "Insertion AUC", "Infidelity"]
 has_cuda = torch.cuda.is_available()
 has_mps = hasattr(torch.backends, "mps") and torch.backends.mps.is_available()
 default_device_mode = "CPU"
@@ -3466,7 +3507,7 @@ if 'current_warmups' not in st.session_state: st.session_state.current_warmups =
 if 'current_repeats' not in st.session_state: st.session_state.current_repeats = 5
 if 'current_memory_runs' not in st.session_state: st.session_state.current_memory_runs = 1
 if 'current_enable_quality_metrics' not in st.session_state: st.session_state.current_enable_quality_metrics = False
-if 'current_selected_quality_metrics' not in st.session_state: st.session_state.current_selected_quality_metrics = ["Gini Index (Sparsity)"]
+if 'current_selected_quality_metrics' not in st.session_state: st.session_state.current_selected_quality_metrics = ["Gini Index (Sparsity)", "Deletion AUC", "Insertion AUC", "Infidelity"]
 if 'current_page' not in st.session_state: st.session_state.current_page = "Configure"
 
 if 'custom_cpu_tdp' not in st.session_state: st.session_state.custom_cpu_tdp = None
@@ -3627,7 +3668,7 @@ if st.session_state.get("restore_config"):
     st.session_state.selected_memory_runs = settings.get("memory_runs", 1)
     st.session_state.selected_run_order = settings.get("run_order", "Balanced")
     st.session_state.enable_quality_metrics = settings.get("enable_quality_metrics", False)
-    st.session_state.selected_quality_metrics = settings.get("selected_quality_metrics", ["Gini Index (Sparsity)"])
+    st.session_state.selected_quality_metrics = settings.get("selected_quality_metrics") or ["Gini Index (Sparsity)", "Deletion AUC", "Insertion AUC", "Infidelity"]
     
     env_dev = environment.get("selected_device")
     if env_dev:
@@ -4185,9 +4226,30 @@ def render_configure_page():
     # Bottom Layout Columns (isolating expansion on the left and right)
     bottom_left, bottom_right = st.columns([2, 1])
     with bottom_left:
+        # Track tunable methods set and auto-open expander when a new tunable algorithm is added
+        current_tunable_set = set(modifiable_selected) if modifiable_selected else set()
+        prev_tunable_set = st.session_state.get("prev_tunable_set")
+        
+        if "param_tuning_expander_ver" not in st.session_state:
+            st.session_state.param_tuning_expander_ver = 0
+        if "param_tuning_is_open" not in st.session_state:
+            st.session_state.param_tuning_is_open = True
+
+        if prev_tunable_set is None:
+            new_tunable_added = bool(current_tunable_set)
+        else:
+            new_tunable_added = bool(current_tunable_set - prev_tunable_set)
+
+        st.session_state.prev_tunable_set = current_tunable_set
+
+        if new_tunable_added:
+            st.session_state.param_tuning_expander_ver += 1
+            st.session_state.param_tuning_is_open = True
+
         if modifiable_selected:
-            with st.expander("⚙️ Algorithm Parameter Tuning", expanded=False):
-                st.markdown('<div style="font-size: 0.8em; color: var(--xai-muted); margin-bottom: 12px;">Customize algorithm inputs below. Use comma-separated values (e.g. <b>50, 100</b>) to test multiple parameter variations.</div>', unsafe_allow_html=True)
+            expander_key = f"param_tuning_expander_{st.session_state.param_tuning_expander_ver}"
+            with st.expander("⚙️ Algorithm Parameter Tuning", expanded=st.session_state.param_tuning_is_open, key=expander_key):
+                st.markdown('<div style="font-size: 0.8em; color: var(--xai-muted); margin-bottom: 12px;">Customize algorithm inputs below. Add same method again or use comma-separated values (e.g. <b>50, 100</b>) to test multiple parameter variations.</div>', unsafe_allow_html=True)
                 
                 for idx_m, method in enumerate(modifiable_selected):
                     import re
@@ -4360,7 +4422,7 @@ def render_configure_page():
                     <li style="margin-bottom: 8px;"><b>Warmups & Repeats</b>: Warmups are excluded. Repeats measure device duration and report stats (median, mean, std).</li>
                     <li style="margin-bottom: 8px;"><b>Task Ordering</b>: Executions run in a <b>Balanced</b> order (rotating architectures/sizes) to prevent allocator cache bias.</li>
                     <li style="margin-bottom: 8px;"><b>Timing & Memory Isolation</b>: Memory profiling runs in a dedicated iteration to keep timing runs clean of overhead.</li>
-                    <li style="margin-bottom: 0px;"><b>Energy Estimation</b>: TDP is used as a proxy scaling factor: <code>Energy (Wh) = Runtime (sec) * TDP (W) / 3600</code>. Dynamic profiling is unreliable on standard systems, especially for sub-second runs.</li>
+                    <li style="margin-bottom: 0px;"><b>Energy Estimation</b>: TDP is used as a proxy scaling factor: <code>Energy (Wh) = Runtime (sec) * TDP (W) / 3600</code>.</li>
                 </ul>
             </div>
         </details>
@@ -4473,15 +4535,25 @@ def render_configure_page():
 
     # Row 5: Quality Metrics (Post-Processing)
     st.divider()
+    all_quality_opts = ["Gini Index (Sparsity)", "Deletion AUC", "Insertion AUC", "Infidelity"]
+
+    def on_quality_toggle_change():
+        if st.session_state.get("enable_quality_metrics") and not st.session_state.get("selected_quality_metrics"):
+            st.session_state.selected_quality_metrics = list(all_quality_opts)
+
     is_quality_enabled = st.toggle(
         "Explanation Quality Evaluation",
         key="enable_quality_metrics",
+        on_change=on_quality_toggle_change,
         help="Evaluates explanation quality (e.g. Gini Index / Sparsity) in post-processing outside the timing and memory benchmarking clock."
     )
 
+    if is_quality_enabled and not st.session_state.selected_quality_metrics:
+        st.session_state.selected_quality_metrics = list(all_quality_opts)
+
     st.multiselect(
         "Select Quality Metrics",
-        ["Gini Index (Sparsity)", "Deletion AUC", "Insertion AUC", "Infidelity"],
+        all_quality_opts,
         key="selected_quality_metrics",
         disabled=not is_quality_enabled,
         help="Post-hoc quality metrics evaluated outside the timing clock. Gini Index (sparsity), Deletion AUC (faithfulness upon removal), Insertion AUC (faithfulness upon addition), and Infidelity (perturbation sensitivity)."
