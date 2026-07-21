@@ -36,7 +36,11 @@ To complement timing and memory efficiency metrics, the framework includes a pos
 *   **Gini Index (Sparsity)**: Measures the spatial focus and sharpness of the attribution maps. A score near `1.0` represents highly focused attribution, whereas a score near `0.0` indicates uniform blur.
 *   **Deletion AUC**: Progressively masks the most important pixels (replacing them with a baseline like zero or mean) and measures the decay in prediction confidence. A lower Area Under the Curve (AUC) indicates a more faithful explanation.
 *   **Insertion AUC**: Progressively introduces the most important pixels to a baseline blank image and measures the recovery of prediction confidence. A higher AUC indicates a more faithful explanation.
-*   **Infidelity**: Measures the scale-invariant mean-squared error (MSE) between the difference in model predictions under Gaussian perturbations and the dot product of the input perturbation with the attribution map. Lower values are better.
+*   **Sensitivity (Max)**: Measures the maximum change (worst-case sensitivity) in the explanation when the input is subjected to slight perturbations. Lower values are better (more robust).
+
+<br/>
+
+*   **Infidelity**: Measures the mean-squared error (MSE) between the difference in model predictions (logits) under Gaussian perturbations and the dot product of the input perturbation with the attribution map. Lower values are better. **Note:** Computed in pixel space; for region-based methods (e.g., LIME), the metric scales unpredictably and may not be directly comparable to pixel-based methods.
 
 ---
 

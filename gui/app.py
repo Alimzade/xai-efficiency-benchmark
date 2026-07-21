@@ -2157,10 +2157,10 @@ def method_detail_summary(df):
         agg_dict["Mean Deletion AUC"] = ("Deletion AUC", "mean")
     if "Insertion AUC" in df.columns and df["Insertion AUC"].notna().any():
         agg_dict["Mean Insertion AUC"] = ("Insertion AUC", "mean")
-    if "Infidelity" in df.columns and df["Infidelity"].notna().any():
-        agg_dict["Mean Infidelity"] = ("Infidelity", "mean")
     if "Sensitivity (Max)" in df.columns and df["Sensitivity (Max)"].notna().any():
         agg_dict["Mean Sensitivity (Max)"] = ("Sensitivity (Max)", "mean")
+    if "Infidelity" in df.columns and df["Infidelity"].notna().any():
+        agg_dict["Mean Infidelity"] = ("Infidelity", "mean")
     agg_dict["Samples"] = (runtime_col, "count")
     summary = df.groupby("Method", sort=False).agg(**agg_dict).reset_index()
     return summary
@@ -2318,10 +2318,10 @@ def render_analytics_sections(fdf, result_groups):
             agg_dict_config["Mean Deletion AUC"] = ("Deletion AUC", "mean")
         if "Insertion AUC" in fdf.columns and fdf["Insertion AUC"].notna().any():
             agg_dict_config["Mean Insertion AUC"] = ("Insertion AUC", "mean")
-        if "Infidelity" in fdf.columns and fdf["Infidelity"].notna().any():
-            agg_dict_config["Mean Infidelity"] = ("Infidelity", "mean")
         if "Sensitivity (Max)" in fdf.columns and fdf["Sensitivity (Max)"].notna().any():
             agg_dict_config["Mean Sensitivity (Max)"] = ("Sensitivity (Max)", "mean")
+        if "Infidelity" in fdf.columns and fdf["Infidelity"].notna().any():
+            agg_dict_config["Mean Infidelity"] = ("Infidelity", "mean")
         agg_dict_config["Samples"] = (runtime_col, "count")
         summary_df = fdf.groupby(group_cols).agg(**agg_dict_config).reset_index()
         with st.expander("📋 Configuration Averages", expanded=True):
@@ -2496,10 +2496,10 @@ def render_analytics_sections(fdf, result_groups):
                     model_agg_dict["Mean Deletion AUC"] = ("Deletion AUC", "mean")
                 if "Insertion AUC" in fdf.columns and fdf["Insertion AUC"].notna().any():
                     model_agg_dict["Mean Insertion AUC"] = ("Insertion AUC", "mean")
-                if "Infidelity" in fdf.columns and fdf["Infidelity"].notna().any():
-                    model_agg_dict["Mean Infidelity"] = ("Infidelity", "mean")
                 if "Sensitivity (Max)" in fdf.columns and fdf["Sensitivity (Max)"].notna().any():
                     model_agg_dict["Mean Sensitivity (Max)"] = ("Sensitivity (Max)", "mean")
+                if "Infidelity" in fdf.columns and fdf["Infidelity"].notna().any():
+                    model_agg_dict["Mean Infidelity"] = ("Infidelity", "mean")
                 model_agg_dict["Samples"] = (runtime_col, "count")
                 model_summary = fdf.groupby("Model").agg(**model_agg_dict).reset_index().sort_values("Mean Attribution Runtime (sec)")
                 st.table(style_dataframe(model_summary))
@@ -3440,7 +3440,7 @@ def render_result_group(group, selected_methods, expanded=True, key_suffix=""):
             
             if arch_results:
                 raw_df = presentation_df(pd.DataFrame(arch_results))
-                display_cols = [c for c in ["Method", "Resolution", ATTR_RUNTIME_COL, "Attribution Runtime Std (sec)", "Estimated Energy Consumption (kWh)", ATTR_MEMORY_COL, "Attribution Memory Std (MB)", "Gini Index", "Deletion AUC", "Insertion AUC", "Infidelity", "Sensitivity (Max)"] if c in raw_df.columns]
+                display_cols = [c for c in ["Method", "Resolution", ATTR_RUNTIME_COL, "Attribution Runtime Std (sec)", "Estimated Energy Consumption (kWh)", ATTR_MEMORY_COL, "Attribution Memory Std (MB)", "Gini Index", "Deletion AUC", "Insertion AUC", "Sensitivity (Max)", "Infidelity"] if c in raw_df.columns]
                 if "Status" in raw_df.columns and raw_df["Status"].astype(str).str.startswith("Failed").any():
                     display_cols.append("Status")
                 st.table(style_dataframe(raw_df[display_cols], raw_precision=True))
@@ -4535,7 +4535,7 @@ def render_configure_page():
 
     # Row 5: Quality Metrics (Post-Processing)
     st.divider()
-    all_quality_opts = ["Gini Index (Sparsity)", "Deletion AUC", "Insertion AUC", "Infidelity", "Sensitivity (Max)"]
+    all_quality_opts = ["Gini Index (Sparsity)", "Deletion AUC", "Insertion AUC", "Sensitivity (Max)", "Infidelity"]
     default_quality_opts = ["Gini Index (Sparsity)", "Deletion AUC", "Insertion AUC", "Sensitivity (Max)"]
 
     def on_quality_toggle_change():
@@ -4557,7 +4557,7 @@ def render_configure_page():
         all_quality_opts,
         key="selected_quality_metrics",
         disabled=not is_quality_enabled,
-        help="Post-hoc quality metrics evaluated outside the timing clock. Gini Index (sparsity), Deletion AUC (faithfulness upon removal), Insertion AUC (faithfulness upon addition), Infidelity (perturbation robustness), and Sensitivity (Max) (worst-case sensitivity)."
+        help="Post-hoc quality metrics evaluated outside the timing clock. Gini Index (sparsity), Deletion AUC (faithfulness upon removal), Insertion AUC (faithfulness upon addition), Sensitivity (Max) (worst-case sensitivity), and Infidelity (perturbation robustness)."
     )
 
     if is_quality_enabled and "Infidelity" in st.session_state.selected_quality_metrics:

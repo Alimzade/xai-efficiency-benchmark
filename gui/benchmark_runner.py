@@ -681,8 +681,8 @@ def run_benchmark_task(config, session_dir):
                 "Gini Index": round(quality_scores["Gini Index"], 4) if quality_scores.get("Gini Index") is not None else None,
                 "Deletion AUC": round(quality_scores["Deletion AUC"], 4) if quality_scores.get("Deletion AUC") is not None else None,
                 "Insertion AUC": round(quality_scores["Insertion AUC"], 4) if quality_scores.get("Insertion AUC") is not None else None,
-                "Infidelity": round(quality_scores["Infidelity"], 4) if quality_scores.get("Infidelity") is not None else None,
                 "Sensitivity (Max)": round(quality_scores["Sensitivity (Max)"], 4) if quality_scores.get("Sensitivity (Max)") is not None else None,
+                "Infidelity": round(quality_scores["Infidelity"], 4) if quality_scores.get("Infidelity") is not None else None,
             })
 
             # Explicitly delete objects and clear cache after each method
@@ -718,8 +718,8 @@ def run_benchmark_task(config, session_dir):
                 "Gini Index": None,
                 "Deletion AUC": None,
                 "Insertion AUC": None,
-                "Infidelity": None,
                 "Sensitivity (Max)": None,
+                "Infidelity": None,
                 "Status": f"Failed: {str(e)}"
             })
 
