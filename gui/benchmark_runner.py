@@ -460,7 +460,8 @@ def run_benchmark_task(config, session_dir):
             elif method_key == 'lime': xai_tool = Lime(model)
             else: continue
 
-            def get_attr():
+            def get_attr(inputs=None):
+                inputs_to_use = input_tensor if inputs is None else inputs
                 if method_key == 'integrated_gradients':
                     n_steps = int(method_params.get("n_steps", 50))
                     internal_batch_size = method_params.get("internal_batch_size", 2)
@@ -469,38 +470,38 @@ def run_benchmark_task(config, session_dir):
                     
                     base_mode = method_params.get("baseline_mode", "Zeros (Black)")
                     if base_mode == "Zeros (Black)":
-                        baselines = torch.zeros_like(input_tensor)
+                        baselines = torch.zeros_like(inputs_to_use)
                     elif base_mode == "Ones (White)":
-                        baselines = torch.ones_like(input_tensor)
+                        baselines = torch.ones_like(inputs_to_use)
                     elif base_mode == "Input Mean":
-                        baselines = torch.ones_like(input_tensor) * input_tensor.mean()
+                        baselines = torch.ones_like(inputs_to_use) * inputs_to_use.mean()
                     else:
-                        baselines = torch.zeros_like(input_tensor)
+                        baselines = torch.zeros_like(inputs_to_use)
                         
-                    return xai_tool.attribute(input_tensor, target=pred_label_idx, n_steps=n_steps, internal_batch_size=internal_batch_size, baselines=baselines)
+                    return xai_tool.attribute(inputs_to_use, target=pred_label_idx, n_steps=n_steps, internal_batch_size=internal_batch_size, baselines=baselines)
                 if method_key == 'gradient_shap':
                     n_samples = int(method_params.get("n_samples", 10))
                     stdevs = float(method_params.get("stdevs", 0.0001))
                     
                     base_mode = method_params.get("baseline_mode", "Zeros & Mean")
                     if base_mode == "Zeros & Mean":
-                        baseline_dist = torch.cat([torch.zeros_like(input_tensor), torch.ones_like(input_tensor) * input_tensor.mean()], dim=0)
+                        baseline_dist = torch.cat([torch.zeros_like(inputs_to_use), torch.ones_like(inputs_to_use) * inputs_to_use.mean()], dim=0)
                     elif base_mode == "Zeros Only":
-                        baseline_dist = torch.zeros_like(input_tensor)
+                        baseline_dist = torch.zeros_like(inputs_to_use)
                     elif base_mode == "Ones Only":
-                        baseline_dist = torch.ones_like(input_tensor)
+                        baseline_dist = torch.ones_like(inputs_to_use)
                     else:
-                        baseline_dist = torch.cat([torch.zeros_like(input_tensor), torch.ones_like(input_tensor) * input_tensor.mean()], dim=0)
+                        baseline_dist = torch.cat([torch.zeros_like(inputs_to_use), torch.ones_like(inputs_to_use) * inputs_to_use.mean()], dim=0)
                         
-                    return xai_tool.attribute(input_tensor, baselines=baseline_dist, target=pred_label_idx, n_samples=n_samples, stdevs=stdevs)
+                    return xai_tool.attribute(inputs_to_use, baselines=baseline_dist, target=pred_label_idx, n_samples=n_samples, stdevs=stdevs)
                 if method_key == 'deeplift':
-                    return xai_tool.attribute(input_tensor, baselines=torch.zeros_like(input_tensor), target=pred_label_idx)
+                    return xai_tool.attribute(inputs_to_use, baselines=torch.zeros_like(inputs_to_use), target=pred_label_idx)
                 if method_key == 'deeplift_shap':
-                    baseline_dist = torch.cat([torch.zeros_like(input_tensor), torch.ones_like(input_tensor) * input_tensor.mean()], dim=0)
-                    return xai_tool.attribute(input_tensor, baselines=baseline_dist, target=pred_label_idx)
+                    baseline_dist = torch.cat([torch.zeros_like(inputs_to_use), torch.ones_like(inputs_to_use) * inputs_to_use.mean()], dim=0)
+                    return xai_tool.attribute(inputs_to_use, baselines=baseline_dist, target=pred_label_idx)
                 if method_key == 'grad_cam':
-                    attribution = xai_tool.attribute(input_tensor, target=pred_label_idx)
-                    attribution = LayerAttribution.interpolate(attribution, input_tensor.shape[2:])
+                    attribution = xai_tool.attribute(inputs_to_use, target=pred_label_idx)
+                    attribution = LayerAttribution.interpolate(attribution, inputs_to_use.shape[2:])
                     return attribution.repeat(1, 3, 1, 1)
                 if method_key == 'occlusion':
                     w_shapes = method_params.get("sliding_window_shapes", (3, 15, 15))
@@ -513,27 +514,29 @@ def run_benchmark_task(config, session_dir):
                     
                     occ_color = method_params.get("occlude_color", "0")
                     if occ_color == "mean":
-                        baselines = input_tensor.mean().item()
+                        baselines = inputs_to_use.mean().item()
                     else:
                         try:
                             baselines = float(occ_color)
                         except Exception:
                             baselines = 0.0
                             
-                    return xai_tool.attribute(input_tensor, sliding_window_shapes=w_shapes, strides=strds, target=pred_label_idx, baselines=baselines)
+                    return xai_tool.attribute(inputs_to_use, sliding_window_shapes=w_shapes, strides=strds, target=pred_label_idx, baselines=baselines)
                 if method_key == 'lime':
                     from skimage.segmentation import slic
                     n_samples = int(method_params.get("n_samples", 500))
                     batch_size = int(method_params.get("perturbations_per_eval", 10))
                     n_segments = int(method_params.get("n_segments", 50))
                     
-                    img_np = input_tensor.squeeze(0).permute(1, 2, 0).detach().cpu().numpy()
+                    img_np = inputs_to_use.squeeze(0).permute(1, 2, 0).detach().cpu().numpy()
                     superpixels = slic(img_np, n_segments=n_segments, compactness=10, sigma=1, start_label=0)
                     superpixels = superpixels - superpixels.min()
                     feature_mask = torch.tensor(superpixels, dtype=torch.long, device=device).unsqueeze(0).unsqueeze(0)
                     
-                    return xai_tool.attribute(input_tensor, target=pred_label_idx, feature_mask=feature_mask, n_samples=n_samples, perturbations_per_eval=batch_size)
-                return xai_tool.attribute(input_tensor, target=pred_label_idx)
+                    return xai_tool.attribute(inputs_to_use, target=pred_label_idx, feature_mask=feature_mask, n_samples=n_samples, perturbations_per_eval=batch_size)
+                if method_key == 'saliency':
+                    return xai_tool.attribute(inputs_to_use, target=pred_label_idx, abs=False)
+                return xai_tool.attribute(inputs_to_use, target=pred_label_idx)
 
             def timed_get_attr(measure_memory=True):
                 peak_memory_mb = None
@@ -618,7 +621,8 @@ def run_benchmark_task(config, session_dir):
                     target_class=pred_label_idx,
                     method_key=method_key,
                     device=device,
-                    selected_metrics=selected_quality_metrics
+                    selected_metrics=selected_quality_metrics,
+                    explanation_func=get_attr
                 )
 
             # Generate Overlay — background must match the exact Resize+CenterCrop the model saw
@@ -678,7 +682,7 @@ def run_benchmark_task(config, session_dir):
                 "Deletion AUC": round(quality_scores["Deletion AUC"], 4) if quality_scores.get("Deletion AUC") is not None else None,
                 "Insertion AUC": round(quality_scores["Insertion AUC"], 4) if quality_scores.get("Insertion AUC") is not None else None,
                 "Infidelity": round(quality_scores["Infidelity"], 4) if quality_scores.get("Infidelity") is not None else None,
-                "Quality Eval Time (sec)": round(quality_scores["Quality Eval Time (sec)"], 4) if quality_scores.get("Quality Eval Time (sec)") is not None else None
+                "Sensitivity (Max)": round(quality_scores["Sensitivity (Max)"], 4) if quality_scores.get("Sensitivity (Max)") is not None else None,
             })
 
             # Explicitly delete objects and clear cache after each method
@@ -715,7 +719,7 @@ def run_benchmark_task(config, session_dir):
                 "Deletion AUC": None,
                 "Insertion AUC": None,
                 "Infidelity": None,
-                "Quality Eval Time (sec)": None,
+                "Sensitivity (Max)": None,
                 "Status": f"Failed: {str(e)}"
             })
 

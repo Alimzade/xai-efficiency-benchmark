@@ -165,12 +165,12 @@
         {
           "name": "Infidelity",
           "unit": "Mean Squared Error",
-          "definition": "Captum metric measuring the mean squared difference between predictor output change under perturbation and attribution inner product. Lower is better."
+          "definition": "Captum metric measuring the mean squared difference between predictor output change under perturbation and attribution inner product. Lower is better. Note: Computed in pixel space; for region-based methods (e.g., LIME), the metric scales unpredictably and may not be directly comparable to pixel-based methods."
         },
         {
-          "name": "Quality Eval Time",
-          "unit": "Seconds ($s$)",
-          "definition": "Runtime overhead consumed by computing post-hoc quality metrics."
+          "name": "Sensitivity (Max)",
+          "unit": "Maximum Deviation",
+          "definition": "Captum metric measuring the maximum change (worst-case sensitivity) in the explanation when the input is subjected to slight perturbations. Lower is better (more robust)."
         }
       ]
     }

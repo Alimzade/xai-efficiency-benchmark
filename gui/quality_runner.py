@@ -13,7 +13,7 @@ from typing import Dict, List, Optional, Tuple, Union
 import numpy as np
 import torch
 import torch.nn.functional as F
-from captum.metrics import infidelity
+from captum.metrics import infidelity, sensitivity_max
 
 logger = logging.getLogger(__name__)
 
@@ -148,9 +148,9 @@ def compute_deletion_insertion_auc(
         return {"Deletion AUC": None, "Insertion AUC": None}
 
 
-# --- 4. INFIDELITY (ROBUST & SCALE-INVARIANT) ---
+# --- 4. INFIDELITY (STANDARD LOGIT-BASED) ---
 def compute_infidelity_score(ctx: QualityContext, n_samples: int = 10, noise_sigma: float = 0.1) -> Optional[float]:
-    """Computes scale-invariant, L2-normalized Infidelity metric with Gaussian noise perturbation."""
+    """Computes standard Infidelity metric using logit differences and Gaussian noise perturbation."""
     try:
         model = ctx.model
         input_tensor = ctx.input_tensor
@@ -163,51 +163,73 @@ def compute_infidelity_score(ctx: QualityContext, n_samples: int = 10, noise_sig
         # Clean NaN/Inf in attribution
         attribution = torch.nan_to_num(attribution, nan=0.0, posinf=0.0, neginf=0.0)
 
-        # Resize coarse heatmaps (e.g. Grad-CAM) to input resolution
+        # Ensure attribution matches input spatial resolution
         if attribution.shape[-2:] != input_tensor.shape[-2:]:
             attr_resized = F.interpolate(attribution, size=input_tensor.shape[-2:], mode='bilinear', align_corners=False)
         else:
             attr_resized = attribution.clone()
-
-        # Collapse multi-channel attribution to single spatial importance map: (1, C, H, W) -> (1, 1, H, W)
-        if attr_resized.dim() == 4 and attr_resized.size(1) > 1:
-            attr_spatial = torch.abs(attr_resized).mean(dim=1, keepdim=True)
-        elif attr_resized.dim() == 3:
-            attr_spatial = torch.abs(attr_resized).unsqueeze(0).mean(dim=1, keepdim=True)
-        else:
-            attr_spatial = torch.abs(attr_resized)
-
-        # L2 Unit Norm normalization across spatial dimensions
-        flat_attr = attr_spatial.view(attr_spatial.size(0), -1)
-        l2_norm = torch.norm(flat_attr, p=2, dim=-1, keepdim=True).view(attr_spatial.size(0), 1, 1, 1)
-        if torch.any(l2_norm == 0):
-            return 0.0
-        attr_normalized = attr_spatial / (l2_norm + 1e-8)
+            
+        # Ensure channel dimension matches (e.g. if single channel attribution)
+        if attr_resized.dim() == 4 and attr_resized.size(1) == 1 and input_tensor.size(1) > 1:
+            attr_resized = attr_resized.repeat(1, input_tensor.size(1), 1, 1)
 
         # Generate n_samples noisy inputs for perturbation expectation
         inputs_rep = input_tensor.repeat(n_samples, 1, 1, 1)
         noise = torch.randn_like(inputs_rep) * noise_sigma
         perturbed_inputs = inputs_rep + noise
 
-        # Mean spatial noise matching single-channel attribution map
-        noise_spatial = noise.mean(dim=1, keepdim=True)
-
         # 1. Compute attribution dot products: (n_samples,)
-        dot_products = (noise_spatial * attr_normalized).view(n_samples, -1).sum(dim=-1)
+        # Note: dot product across all channels and spatial dimensions
+        dot_products = (noise * attr_resized).view(n_samples, -1).sum(dim=-1)
 
-        # 2. Compute target class probability drop under perturbation: (n_samples,)
+        # 2. Compute target class logit drop under perturbation: (n_samples,)
         with torch.no_grad():
-            orig_prob = F.softmax(model(input_tensor), dim=1)[0, target].item()
-            pert_probs = F.softmax(model(perturbed_inputs), dim=1)[:, target]
-            prob_diffs = orig_prob - pert_probs
+            orig_logit = model(input_tensor)[0, target].item()
+            pert_logits = model(perturbed_inputs)[:, target]
+            logit_diffs = orig_logit - pert_logits
 
         # 3. Compute Mean Squared Error (MSE) infidelity score
-        infid_score = torch.mean((dot_products - prob_diffs) ** 2).item()
+        infid_score = torch.mean((dot_products - logit_diffs) ** 2).item()
         return float(infid_score)
     except Exception as e:
         logger.warning(f"Error computing Infidelity: {e}\n{traceback.format_exc()}")
         return None
 
+
+# --- 5. MAX SENSITIVITY ---
+def compute_max_sensitivity(ctx: QualityContext, explanation_func, n_samples: int = 10, noise_sigma: float = 0.02) -> Optional[float]:
+    """Computes Max-Sensitivity using Captum's built-in metric."""
+    try:
+        if explanation_func is None:
+            return None
+            
+        def _wrapper_func(inputs):
+            # Process one by one to avoid OOM and batch-shape issues in XAI tools
+            # Captum's sensitivity_max wraps inputs in a tuple, so unwrap it first.
+            is_tuple = isinstance(inputs, tuple)
+            in_tensor = inputs[0] if is_tuple else inputs
+            
+            attrs = []
+            for i in range(in_tensor.shape[0]):
+                attr = explanation_func(in_tensor[i:i+1])
+                # If explanation_func returns a tuple, extract the tensor.
+                if isinstance(attr, tuple):
+                    attr = attr[0]
+                attrs.append(attr)
+            
+            res = torch.cat(attrs, dim=0)
+            return (res,) if is_tuple else res
+            
+        sens = sensitivity_max(
+            explanation_func=_wrapper_func,
+            inputs=ctx.input_tensor,
+            n_perturb_samples=n_samples,
+            perturb_radius=noise_sigma
+        )
+        return float(sens.mean().item())
+    except Exception as e:
+        logger.warning(f"Error computing Max Sensitivity: {e}\n{traceback.format_exc()}")
+        return None
 
 # --- MAIN DISPATCHER ---
 def compute_quality_metrics(
@@ -218,7 +240,8 @@ def compute_quality_metrics(
     method_key="", 
     device=None, 
     selected_metrics=None,
-    metric_kwargs=None
+    metric_kwargs=None,
+    explanation_func=None
 ) -> Dict[str, Optional[float]]:
     """Dispatcher for computing requested explanation quality metrics with execution overhead timing."""
     results = {}
@@ -264,9 +287,14 @@ def compute_quality_metrics(
             noise_sigma=kwargs.get("noise_sigma", 0.1)
         )
 
-    # Record evaluation overhead runtime (sec)
-    eval_overhead = time.perf_counter() - start_time
-    results["Quality Eval Time (sec)"] = eval_overhead
+    # 5. Max Sensitivity
+    if any("sensitivity" in m for m in norm_metrics) and explanation_func is not None:
+        results["Sensitivity (Max)"] = compute_max_sensitivity(
+            ctx,
+            explanation_func=explanation_func,
+            n_samples=kwargs.get("sens_n_samples", 10),
+            noise_sigma=kwargs.get("sens_noise_sigma", 0.02)
+        )
 
     return results
 

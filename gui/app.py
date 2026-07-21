@@ -1022,7 +1022,7 @@ PRESENTATION_COL_ORDER = [
     "Deletion AUC",
     "Insertion AUC",
     "Infidelity",
-    "Quality Eval Time (sec)",
+    "Sensitivity (Max)",
     "Status",
 ]
 
@@ -1706,7 +1706,7 @@ def style_dataframe(df, raw_precision=False):
         "Deletion AUC", "Mean Deletion AUC",
         "Insertion AUC", "Mean Insertion AUC",
         "Infidelity", "Mean Infidelity",
-        "Quality Eval Time (sec)", "Mean Quality Eval Time (sec)"
+        "Sensitivity (Max)", "Mean Sensitivity (Max)"
     ]
     
     subset_cols = [
@@ -1737,7 +1737,7 @@ def style_dataframe(df, raw_precision=False):
                     return f"{v:.2f}"
                 elif "kWh" in col_name or "Energy" in col_name:
                     return f"{v:.8f}".rstrip('0').rstrip('.')
-                elif "sec" in col_name or "Infidelity" in col_name or col_name in ["Gini Index", "Mean Gini Index", "Deletion AUC", "Mean Deletion AUC", "Insertion AUC", "Mean Insertion AUC"]:
+                elif "sec" in col_name or "Infidelity" in col_name or "Sensitivity" in col_name or col_name in ["Gini Index", "Mean Gini Index", "Deletion AUC", "Mean Deletion AUC", "Insertion AUC", "Mean Insertion AUC"]:
                     return f"{v:.4f}"
                 elif col_name == "Resolution":
                     return f"{int(round(v))} x {int(round(v))}"
@@ -2159,8 +2159,8 @@ def method_detail_summary(df):
         agg_dict["Mean Insertion AUC"] = ("Insertion AUC", "mean")
     if "Infidelity" in df.columns and df["Infidelity"].notna().any():
         agg_dict["Mean Infidelity"] = ("Infidelity", "mean")
-    if "Quality Eval Time (sec)" in df.columns and df["Quality Eval Time (sec)"].notna().any():
-        agg_dict["Mean Quality Eval Time (sec)"] = ("Quality Eval Time (sec)", "mean")
+    if "Sensitivity (Max)" in df.columns and df["Sensitivity (Max)"].notna().any():
+        agg_dict["Mean Sensitivity (Max)"] = ("Sensitivity (Max)", "mean")
     agg_dict["Samples"] = (runtime_col, "count")
     summary = df.groupby("Method", sort=False).agg(**agg_dict).reset_index()
     return summary
@@ -2320,8 +2320,8 @@ def render_analytics_sections(fdf, result_groups):
             agg_dict_config["Mean Insertion AUC"] = ("Insertion AUC", "mean")
         if "Infidelity" in fdf.columns and fdf["Infidelity"].notna().any():
             agg_dict_config["Mean Infidelity"] = ("Infidelity", "mean")
-        if "Quality Eval Time (sec)" in fdf.columns and fdf["Quality Eval Time (sec)"].notna().any():
-            agg_dict_config["Mean Quality Eval Time (sec)"] = ("Quality Eval Time (sec)", "mean")
+        if "Sensitivity (Max)" in fdf.columns and fdf["Sensitivity (Max)"].notna().any():
+            agg_dict_config["Mean Sensitivity (Max)"] = ("Sensitivity (Max)", "mean")
         agg_dict_config["Samples"] = (runtime_col, "count")
         summary_df = fdf.groupby(group_cols).agg(**agg_dict_config).reset_index()
         with st.expander("📋 Configuration Averages", expanded=True):
@@ -2498,8 +2498,8 @@ def render_analytics_sections(fdf, result_groups):
                     model_agg_dict["Mean Insertion AUC"] = ("Insertion AUC", "mean")
                 if "Infidelity" in fdf.columns and fdf["Infidelity"].notna().any():
                     model_agg_dict["Mean Infidelity"] = ("Infidelity", "mean")
-                if "Quality Eval Time (sec)" in fdf.columns and fdf["Quality Eval Time (sec)"].notna().any():
-                    model_agg_dict["Mean Quality Eval Time (sec)"] = ("Quality Eval Time (sec)", "mean")
+                if "Sensitivity (Max)" in fdf.columns and fdf["Sensitivity (Max)"].notna().any():
+                    model_agg_dict["Mean Sensitivity (Max)"] = ("Sensitivity (Max)", "mean")
                 model_agg_dict["Samples"] = (runtime_col, "count")
                 model_summary = fdf.groupby("Model").agg(**model_agg_dict).reset_index().sort_values("Mean Attribution Runtime (sec)")
                 st.table(style_dataframe(model_summary))
@@ -2812,7 +2812,7 @@ def render_configuration_summary(settings, results):
         for g in results:
             for m in g.get("models", []):
                 for r in m.get("results", []):
-                    for qm_name in ["Gini Index", "Deletion AUC", "Insertion AUC", "Infidelity"]:
+                    for qm_name in ["Gini Index", "Deletion AUC", "Insertion AUC", "Infidelity", "Sensitivity (Max)"]:
                         if qm_name in r and r.get(qm_name) is not None:
                             scanned_qm.add(qm_name)
         if scanned_qm:
@@ -3440,7 +3440,7 @@ def render_result_group(group, selected_methods, expanded=True, key_suffix=""):
             
             if arch_results:
                 raw_df = presentation_df(pd.DataFrame(arch_results))
-                display_cols = [c for c in ["Method", "Resolution", ATTR_RUNTIME_COL, "Attribution Runtime Std (sec)", "Estimated Energy Consumption (kWh)", ATTR_MEMORY_COL, "Attribution Memory Std (MB)", "Gini Index", "Deletion AUC", "Insertion AUC", "Infidelity", "Quality Eval Time (sec)"] if c in raw_df.columns]
+                display_cols = [c for c in ["Method", "Resolution", ATTR_RUNTIME_COL, "Attribution Runtime Std (sec)", "Estimated Energy Consumption (kWh)", ATTR_MEMORY_COL, "Attribution Memory Std (MB)", "Gini Index", "Deletion AUC", "Insertion AUC", "Infidelity", "Sensitivity (Max)"] if c in raw_df.columns]
                 if "Status" in raw_df.columns and raw_df["Status"].astype(str).str.startswith("Failed").any():
                     display_cols.append("Status")
                 st.table(style_dataframe(raw_df[display_cols], raw_precision=True))
@@ -3492,7 +3492,7 @@ if 'selected_repeats' not in st.session_state: st.session_state.selected_repeats
 if 'selected_memory_runs' not in st.session_state: st.session_state.selected_memory_runs = 1
 if 'selected_run_order' not in st.session_state: st.session_state.selected_run_order = "Balanced"
 if 'enable_quality_metrics' not in st.session_state: st.session_state.enable_quality_metrics = False
-if 'selected_quality_metrics' not in st.session_state: st.session_state.selected_quality_metrics = ["Gini Index (Sparsity)", "Deletion AUC", "Insertion AUC", "Infidelity"]
+if 'selected_quality_metrics' not in st.session_state: st.session_state.selected_quality_metrics = ["Gini Index (Sparsity)", "Deletion AUC", "Insertion AUC", "Sensitivity (Max)"]
 has_cuda = torch.cuda.is_available()
 has_mps = hasattr(torch.backends, "mps") and torch.backends.mps.is_available()
 default_device_mode = "CPU"
@@ -3507,7 +3507,7 @@ if 'current_warmups' not in st.session_state: st.session_state.current_warmups =
 if 'current_repeats' not in st.session_state: st.session_state.current_repeats = 5
 if 'current_memory_runs' not in st.session_state: st.session_state.current_memory_runs = 1
 if 'current_enable_quality_metrics' not in st.session_state: st.session_state.current_enable_quality_metrics = False
-if 'current_selected_quality_metrics' not in st.session_state: st.session_state.current_selected_quality_metrics = ["Gini Index (Sparsity)", "Deletion AUC", "Insertion AUC", "Infidelity"]
+if 'current_selected_quality_metrics' not in st.session_state: st.session_state.current_selected_quality_metrics = ["Gini Index (Sparsity)", "Deletion AUC", "Insertion AUC", "Sensitivity (Max)"]
 if 'current_page' not in st.session_state: st.session_state.current_page = "Configure"
 
 if 'custom_cpu_tdp' not in st.session_state: st.session_state.custom_cpu_tdp = None
@@ -3668,7 +3668,7 @@ if st.session_state.get("restore_config"):
     st.session_state.selected_memory_runs = settings.get("memory_runs", 1)
     st.session_state.selected_run_order = settings.get("run_order", "Balanced")
     st.session_state.enable_quality_metrics = settings.get("enable_quality_metrics", False)
-    st.session_state.selected_quality_metrics = settings.get("selected_quality_metrics") or ["Gini Index (Sparsity)", "Deletion AUC", "Insertion AUC", "Infidelity"]
+    st.session_state.selected_quality_metrics = settings.get("selected_quality_metrics") or ["Gini Index (Sparsity)", "Deletion AUC", "Insertion AUC", "Sensitivity (Max)"]
     
     env_dev = environment.get("selected_device")
     if env_dev:
@@ -4422,7 +4422,7 @@ def render_configure_page():
                     <li style="margin-bottom: 8px;"><b>Warmups & Repeats</b>: Warmups are excluded. Repeats measure device duration and report stats (median, mean, std).</li>
                     <li style="margin-bottom: 8px;"><b>Task Ordering</b>: Executions run in a <b>Balanced</b> order (rotating architectures/sizes) to prevent allocator cache bias.</li>
                     <li style="margin-bottom: 8px;"><b>Timing & Memory Isolation</b>: Memory profiling runs in a dedicated iteration to keep timing runs clean of overhead.</li>
-                    <li style="margin-bottom: 0px;"><b>Energy Estimation</b>: TDP is used as a proxy scaling factor: <code>Energy (Wh) = Runtime (sec) * TDP (W) / 3600</code>.</li>
+                    <li style="margin-bottom: 0px;"><b>Energy Estimation</b>: TDP is used as a proxy scaling factor: <code>Energy (kWh) = Runtime (sec) * TDP (W) / (3600 * 1000)</code>.</li>
                 </ul>
             </div>
         </details>
@@ -4535,11 +4535,12 @@ def render_configure_page():
 
     # Row 5: Quality Metrics (Post-Processing)
     st.divider()
-    all_quality_opts = ["Gini Index (Sparsity)", "Deletion AUC", "Insertion AUC", "Infidelity"]
+    all_quality_opts = ["Gini Index (Sparsity)", "Deletion AUC", "Insertion AUC", "Infidelity", "Sensitivity (Max)"]
+    default_quality_opts = ["Gini Index (Sparsity)", "Deletion AUC", "Insertion AUC", "Sensitivity (Max)"]
 
     def on_quality_toggle_change():
         if st.session_state.get("enable_quality_metrics") and not st.session_state.get("selected_quality_metrics"):
-            st.session_state.selected_quality_metrics = list(all_quality_opts)
+            st.session_state.selected_quality_metrics = list(default_quality_opts)
 
     is_quality_enabled = st.toggle(
         "Explanation Quality Evaluation",
@@ -4549,15 +4550,18 @@ def render_configure_page():
     )
 
     if is_quality_enabled and not st.session_state.selected_quality_metrics:
-        st.session_state.selected_quality_metrics = list(all_quality_opts)
+        st.session_state.selected_quality_metrics = list(default_quality_opts)
 
     st.multiselect(
         "Select Quality Metrics",
         all_quality_opts,
         key="selected_quality_metrics",
         disabled=not is_quality_enabled,
-        help="Post-hoc quality metrics evaluated outside the timing clock. Gini Index (sparsity), Deletion AUC (faithfulness upon removal), Insertion AUC (faithfulness upon addition), and Infidelity (perturbation sensitivity)."
+        help="Post-hoc quality metrics evaluated outside the timing clock. Gini Index (sparsity), Deletion AUC (faithfulness upon removal), Insertion AUC (faithfulness upon addition), Infidelity (perturbation robustness), and Sensitivity (Max) (worst-case sensitivity)."
     )
+
+    if is_quality_enabled and "Infidelity" in st.session_state.selected_quality_metrics:
+        st.info("ℹ️ **Note on Infidelity**: Infidelity is computed in pixel space based on local gradient tracking. For region-based explanation methods (e.g., LIME, Occlusion), the metric may scale unpredictably and may not be directly comparable to pixel-based methods because attribution granularity differs significantly.")
 
     st.divider()
 
@@ -5153,7 +5157,7 @@ def render_history_page():
     
     batches = sm.list_batches()
     if not batches:
-        st.info("No benchmark history found. Start a new run in the 'Configure Benchmark' page!")
+        st.info("No benchmark history found. Start a new run in the 'Benchmark Workspace'.")
         return
 
     batch_ids = [b["id"] for b in batches]
