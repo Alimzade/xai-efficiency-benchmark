@@ -724,7 +724,21 @@ def run_benchmark_task(config, session_dir):
             })
 
     # 6. Save Results
-    pd.DataFrame(results).to_csv(os.path.join(session_dir, "results.csv"), index=False)
+    os.makedirs(session_dir, exist_ok=True)
+    csv_path = os.path.join(session_dir, "results.csv")
+    new_df = pd.DataFrame(results)
+    if os.path.exists(csv_path):
+        try:
+            existing_df = pd.read_csv(csv_path)
+            # Combine and keep the latest run for each method
+            combined_df = pd.concat([existing_df, new_df], ignore_index=True)
+            combined_df["_method_lower"] = combined_df["Method"].str.lower()
+            combined_df = combined_df.drop_duplicates(subset=["_method_lower"], keep="last").drop(columns=["_method_lower"])
+            combined_df.to_csv(csv_path, index=False)
+        except Exception:
+            new_df.to_csv(csv_path, index=False)
+    else:
+        new_df.to_csv(csv_path, index=False)
     task_completed_at = datetime.now().astimezone().isoformat(timespec="seconds")
     with open(os.path.join(session_dir, "config.json"), 'w') as f:
         json.dump({

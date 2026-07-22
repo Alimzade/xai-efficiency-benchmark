@@ -19,7 +19,291 @@ import streamlit.components.v1 as components
 import os
 import time
 
-# --- Page Config ---
+def plot_bubble_chart(df):
+    df = normalize_metric_columns(df)
+    
+    # We need Runtime, y_metric, Memory, and Gini.
+    x_col = metric_col(df, ATTR_RUNTIME_COL, LEGACY_RUNTIME_COL)
+    y_col = "Insertion AUC" if ("Insertion AUC" in df.columns and df["Insertion AUC"].notna().any()) else "Deletion AUC"
+    if y_col not in df.columns or df[y_col].isna().all():
+        return None
+        
+    size_col = metric_col(df, ATTR_MEMORY_COL, LEGACY_MEMORY_COL)
+    color_col = "Gini Index"
+    
+    req_cols = [x_col, y_col, size_col]
+    if color_col in df.columns:
+        req_cols.append(color_col)
+        
+    df_mean = df.groupby("Method")[req_cols].mean().dropna(subset=[x_col, y_col, size_col]).reset_index()
+    if df_mean.empty:
+        return None
+        
+    # Match width to the radar chart
+    fig, ax = plt.subplots(figsize=(6.5, 6.0))
+    
+    # Scale sizes: normalize to range [50, 500] for visual clarity
+    min_sz = df_mean[size_col].min()
+    max_sz = df_mean[size_col].max()
+    if max_sz == min_sz:
+        sizes = [150] * len(df_mean)
+    else:
+        sizes = 50 + 450 * (df_mean[size_col] - min_sz) / (max_sz - min_sz)
+        
+    # Use color mapping if Gini is available
+    if color_col in df_mean.columns and not df_mean[color_col].isna().all():
+        scatter = ax.scatter(
+            x=df_mean[x_col], 
+            y=df_mean[y_col], 
+            s=sizes, 
+            c=df_mean[color_col], 
+            cmap="viridis", 
+            alpha=0.7, 
+            edgecolors="w", 
+            linewidth=1.5
+        )
+        cbar = plt.colorbar(scatter, ax=ax)
+        cbar.set_label(f"Sparsity ({color_col})", rotation=270, labelpad=15)
+    else:
+        scatter = ax.scatter(
+            x=df_mean[x_col], 
+            y=df_mean[y_col], 
+            s=sizes, 
+            alpha=0.7, 
+            edgecolors="w", 
+            linewidth=1.5,
+            color="royalblue"
+        )
+        
+    for i, row in df_mean.iterrows():
+        ax.annotate(row["Method"], (row[x_col], row[y_col]), xytext=(0, 0), textcoords='offset points', 
+                    ha='center', va='center', fontsize=8, fontweight='bold', color='black',
+                    bbox=dict(boxstyle="round,pad=0.1", fc="white", alpha=0.6, lw=0))
+                    
+    ax.set_xlabel(f"{x_col}\n(Lower is Better)", fontsize=9)
+    y_is_lower = "Deletion" in y_col
+    ax.set_ylabel(f"{y_col}\n({'Lower' if y_is_lower else 'Higher'} is Better)", fontsize=9)
+    ax.set_title("Efficiency vs Quality Trade-offs\n(Bubble Size = Peak Memory)", fontweight='bold', fontsize=11)
+    
+    # Add an invisible legend just for the size explanation if we wanted, but the title handles it.
+    plt.tight_layout()
+    return fig
+
+def plot_pareto_scatter(df, x_col, y_col, x_lower_better=True, y_lower_better=True, title=None):
+    df = normalize_metric_columns(df)
+    fig, ax = plt.subplots(figsize=(6, 5))
+    
+    # We need to compute the mean for each method
+    df_mean = df.groupby("Method")[[x_col, y_col]].mean().dropna().reset_index()
+    if df_mean.empty:
+        return fig
+        
+    methods = df_mean["Method"].values
+    xs = df_mean[x_col].values
+    ys = df_mean[y_col].values
+    
+    # Plot points
+    sns.scatterplot(x=xs, y=ys, hue=methods, s=100, ax=ax, palette="tab10", legend=False)
+    
+    # Find Pareto frontier
+    pareto_indices = []
+    for i in range(len(xs)):
+        dominated = False
+        for j in range(len(xs)):
+            if i == j: continue
+            
+            x_better_or_eq = (xs[j] <= xs[i]) if x_lower_better else (xs[j] >= xs[i])
+            y_better_or_eq = (ys[j] <= ys[i]) if y_lower_better else (ys[j] >= ys[i])
+            
+            x_strict = (xs[j] < xs[i]) if x_lower_better else (xs[j] > xs[i])
+            y_strict = (ys[j] < ys[i]) if y_lower_better else (ys[j] > ys[i])
+            
+            if x_better_or_eq and y_better_or_eq and (x_strict or y_strict):
+                dominated = True
+                break
+        if not dominated:
+            pareto_indices.append(i)
+            
+    # Sort pareto points by X to draw a line
+    pareto_points = sorted([(xs[i], ys[i]) for i in pareto_indices], key=lambda p: p[0])
+    
+    if pareto_points:
+        px, py = zip(*pareto_points)
+        ax.plot(px, py, color="red", linestyle="--", linewidth=1.5, alpha=0.7, label="Pareto Frontier")
+        
+    offsets = [(5, 5), (5, -10), (-5, 5), (-5, -10), (0, 10), (0, -12)]
+    for i, method in enumerate(methods):
+        offset = offsets[i % len(offsets)]
+        ha = 'left' if offset[0] >= 0 else 'right'
+        ax.annotate(method, (xs[i], ys[i]), xytext=offset, textcoords='offset points', 
+                    fontsize=9, ha=ha, bbox=dict(boxstyle="round,pad=0.2", fc="white", alpha=0.7, lw=0))
+        
+    ax.set_xlabel(f"{x_col}\n({'Lower is Better' if x_lower_better else 'Higher is Better'})")
+    ax.set_ylabel(f"{y_col}\n({'Lower is Better' if y_lower_better else 'Higher is Better'})")
+    if title:
+        ax.set_title(title, fontweight='bold', fontsize=11)
+        
+    if "Runtime" in x_col:
+        ax.set_xscale("log")
+    
+    ax.legend(fontsize=9, loc='best')
+    plt.tight_layout()
+    return fig
+
+def plot_radar_chart(df):
+    df = normalize_metric_columns(df)
+    metrics_info = {
+        "Attribution Runtime (sec)": False,
+        "Peak Attribution Memory (MB)": False,
+        "Estimated Energy Consumption (kWh)": False,
+        "Deletion AUC": False,
+        "Insertion AUC": True,
+        "Sensitivity (Max)": False,
+        "Gini Index": True
+    }
+    
+    agg_dict = {}
+    for col in metrics_info.keys():
+        if col in df.columns and df[col].notna().any():
+            agg_dict[col] = (col, "mean")
+            
+    if not agg_dict:
+        fig, ax = plt.subplots(figsize=(6, 6))
+        return fig
+        
+    df_mean = df.groupby("Method").agg(**agg_dict).reset_index()
+    methods = df_mean["Method"].values
+    
+    # Normalize to [0, 1] where 1 is BEST
+    norm_df = df_mean.copy()
+    categories = []
+    
+    for col in agg_dict.keys():
+        lower_is_better = not metrics_info[col]
+        min_val = df_mean[col].min()
+        max_val = df_mean[col].max()
+        
+        if max_val == min_val:
+            norm_df[col] = 1.0
+        else:
+            if lower_is_better:
+                # Invert: (max - val) / (max - min)
+                norm_df[col] = (max_val - df_mean[col]) / (max_val - min_val)
+            else:
+                # Direct: (val - min) / (max - min)
+                norm_df[col] = (df_mean[col] - min_val) / (max_val - min_val)
+                
+        label = col.replace("Attribution ", "").replace("Estimated ", "")
+        categories.append(label)
+        
+    N = len(categories)
+    angles = [n / float(N) * 2 * np.pi for n in range(N)]
+    angles += angles[:1]
+    
+    fig, ax = plt.subplots(figsize=(6.5, 6.0), subplot_kw=dict(polar=True))
+    
+    plt.xticks(angles[:-1], categories, color='grey', size=9)
+    ax.set_rlabel_position(0)
+    plt.yticks([0.25, 0.5, 0.75], ["0.25", "0.50", "0.75"], color="grey", size=8)
+    plt.ylim(0, 1.05)
+    
+    # Push labels outward so they don't overlap the chart area
+    ax.tick_params(axis='x', pad=15)
+    
+    cmap = plt.get_cmap('tab10')
+    
+    for i, row in norm_df.iterrows():
+        values = row[list(agg_dict.keys())].values.flatten().tolist()
+        values += values[:1]
+        color = cmap(i % 10)
+        ax.plot(angles, values, linewidth=2, linestyle='solid', label=row["Method"], color=color)
+        ax.fill(angles, values, color=color, alpha=0.1)
+        
+    plt.legend(loc='upper right', bbox_to_anchor=(1.35, 1.15), fontsize=9)
+    plt.title("Normalized Metric Comparison\n(Outer = Better)", size=12, fontweight='bold', y=1.15)
+    
+    # Shrink the chart area explicitly so labels and legend fit inside the figure area
+    fig.subplots_adjust(left=0.2, right=0.75, top=0.75, bottom=0.2)
+    return fig
+
+def compute_pareto_ranking(df, runtime_col):
+    df = normalize_metric_columns(df)
+    metrics = [
+        ("Deletion AUC", True),
+        ("Insertion AUC", False),
+        ("Sensitivity (Max)", True),
+        ("Gini Index", False)
+    ]
+    
+    if runtime_col not in df.columns:
+        return pd.DataFrame()
+        
+    all_methods = df["Method"].unique()
+    ranking_data = []
+    
+    # Pre-compute valid df_means for each metric to match plot_pareto_scatter exactly
+    metric_dfs = {}
+    for metric_col, y_lower_better in metrics:
+        if metric_col in df.columns:
+            metric_dfs[metric_col] = df.groupby("Method")[[runtime_col, metric_col]].mean().dropna().reset_index()
+            
+    for method in all_methods:
+        row = {"Method": method}
+        total_fronts = 0
+        evaluated_metrics = 0
+        
+        for metric_col, y_lower_better in metrics:
+            if metric_col not in metric_dfs:
+                continue
+                
+            df_mean = metric_dfs[metric_col]
+            if method not in df_mean["Method"].values:
+                # If this method doesn't have valid data for this metric, mark N/A
+                col_name = f"Runtime–{metric_col.replace(' (Max)', '')}"
+                row[col_name] = "N/A"
+                continue
+                
+            evaluated_metrics += 1
+            
+            methods = df_mean["Method"].values
+            xs = df_mean[runtime_col].values
+            ys = df_mean[metric_col].values
+            
+            i = list(methods).index(method)
+            
+            dominated = False
+            for j in range(len(xs)):
+                if i == j: continue
+                
+                # We always consider runtime lower is better
+                x_better_or_eq = (xs[j] <= xs[i])
+                y_better_or_eq = (ys[j] <= ys[i]) if y_lower_better else (ys[j] >= ys[i])
+                
+                x_strict = (xs[j] < xs[i])
+                y_strict = (ys[j] < ys[i]) if y_lower_better else (ys[j] > ys[i])
+                
+                if x_better_or_eq and y_better_or_eq and (x_strict or y_strict):
+                    dominated = True
+                    break
+                    
+            is_optimal = not dominated
+            col_name = f"Runtime–{metric_col.replace(' (Max)', '')}"
+            row[col_name] = "Pareto-optimal" if is_optimal else "Dominated"
+            if is_optimal:
+                total_fronts += 1
+                
+        if len(row) > 1:
+            row["Overall"] = f"{total_fronts}/{evaluated_metrics}" if evaluated_metrics > 0 else "0/0"
+            row["_sort_key"] = total_fronts
+            ranking_data.append(row)
+            
+    if not ranking_data:
+        return pd.DataFrame()
+        
+    ranking_df = pd.DataFrame(ranking_data).sort_values("_sort_key", ascending=False).drop(columns=["_sort_key"])
+    return ranking_df
+
+# --- 7. Layout Generators ---
 st.set_page_config(page_title="XAI Efficiency Benchmark", page_icon="🔍", layout="wide")
 
 # --- INITIALIZATION SPLASH SCREEN ---
@@ -1047,7 +1331,7 @@ def normalize_metric_columns(df):
         "started_at", "completed_at"
     }
     for col in df.columns:
-        if col not in non_numeric_text_cols:
+        if col not in non_numeric_text_cols and not col.startswith("Pareto:") and not col.startswith("Runtime–") and col != "Overall":
             df[col] = pd.to_numeric(df[col], errors="coerce")
             
     # For timing std columns, replace exactly 0.0 with np.nan because a runtime std of 0.0 is a single-run artifact
@@ -2210,15 +2494,9 @@ def plot_runtime_memory_scatter(df, figsize=(9, 6)):
     )
     ax.set_title("Runtime vs Peak Attribution Memory", fontsize=14, fontweight='bold')
     ax.set_xlabel("Mean Attribution Runtime (sec)")
-    ax.set_ylabel("Mean Peak Attribution Memory (MB)")
-    
-    # Set axis limits starting at 0 with 10% padding on the max side to prevent cramped borders
-    x_max = df_config[runtime_col].max()
-    y_max = df_config[memory_col].max()
-    x_limit = (x_max * 1.1) if not pd.isna(x_max) and x_max > 0 else 1.0
-    y_limit = (y_max * 1.1) if not pd.isna(y_max) and y_max > 0 else 100.0
-    ax.set_xlim(left=0.0, right=x_limit)
-    ax.set_ylim(bottom=0.0, top=y_limit)
+    ax.set_ylabel("Mean Peak Attribution Memory (MB)")  # Use logarithmic scales to prevent extreme outliers from squashing the plot
+    ax.set_xscale("log")
+    ax.set_yscale("log")
     
     # Extract legend handles and insert an empty spacer row between different categories
     handles, labels = ax.get_legend_handles_labels()
@@ -2462,6 +2740,31 @@ def render_analytics_sections(fdf, result_groups):
                     st.pyplot(plot_method_runtime_log(fdf))
                 with cm2:
                     st.pyplot(plot_method_memory(fdf))
+                    
+            # --- Explanation Quality Trade-offs ---
+            has_quality = any(col in fdf.columns and fdf[col].notna().any() for col in ["Deletion AUC", "Insertion AUC", "Sensitivity (Max)", "Gini Index"])
+            if has_quality:
+                with st.expander("⚖️ Pareto Analysis Summary", expanded=False):
+                    st.markdown("Trade-off frontiers and normalized metric comparisons across XAI methods. For scatter plots, the red dashed line represents the Pareto-optimal frontier.")
+                        
+                    # Bottom Grid: 3 Scatter Plots
+                    pq1, pq2, pq3 = st.columns(3)
+                    with pq1:
+                        if "Deletion AUC" in fdf.columns and fdf["Deletion AUC"].notna().any():
+                            st.pyplot(plot_pareto_scatter(fdf, runtime_col, "Deletion AUC", x_lower_better=True, y_lower_better=True, title="Runtime vs Deletion AUC"))
+                    with pq2:
+                        if "Insertion AUC" in fdf.columns and fdf["Insertion AUC"].notna().any():
+                            st.pyplot(plot_pareto_scatter(fdf, runtime_col, "Insertion AUC", x_lower_better=True, y_lower_better=False, title="Runtime vs Insertion AUC"))
+                    with pq3:
+                        if "Sensitivity (Max)" in fdf.columns and fdf["Sensitivity (Max)"].notna().any():
+                            st.pyplot(plot_pareto_scatter(fdf, runtime_col, "Sensitivity (Max)", x_lower_better=True, y_lower_better=True, title="Runtime vs Sensitivity (Max)"))
+                            
+                    # Pareto Ranking Table at the bottom
+                    ranking_df = compute_pareto_ranking(fdf, runtime_col)
+                    if not ranking_df.empty:
+                        st.markdown("<br/><b>Non-dominated Performance Summary</b>", unsafe_allow_html=True)
+                        st.caption("A method is **Pareto-optimal** if no other method strictly beats it in *both* speed and quality. **Overall** indicates the number of Pareto frontiers (out of four runtime–quality comparisons) on which the method is non-dominated.")
+                        st.table(style_dataframe(ranking_df))
         
         # --- Model Comparison: multiple architectures were benchmarked ---
         if n_models > 1:
@@ -3440,7 +3743,20 @@ def render_result_group(group, selected_methods, expanded=True, key_suffix=""):
             
             if arch_results:
                 raw_df = presentation_df(pd.DataFrame(arch_results))
-                display_cols = [c for c in ["Method", "Resolution", ATTR_RUNTIME_COL, "Attribution Runtime Std (sec)", "Estimated Energy Consumption (kWh)", ATTR_MEMORY_COL, "Attribution Memory Std (MB)", "Gini Index", "Deletion AUC", "Insertion AUC", "Sensitivity (Max)", "Infidelity"] if c in raw_df.columns]
+                display_cols = [c for c in ["Method", "Resolution", ATTR_RUNTIME_COL, "Attribution Runtime Std (sec)", "Estimated Energy Consumption (kWh)", ATTR_MEMORY_COL, "Attribution Memory Std (MB)"] if c in raw_df.columns]
+                
+                if st.session_state.get("current_enable_quality_metrics", False):
+                    qm_map = {
+                        "Gini Index": "Gini Index (Sparsity)",
+                        "Deletion AUC": "Deletion AUC",
+                        "Insertion AUC": "Insertion AUC",
+                        "Sensitivity (Max)": "Sensitivity (Max)",
+                        "Infidelity": "Infidelity"
+                    }
+                    for qm_col, ui_name in qm_map.items():
+                        if ui_name in st.session_state.get("current_selected_quality_metrics", []) and qm_col in raw_df.columns:
+                            display_cols.append(qm_col)
+                            
                 if "Status" in raw_df.columns and raw_df["Status"].astype(str).str.startswith("Failed").any():
                     display_cols.append("Status")
                 st.table(style_dataframe(raw_df[display_cols], raw_precision=True))
@@ -3487,7 +3803,7 @@ if 'selected_input_sizes' not in st.session_state:
 if 'input_size_str' not in st.session_state:
     st.session_state.input_size_str = "224"
 if 'selected_methods' not in st.session_state: st.session_state.selected_methods = ["Saliency", "Integrated_Gradients"]
-if 'selected_warmups' not in st.session_state: st.session_state.selected_warmups = 1
+if 'selected_warmups' not in st.session_state: st.session_state.selected_warmups = 3
 if 'selected_repeats' not in st.session_state: st.session_state.selected_repeats = 5
 if 'selected_memory_runs' not in st.session_state: st.session_state.selected_memory_runs = 1
 if 'selected_run_order' not in st.session_state: st.session_state.selected_run_order = "Balanced"
@@ -3664,7 +3980,7 @@ if st.session_state.get("restore_config"):
             
     st.session_state.input_size_str = ", ".join(st.session_state.selected_input_sizes)
     st.session_state.selected_repeats = settings.get("repeat_count", 5)
-    st.session_state.selected_warmups = settings.get("warmup_runs", 1)
+    st.session_state.selected_warmups = settings.get("warmup_runs", 3)
     st.session_state.selected_memory_runs = settings.get("memory_runs", 1)
     st.session_state.selected_run_order = settings.get("run_order", "Balanced")
     st.session_state.enable_quality_metrics = settings.get("enable_quality_metrics", False)
@@ -5105,7 +5421,7 @@ def render_active_run_page():
                     st.session_state.selected_methods = ["Saliency", "Integrated_Gradients"]
                     st.session_state.input_size_str = "224"
                     st.session_state.selected_repeats = 5
-                    st.session_state.selected_warmups = 1
+                    st.session_state.selected_warmups = 3
                     st.session_state.selected_run_order = "Balanced"
                     st.session_state.selected_device_mode = default_device_mode
                     st.session_state.last_run_results = []
@@ -5564,3 +5880,6 @@ if st.session_state.benchmark_running and not st.session_state.is_finished and n
             st.session_state.batch_completed_at = timestamp_now()
         write_current_batch_results_json()
         st.rerun()
+
+import matplotlib.pyplot as plt
+plt.close('all')
