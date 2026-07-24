@@ -55,7 +55,7 @@ The GUI files are structured as follows:
 │   ├── backend/            # Execution engines and filesystem managers (benchmark_runner, quality_runner, session_manager, exporter)
 │   ├── components/         # Reusable UI elements (cards, plots, media, tables)
 │   ├── assets/             # Static datasets (docs_reference.json, amd/intel-cpus.csv)
-│   ├── pages/              # Individual dashboard views (configure, active_run, history, documentation)
+│   ├── views/              # Individual dashboard views (configure, active_run, history, documentation)
 │   ├── utils/              # Helper functions, parsers, and state utilities (helpers.py, state.py, loader.py, processing.py)
 │   └── sessions/           # Created dynamically: stores task CSVs, PDF reports, and heatmaps
 ```

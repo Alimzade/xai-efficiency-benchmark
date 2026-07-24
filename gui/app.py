@@ -53,6 +53,7 @@ if not st.session_state.initialized:
 </div>"""
 
         html = f"""<style>
+[data-testid="stSidebarNav"] {{ display: none !important; }}
 html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"], [data-testid="stMainBlockContainer"] {{
     overflow: hidden !important;
     height: 100vh !important;
@@ -211,10 +212,10 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"], [data-te
 
     # --- STEP 4: WORKSPACE CHECK ---
     placeholder.markdown(render_splash(4), unsafe_allow_html=True)
-    from gui.pages.configure import render_configure_page
-    from gui.pages.active_run import render_active_run_page
-    from gui.pages.history import render_history_page
-    from gui.pages.documentation import render_documentation_page
+    from gui.views.configure import render_configure_page
+    from gui.views.active_run import render_active_run_page
+    from gui.views.history import render_history_page
+    from gui.views.documentation import render_documentation_page
     time.sleep(0.1)
 
     # --- STEP 5: FINAL LAUNCH TRANSITION ---
@@ -231,10 +232,10 @@ from gui.core import sm, default_device_mode, model_opts, xai_opts, PROJECT_ROOT
 from gui.backend.benchmark_runner import run_benchmark_task
 from gui.utils.helpers import get_device_string, timestamp_now
 from gui.utils.state import get_or_create_result_group, write_current_batch_results_json
-from gui.pages.configure import render_configure_page
-from gui.pages.active_run import render_active_run_page
-from gui.pages.history import render_history_page
-from gui.pages.documentation import render_documentation_page
+from gui.views.configure import render_configure_page
+from gui.views.active_run import render_active_run_page
+from gui.views.history import render_history_page
+from gui.views.documentation import render_documentation_page
 
 # CSS
 st.markdown("""
