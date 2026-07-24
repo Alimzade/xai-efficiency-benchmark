@@ -14,7 +14,7 @@ from PIL import Image
 from gui.core import sm, PROJECT_ROOT, model_opts
 from gui.backend.benchmark_runner import find_cpu_tdp
 from gui.components.media import get_base64, render_image_preview_gallery
-from gui.data.loader import expand_xai_methods_with_params, assign_numbered_suffixes
+from gui.utils.loader import expand_xai_methods_with_params, assign_numbered_suffixes
 from gui.utils.helpers import build_task_queue, get_cpu_info, parse_input_sizes, rerun_app, keep_local_images_expanded
 from gui.utils.state import current_image_sources, serialize_and_persist_image_sources, check_and_reset_session_after_delete, resume_batch
 

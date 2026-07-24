@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from torchvision import models, transforms
+from torchvision.models.resnet import Bottleneck, BasicBlock
 from torchvision.models import (
     ResNet50_Weights,
     ConvNeXt_Tiny_Weights,
@@ -23,8 +24,6 @@ MODEL_ZOO = {
     'densenet121': (models.densenet121, DenseNet121_Weights.IMAGENET1K_V1),  # DenseNet
     'vit-b-16': (models.vit_b_16, ViT_B_16_Weights.IMAGENET1K_V1)  # Vision Transformer
 }
-
-from torchvision.models.resnet import Bottleneck, BasicBlock
 
 # Patch forward methods and replace relu modules for DeepLift compatibility
 def _patched_bottleneck_forward(self, x):

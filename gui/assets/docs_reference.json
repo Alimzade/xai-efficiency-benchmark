@@ -1,0 +1,178 @@
+{
+  "xai_methods": [
+    {
+      "category": "1. Backpropagation-Based Methods",
+      "methods": [
+        {
+          "name": "Saliency *(Vanilla Grad)*",
+          "formulation": "$A(x) = \\left\\vert \\frac{\\partial y_c}{\\partial x} \\right\\vert$",
+          "complexity": "⚡ $O(1)$ pass",
+          "characteristics": "Raw output gradient. Prone to gradient saturation & high-frequency noise."
+        },
+        {
+          "name": "Input × Gradient",
+          "formulation": "$A(x) = x \\odot \\frac{\\partial y_c}{\\partial x}$",
+          "complexity": "⚡ $O(1)$ pass",
+          "characteristics": "Scales gradient by input pixel intensity; improves baseline sharpness."
+        },
+        {
+          "name": "Guided Backpropagation",
+          "formulation": "$R_i^l = \\mathbb{I}(R_i^{l+1}>0) \\mathbb{I}(x_i^l>0) R_i^{l+1}$",
+          "complexity": "⚡ $O(1)$ pass",
+          "characteristics": "Overrides ReLU backward rules; acts partly as an edge detector."
+        },
+        {
+          "name": "DeepLift",
+          "formulation": "$\\sum C_{\\Delta x_i \\Delta y} = f(x) - f(x')$",
+          "complexity": "⚡ $O(1)$ pass",
+          "characteristics": "Decomposes output w.r.t baseline; avoids zero-gradient saturation."
+        },
+        {
+          "name": "Integrated Gradients (IG)",
+          "formulation": "$(x_i - x'_i) \\int_0^1 \\frac{\\partial f(x'+\\alpha(x-x'))}{\\partial x_i} d\\alpha$",
+          "complexity": "🐢 $O(M)$ passes",
+          "characteristics": "Satisfies Axioms of Completeness & Implementation Invariance."
+        },
+        {
+          "name": "Gradient SHAP",
+          "formulation": "$\\mathbb{E}_{x', \\epsilon} \\left[ (x - x') \\odot \\frac{\\partial f(x+\\epsilon)}{\\partial x} \\right]$",
+          "complexity": "🐢 $O(N \\cdot M)$ passes",
+          "characteristics": "Game-theoretic SHAP approximation using Gaussian noise sampling."
+        },
+        {
+          "name": "DeepLift SHAP",
+          "formulation": "$\\mathbb{E}_{x' \\sim D} \\left[ \\text{DeepLift}(x, x') \\right]$",
+          "complexity": "🐢 $O(N)$ passes",
+          "characteristics": "Combines DeepLift difference propagation with SHAP baseline sampling."
+        },
+        {
+          "name": "Grad-CAM",
+          "formulation": "$L_{\\text{Grad-CAM}}^c = \\text{ReLU}\\left(\\sum \\alpha_k^c A^k\\right)$",
+          "complexity": "⚡ $O(1)$ pass",
+          "characteristics": "Class-discriminative coarse spatial localization upsampled to input size."
+        }
+      ]
+    },
+    {
+      "category": "2. Perturbation-Based Methods",
+      "methods": [
+        {
+          "name": "Occlusion",
+          "formulation": "$A_i(x) = f(x) - f(x_{[i \\leftarrow x']})$",
+          "complexity": "🐢 $O(\\text{patches})$ passes",
+          "characteristics": "Simple, model-agnostic, and intuitive perturbation method. Replaces sliding windows with baseline values and measures output differences."
+        },
+        {
+          "name": "Lime *(Local Interpretable Model-agnostic Explanations)*",
+          "formulation": "$\\arg\\min_{g \\in G} \\mathcal{L}(f, g, \\pi_x) + \\Omega(g)$",
+          "complexity": "🐢 $O(M)$ passes",
+          "characteristics": "Surrogate-based local attribution. Generates superpixel perturbations, obtains prediction probabilities, and fits an interpretable linear model."
+        }
+      ]
+    }
+  ],
+  "models": [
+    {
+      "category": "1. Convolutional Neural Networks (CNNs)",
+      "models": [
+        {
+          "name": "ResNet-50",
+          "params": "~25.6M",
+          "characteristics": "Benchmark residual network with identity skip connections to prevent vanishing gradients."
+        },
+        {
+          "name": "ConvNeXt-Tiny",
+          "params": "~28.6M",
+          "characteristics": "Modernized pure CNN adopting ViT design choices ($7\\times7$ depthwise convs, LayerNorm)."
+        },
+        {
+          "name": "DenseNet-121",
+          "params": "~8.0M",
+          "characteristics": "Densely connected layers maximizing feature reuse across all feed-forward stages."
+        },
+        {
+          "name": "EfficientNet-B0",
+          "params": "~5.3M",
+          "characteristics": "Neural Architecture Search (NAS) model scaled via compound depth/width/resolution rules."
+        },
+        {
+          "name": "MobileNet-V3 Large",
+          "params": "~5.4M",
+          "characteristics": "Mobile architecture with inverted bottleneck blocks and hard-swish activation functions."
+        },
+        {
+          "name": "RegNet-Y 8GF",
+          "params": "~39.4M",
+          "characteristics": "Quantized linear design space network optimized for high hardware execution throughput."
+        }
+      ]
+    },
+    {
+      "category": "2. Vision Transformers (ViTs)",
+      "models": [
+        {
+          "name": "ViT-B/16",
+          "params": "~86.6M",
+          "characteristics": "Non-convolutional patch-based Transformer ($16\\times16$ tokens, locked $224\\times224$ input)."
+        },
+        {
+          "name": "Swin-Tiny",
+          "params": "~28.3M",
+          "characteristics": "Hierarchical Vision Transformer with shifted window self-attention mechanisms."
+        }
+      ]
+    }
+  ],
+  "metrics": [
+    {
+      "category": "1. Computational Efficiency Metrics",
+      "metrics": [
+        {
+          "name": "Attribution Runtime",
+          "unit": "Seconds ($s$)",
+          "definition": "Microsecond-accurate timer (`time.perf_counter`) with hardware device sync (`torch.cuda.synchronize()`)."
+        },
+        {
+          "name": "Peak Memory",
+          "unit": "Megabytes (MB)",
+          "definition": "Maximum allocated VRAM/RAM captured via PyTorch allocators or CPU process profiling."
+        },
+        {
+          "name": "Estimated Energy Consumption",
+          "unit": "Kilowatt-hours ($kWh$)",
+          "definition": "Estimated hardware energy draw calculated as: $\\text{Runtime (sec)} \\times \\text{TDP (W)} / (3600 \\times 1000)$."
+        }
+      ]
+    },
+    {
+      "category": "2. Explanation Quality & Faithfulness Metrics",
+      "metrics": [
+        {
+          "name": "Gini Index (Sparsity)",
+          "unit": "Range $[0.0, 1.0]$",
+          "definition": "$\\text{Gini}(\\mathbf{A}) = \\frac{\\sum_{i=1}^N (2i - N - 1) \\vert a_{(i)} \\vert}{N \\sum_{i=1}^N \\vert a_{(i)} \\vert}$ *(0.0 = uniform blur, 1.0 = focused)*."
+        },
+        {
+          "name": "Deletion AUC",
+          "unit": "Area Under Curve",
+          "definition": "Measures drop in target class probability as top important pixels are progressively removed. Lower AUC indicates higher faithfulness."
+        },
+        {
+          "name": "Insertion AUC",
+          "unit": "Area Under Curve",
+          "definition": "Measures recovery in target class probability as top important pixels are progressively added to a baseline image. Higher AUC indicates higher faithfulness."
+        },
+        {
+          "name": "Sensitivity (Max)",
+          "unit": "Maximum Deviation",
+          "definition": "Captum metric measuring the maximum change (worst-case sensitivity) in the explanation when the input is subjected to slight perturbations. Lower is better (more robust)."
+        },
+        {
+          "name": "Infidelity",
+          "unit": "Mean Squared Error",
+          "definition": "Captum metric measuring the mean squared difference between predictor output change under perturbation and attribution inner product. Lower is better. Note: Computed in pixel space; for region-based methods (e.g., LIME), the metric scales unpredictably and may not be directly comparable to pixel-based methods."
+        }
+      ]
+    }
+  ]
+}

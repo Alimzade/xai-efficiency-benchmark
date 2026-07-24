@@ -18,7 +18,7 @@ import streamlit.components.v1 as components
 from gui.core import sm
 from gui.analysis.pareto import compute_pareto_ranking
 from gui.analysis.metrics import image_size_summary, method_detail_summary
-from gui.data.processing import ATTR_RUNTIME_COL, LEGACY_RUNTIME_COL, ATTR_MEMORY_COL, LEGACY_MEMORY_COL, metric_col, normalize_metric_columns, presentation_df
+from gui.utils.processing import ATTR_RUNTIME_COL, LEGACY_RUNTIME_COL, ATTR_MEMORY_COL, LEGACY_MEMORY_COL, metric_col, normalize_metric_columns, presentation_df
 from gui.components.tables import style_dataframe
 from gui.components.media import get_image_thumbnail_base64
 from gui.components.plots import plot_runtime_memory_scatter, plot_pareto_scatter, plot_method_runtime_log, plot_method_memory, plot_model_comparison_grouped, plot_model_memory_comparison_grouped, plot_image_size_runtime_scaling, plot_image_size_memory_scaling

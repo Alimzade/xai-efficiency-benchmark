@@ -50,12 +50,13 @@ The GUI files are structured as follows:
 
 ```text
 ├── gui/
-│   ├── app.py              # Main dashboard entrypoint: handles layout, pages, and plots
-│   ├── benchmark_runner.py # Execution engine: manages warmups, repeats, timers, and VRAM
-│   ├── docs_reference.json # Method, model, and metric reference taxonomy (JSON)
-│   ├── exporter.py         # Report generator: compiles benchmark runs into CSV and PDF
-│   ├── quality_runner.py   # Explanation quality & faithfulness evaluator: computes Gini, Deletion/Insertion AUC, and Infidelity
-│   ├── session_manager.py  # File system coordinator: handles workspace outputs and cleanup
+│   ├── app.py              # Main dashboard entrypoint: handles routing and UI initialization
+│   ├── core.py             # Global state and constants manager
+│   ├── backend/            # Execution engines and filesystem managers (benchmark_runner, quality_runner, session_manager, exporter)
+│   ├── components/         # Reusable UI elements (cards, plots, media, tables)
+│   ├── assets/             # Static datasets (docs_reference.json, amd/intel-cpus.csv)
+│   ├── pages/              # Individual dashboard views (configure, active_run, history, documentation)
+│   ├── utils/              # Helper functions, parsers, and state utilities (helpers.py, state.py, loader.py, processing.py)
 │   └── sessions/           # Created dynamically: stores task CSVs, PDF reports, and heatmaps
 ```
 
@@ -97,11 +98,11 @@ You can easily modify and extend the benchmark to customize it for your specific
         model.eval()
         return model.to(device)
     ```
-4.  Add your model's name to the `SUPPORTED_MODELS` list in [gui/app.py](app.py).
+4.  Add your model's name to the `model_opts` list in [gui/core.py](core.py).
 5.  *Optional*: If your model requires non-standard preprocessing (e.g., custom normalization channels or mean/std values), update the helper function `preprocess_image` in [models/model_loader.py](../models/model_loader.py).
 
 ### 2. How to Add a Custom XAI Method
-1.  Open [gui/benchmark_runner.py](benchmark_runner.py).
+1.  Open [gui/backend/benchmark_runner.py](backend/benchmark_runner.py).
 2.  Locate the XAI Tool Initialization block and instantiate your method:
     ```python
     elif method_key == 'my_custom_method':
@@ -112,8 +113,8 @@ You can easily modify and extend the benchmark to customize it for your specific
     if method_key == 'my_custom_method':
         return xai_tool.attribute(input_tensor, target=pred_label_idx)
     ```
-4.  Add your method's key to the `METHODS_INFO` list/dictionary in [gui/app.py](app.py).
-5.  *Optional*: You can adjust existing XAI hyperparameters (such as the number of steps for Integrated Gradients or the baseline tensor values) directly inside the `get_attr()` helper function in [gui/benchmark_runner.py](benchmark_runner.py).
+4.  Add your method's key to the `xai_opts` list in [gui/core.py](core.py) and update the taxonomy in [gui/assets/docs_reference.json](assets/docs_reference.json).
+5.  *Optional*: You can adjust existing XAI hyperparameters (such as the number of steps for Integrated Gradients or the baseline tensor values) directly inside the `get_attr()` helper function in [gui/backend/benchmark_runner.py](backend/benchmark_runner.py).
 
 ### 3. How to Auto-Load Local Test Images
 To have your own set of local test images load automatically on startup:

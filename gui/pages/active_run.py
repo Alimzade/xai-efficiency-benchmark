@@ -9,7 +9,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 from gui.core import sm, default_device_mode
-from gui.data.processing import normalize_metric_columns
+from gui.utils.processing import normalize_metric_columns
 from gui.backend.benchmark_runner import collect_environment_metadata
 from gui.backend.exporter import generate_csv_report, generate_pdf_report
 from gui.utils.helpers import get_device_string, sorted_result_groups, format_time, timestamp_now, format_run_timestamps, format_run_duration, parse_input_sizes, rerun_app

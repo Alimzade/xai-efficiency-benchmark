@@ -5,7 +5,7 @@ Contains helper functions for styling and rendering Pandas DataFrames beautifull
 import pandas as pd
 
 from gui.core import logger
-from gui.data.processing import ATTR_RUNTIME_COL, ATTR_MEMORY_COL, normalize_metric_columns
+from gui.utils.processing import ATTR_RUNTIME_COL, ATTR_MEMORY_COL, normalize_metric_columns
 
 def style_dataframe(df, raw_precision=False):
     df = normalize_metric_columns(df.copy())

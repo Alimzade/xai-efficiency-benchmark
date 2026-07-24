@@ -10,7 +10,7 @@ import streamlit as st
 from gui.core import sm
 from gui.utils.state import check_and_reset_session_after_delete
 from gui.utils.helpers import format_time, format_run_timestamps, format_run_duration, get_batch_display_name, rerun_app
-from gui.data.processing import ATTR_RUNTIME_COL, LEGACY_RUNTIME_COL, ATTR_MEMORY_COL, LEGACY_MEMORY_COL, metric_col, normalize_metric_columns
+from gui.utils.processing import ATTR_RUNTIME_COL, LEGACY_RUNTIME_COL, ATTR_MEMORY_COL, LEGACY_MEMORY_COL, metric_col, normalize_metric_columns
 from gui.components.cards import render_analytics_sections, render_environment_summary, render_parameters_mapping_table, render_configuration_summary, render_detailed_results_header, render_result_group
 from gui.backend.exporter import generate_csv_report, generate_pdf_report
 

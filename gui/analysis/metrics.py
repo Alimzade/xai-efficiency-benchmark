@@ -4,7 +4,7 @@ Contains mathematical logic for summarizing metrics, extracting fastest/slowest 
 """
 import pandas as pd
 
-from gui.data.processing import add_input_size_column, ATTR_RUNTIME_COL, LEGACY_RUNTIME_COL, ATTR_MEMORY_COL, LEGACY_MEMORY_COL, metric_col, normalize_metric_columns, presentation_df
+from gui.utils.processing import add_input_size_column, ATTR_RUNTIME_COL, LEGACY_RUNTIME_COL, ATTR_MEMORY_COL, LEGACY_MEMORY_COL, metric_col, normalize_metric_columns, presentation_df
 
 def image_size_summary(df):
     df = add_input_size_column(normalize_metric_columns(df))
