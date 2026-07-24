@@ -1,8 +1,11 @@
+"""
+Manages persistent state, benchmark history, and file I/O.
+Handles saving and loading of batch runs and configuration data.
+"""
 import os
-import uuid
-from datetime import datetime
 import json
 import shutil
+from datetime import datetime
 
 class SessionManager:
     def __init__(self, base_dir="gui/sessions"):

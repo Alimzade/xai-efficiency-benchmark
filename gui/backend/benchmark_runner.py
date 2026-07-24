@@ -1,26 +1,42 @@
+"""
+Orchestrates the execution of XAI benchmark tasks.
+Handles model inference, memory profiling, and timing measurements.
+"""
 import os
 import sys
+import re
+import gc
 import time
 import json
-import subprocess
 import torch
-import pandas as pd
-from PIL import Image
 import requests
-from io import BytesIO
-from memory_profiler import memory_usage
-import gc
-import numpy as np
-import matplotlib.pyplot as plt
 import platform
+import subprocess
+import numpy as np
+import pandas as pd
+import urllib.request
+import matplotlib.pyplot as plt
+
+try:
+    import winreg
+except ImportError:
+    winreg = None
+
+from PIL import Image
+from io import BytesIO
 from datetime import datetime
+from dbgpu import GPUDatabase
+from skimage.segmentation import slic
+from memory_profiler import memory_usage
+from gui.backend.quality_runner import compute_quality_metrics
 
 # Add the parent directory to sys.path so we can import models and xai_methods
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from models.model_loader import load_model, preprocess_image, FIXED_SIZE_MODELS
 from torchvision import transforms
 from models.label_utils import get_label_mapping
+from models.model_loader import load_model, preprocess_image
+from captum.attr import visualization as viz
 from captum.attr import (
     DeepLift,
     DeepLiftShap,
@@ -34,12 +50,6 @@ from captum.attr import (
     Occlusion,
     Lime,
 )
-from captum.attr import visualization as viz
-
-try:
-    from gui.quality_runner import compute_quality_metrics
-except ImportError:
-    from quality_runner import compute_quality_metrics
 
 MODEL_CACHE = {}
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -134,7 +144,6 @@ def normalize_method_name(method_name):
     # Strip any parameters in parentheses
     name = method_name.split("(")[0].strip()
     # Strip trailing numeric suffixes (e.g. Lime_1 -> Lime)
-    import re
     name = re.sub(r'_\d+$', '', name)
     return name.lower().replace("-", "_")
 
@@ -154,7 +163,6 @@ def get_cpu_name():
         system = platform.system()
         if system == "Windows":
             try:
-                import winreg
                 key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"HARDWARE\DESCRIPTION\System\CentralProcessor\0")
                 val, _ = winreg.QueryValueEx(key, "ProcessorNameString")
                 if val:
@@ -163,7 +171,6 @@ def get_cpu_name():
                 pass
             return platform.processor()
         elif system == "Darwin":
-            import subprocess
             return subprocess.check_output(["sysctl", "-n", "machdep.cpu.brand_string"]).decode().strip()
         elif system == "Linux":
             if os.path.exists("/proc/cpuinfo"):
@@ -192,9 +199,6 @@ def find_cpu_tdp(cpu_name):
     is_intel = "intel" in query
     is_amd = "amd" in query or "ryzen" in query or "athlon" in query or "epyc" in query
     
-    import pandas as pd
-    import re
-    
     base_dir = os.path.dirname(os.path.abspath(__file__))
     intel_path = os.path.join(base_dir, "data", "intel-cpus.csv")
     amd_path = os.path.join(base_dir, "data", "amd-cpus.csv")
@@ -203,7 +207,6 @@ def find_cpu_tdp(cpu_name):
     if not os.path.exists(intel_path) or not os.path.exists(amd_path):
         try:
             os.makedirs(os.path.join(base_dir, "data"), exist_ok=True)
-            import urllib.request
             if not os.path.exists(intel_path):
                 urllib.request.urlretrieve(
                     "https://raw.githubusercontent.com/felixsteinke/cpu-spec-dataset/main/dataset/intel-cpus.csv",
@@ -280,7 +283,6 @@ def collect_environment_metadata(device=None, custom_cpu_tdp=None, custom_gpu_td
     if torch.cuda.is_available():
         db = None
         try:
-            from dbgpu import GPUDatabase
             db = GPUDatabase.default()
         except Exception:
             pass
@@ -400,7 +402,6 @@ def run_benchmark_task(config, session_dir):
 
     # 2. Load Model
     model_name = config.get('model_name', 'resnet50')
-    import re
     norm_model_name = re.sub(r'_\d+$', '', model_name)
     model, was_model_cached = get_cached_model(model_name=norm_model_name, device=device)
 
@@ -523,7 +524,6 @@ def run_benchmark_task(config, session_dir):
                             
                     return xai_tool.attribute(inputs_to_use, sliding_window_shapes=w_shapes, strides=strds, target=pred_label_idx, baselines=baselines)
                 if method_key == 'lime':
-                    from skimage.segmentation import slic
                     n_samples = int(method_params.get("n_samples", 500))
                     batch_size = int(method_params.get("perturbations_per_eval", 10))
                     n_segments = int(method_params.get("n_segments", 50))

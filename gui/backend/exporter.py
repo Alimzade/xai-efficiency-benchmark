@@ -1,10 +1,13 @@
+"""
+Generates PDF and CSV reports for benchmark results.
+Handles data formatting and visual report generation.
+"""
 import os
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
-from matplotlib.backends.backend_pdf import PdfPages
 from PIL import Image
-import numpy as np
+from matplotlib.backends.backend_pdf import PdfPages
 
 ATTR_RUNTIME_COL = "Attribution Runtime (sec)"
 ATTR_MEMORY_COL = "Peak Attribution Memory (MB)"

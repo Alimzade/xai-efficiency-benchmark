@@ -4,16 +4,17 @@ Calculates post-hoc quality metrics (Gini, Deletion AUC, Insertion AUC, Infideli
 outside the timed XAI benchmarking clock.
 """
 
-import logging
 import time
+import logging
 import traceback
-from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple, Union
-
 import numpy as np
+
 import torch
 import torch.nn.functional as F
-from captum.metrics import infidelity, sensitivity_max
+
+from dataclasses import dataclass
+from typing import Dict, Optional, Tuple
+from captum.metrics import sensitivity_max
 
 logger = logging.getLogger(__name__)
 
