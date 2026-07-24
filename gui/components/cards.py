@@ -265,11 +265,16 @@ def render_analytics_sections(fdf, result_groups):
                     ("Runs per Method", _m_total, True),
                 ))
                 st.table(style_dataframe(method_detail_summary(fdf)))
+                # Calculate a universal method ordering (sorted by median runtime) so both plots align perfectly
+                norm_df = normalize_metric_columns(fdf)
+                r_col = metric_col(norm_df, ATTR_RUNTIME_COL, LEGACY_RUNTIME_COL)
+                method_order = list(norm_df.groupby("Method")[r_col].median().sort_values(ascending=True).index)
+                
                 cm1, cm2 = st.columns(2)
                 with cm1:
-                    st.pyplot(plot_method_runtime_log(fdf))
+                    st.pyplot(plot_method_runtime_log(fdf, order=method_order))
                 with cm2:
-                    st.pyplot(plot_method_memory(fdf))
+                    st.pyplot(plot_method_memory(fdf, order=method_order))
                     
             # --- Explanation Quality Trade-offs ---
             has_quality = any(col in fdf.columns and fdf[col].notna().any() for col in ["Deletion AUC", "Insertion AUC", "Sensitivity (Max)", "Gini Index"])
@@ -337,11 +342,17 @@ def render_analytics_sections(fdf, result_groups):
                 model_summary = fdf.groupby("Model").agg(**model_agg_dict).reset_index().sort_values("Mean Attribution Runtime (sec)")
                 st.table(style_dataframe(model_summary))
                 
+                # Calculate universal grouping order based on runtime
+                norm_df = normalize_metric_columns(fdf)
+                r_col = metric_col(norm_df, ATTR_RUNTIME_COL, LEGACY_RUNTIME_COL)
+                method_order = list(norm_df.groupby("Method")[r_col].mean().sort_values(ascending=True).index)
+                model_order = list(norm_df.groupby("Model")[r_col].mean().sort_values(ascending=True).index)
+                
                 mc1, mc2 = st.columns(2)
                 with mc1:
-                    st.pyplot(plot_model_comparison_grouped(fdf))
+                    st.pyplot(plot_model_comparison_grouped(fdf, method_order=method_order, model_order=model_order))
                 with mc2:
-                    st.pyplot(plot_model_memory_comparison_grouped(fdf))
+                    st.pyplot(plot_model_memory_comparison_grouped(fdf, method_order=method_order, model_order=model_order))
         
         # --- Resolution Comparison: multiple input resolutions were benchmarked ---
         if n_resolutions > 1:

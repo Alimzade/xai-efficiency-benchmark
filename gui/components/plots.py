@@ -218,12 +218,13 @@ def plot_radar_chart(df):
     fig.subplots_adjust(left=0.2, right=0.75, top=0.75, bottom=0.2)
     return fig
 
-def plot_method_runtime_log(df, title="Runtime Comparison (Log Scale)"):
+def plot_method_runtime_log(df, title="Runtime Comparison (Log Scale)", order=None):
     df = normalize_metric_columns(df)
     runtime_col = metric_col(df, ATTR_RUNTIME_COL, LEGACY_RUNTIME_COL)
     
-    # Sort methods by median runtime
-    order = list(df.groupby("Method")[runtime_col].median().sort_values(ascending=True).index)
+    if order is None:
+        # Sort methods by median runtime
+        order = list(df.groupby("Method")[runtime_col].median().sort_values(ascending=True).index)
     
     stats = []
     for method in order:
@@ -292,7 +293,7 @@ def plot_method_runtime_log(df, title="Runtime Comparison (Log Scale)"):
     plt.tight_layout()
     return fig
 
-def plot_method_memory(df, title="Peak Memory Overhead"):
+def plot_method_memory(df, title="Peak Memory Overhead", order=None):
     df = normalize_metric_columns(df)
     memory_col = metric_col(df, ATTR_MEMORY_COL, LEGACY_MEMORY_COL)
     
@@ -304,8 +305,12 @@ def plot_method_memory(df, title="Peak Memory Overhead"):
         ax.axis('off')
         return fig
 
-    # Sort methods by median memory
-    order = list(valid_df.groupby("Method")[memory_col].median().sort_values(ascending=True).index)
+    if order is None:
+        # Sort methods by median memory
+        order = list(valid_df.groupby("Method")[memory_col].median().sort_values(ascending=True).index)
+    else:
+        # Filter order to only include methods that have valid memory data
+        order = [m for m in order if m in valid_df["Method"].values]
     
     stats = []
     for method in order:
@@ -372,23 +377,25 @@ def plot_method_memory(df, title="Peak Memory Overhead"):
     plt.tight_layout()
     return fig
 
-def plot_model_comparison_grouped(df, title="Architecture Efficiency Comparison"):
+def plot_model_comparison_grouped(df, title="Architecture Efficiency Comparison", method_order=None, model_order=None):
     df = normalize_metric_columns(df)
     runtime_col = metric_col(df, ATTR_RUNTIME_COL, LEGACY_RUNTIME_COL)
     fig, ax = plt.subplots(figsize=(12, 7))
     
-    # Sort methods (X-axis) by mean runtime (small to big)
-    methods_order = list(df.groupby("Method")[runtime_col].mean().sort_values(ascending=True).index)
-    # Sort models (Hue/Legend) by mean runtime (small to big)
-    hue_order = list(df.groupby("Model")[runtime_col].mean().sort_values(ascending=True).index)
+    if method_order is None:
+        # Sort methods (X-axis) by mean runtime (small to big)
+        method_order = list(df.groupby("Method")[runtime_col].mean().sort_values(ascending=True).index)
+    if model_order is None:
+        # Sort models (Hue/Legend) by mean runtime (small to big)
+        model_order = list(df.groupby("Model")[runtime_col].mean().sort_values(ascending=True).index)
     
     sns.barplot(
         data=df, 
         x="Method", 
-        order=methods_order,
+        order=method_order,
         y=runtime_col, 
         hue="Model", 
-        hue_order=hue_order,
+        hue_order=model_order,
         palette="colorblind", 
         ax=ax, 
         edgecolor="black",
@@ -431,23 +438,25 @@ def plot_model_comparison_grouped(df, title="Architecture Efficiency Comparison"
     plt.tight_layout()
     return fig
 
-def plot_model_memory_comparison_grouped(df, title="Architecture Peak Memory Comparison"):
+def plot_model_memory_comparison_grouped(df, title="Architecture Peak Memory Comparison", method_order=None, model_order=None):
     df = normalize_metric_columns(df)
     memory_col = metric_col(df, ATTR_MEMORY_COL, LEGACY_MEMORY_COL)
     fig, ax = plt.subplots(figsize=(12, 7))
     
-    # Sort methods (X-axis) by mean memory (small to big)
-    methods_order = list(df.groupby("Method")[memory_col].mean().sort_values(ascending=True).index)
-    # Sort models (Hue/Legend) by mean memory (small to big)
-    hue_order = list(df.groupby("Model")[memory_col].mean().sort_values(ascending=True).index)
+    if method_order is None:
+        # Sort methods (X-axis) by mean memory (small to big)
+        method_order = list(df.groupby("Method")[memory_col].mean().sort_values(ascending=True).index)
+    if model_order is None:
+        # Sort models (Hue/Legend) by mean memory (small to big)
+        model_order = list(df.groupby("Model")[memory_col].mean().sort_values(ascending=True).index)
     
     sns.barplot(
         data=df, 
         x="Method", 
-        order=methods_order,
+        order=method_order,
         y=memory_col, 
         hue="Model", 
-        hue_order=hue_order,
+        hue_order=model_order,
         palette="colorblind", 
         ax=ax, 
         edgecolor="black",
