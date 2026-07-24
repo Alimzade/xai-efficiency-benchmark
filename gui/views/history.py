@@ -23,21 +23,18 @@ def render_history_page():
         return
 
     batch_ids = [b["id"] for b in batches]
-    default_idx = 0
-    if st.session_state.selected_history_batch in batch_ids:
-        default_idx = batch_ids.index(st.session_state.selected_history_batch)
-    else:
-        if batch_ids:
-            st.session_state.selected_history_batch = batch_ids[0]
+    
+    # Ensure the session state key exists and is valid before rendering the selectbox
+    if "selected_history_batch" not in st.session_state or st.session_state.selected_history_batch not in batch_ids:
+        st.session_state.selected_history_batch = batch_ids[0] if batch_ids else None
 
     selected_bid = st.selectbox(
         "Select Benchmark Batch to View & Evaluate",
         batch_ids,
-        index=default_idx,
+        key="selected_history_batch",
         format_func=lambda bid: get_batch_display_name(bid, sm.base_dir),
         help="Select a batch to view its results, charts, and exports."
     )
-    st.session_state.selected_history_batch = selected_bid
 
     if not selected_bid:
         st.info("Please select a batch from the list above.")

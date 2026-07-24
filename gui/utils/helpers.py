@@ -228,11 +228,13 @@ def get_batch_display_name(bid, base_dir):
             settings = meta.get("benchmark_settings", {}) or {}
             models = settings.get("models", []) or []
             methods = settings.get("methods", []) or meta.get("methods", []) or []
+            resolutions = settings.get("resolutions", []) or []
             
             # Fallback if settings are empty
-            if not models or not methods:
+            if not models or not methods or not resolutions:
                 scanned_models = set()
                 scanned_methods = set()
+                scanned_res = set()
                 for g in results:
                     for m in g.get("models", []):
                         if m.get("model_name"):
@@ -240,17 +242,22 @@ def get_batch_display_name(bid, base_dir):
                         for r in m.get("results", []):
                             if r.get("Method"):
                                 scanned_methods.add(r.get("Method"))
+                            if r.get("Resolution"):
+                                scanned_res.add(r.get("Resolution"))
                 if not models:
                     models = list(scanned_models)
                 if not methods:
                     methods = list(scanned_methods)
+                if not resolutions:
+                    resolutions = list(scanned_res)
                 
             img_lbl = f"{img_count} img" if img_count == 1 else f"{img_count} imgs"
             model_lbl = f"{len(models)} model" if len(models) == 1 else f"{len(models)} models"
             method_lbl = f"{len(methods)} method" if len(methods) == 1 else f"{len(methods)} methods"
+            res_lbl = f"{len(resolutions)} res" if len(resolutions) == 1 else f"{len(resolutions)} res"
             
             # 4 non-breaking spaces before details parenthesis
-            return f"{display_time}\u00A0\u00A0\u00A0\u00A0({img_lbl}, {model_lbl}, {method_lbl})"
+            return f"{display_time}\u00A0\u00A0\u00A0\u00A0({img_lbl}, {res_lbl}, {model_lbl}, {method_lbl})"
         except Exception:
             return bid
     return bid
