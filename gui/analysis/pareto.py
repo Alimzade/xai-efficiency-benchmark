@@ -4,7 +4,7 @@ Contains mathematical logic for computing Pareto optimal frontiers and ranking X
 """
 import pandas as pd
 
-from gui.utils.processing import normalize_metric_columns
+from utils.processing import normalize_metric_columns
 
 def compute_pareto_ranking(df, runtime_col):
     df = normalize_metric_columns(df)
