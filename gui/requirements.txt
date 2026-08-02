@@ -1,0 +1,17 @@
+# --- Core Libraries (Managed by smart_setup.py) ---
+# torch
+# torchvision
+# torchaudio
+
+# --- XAI & Analysis ---
+captum
+memory_profiler
+opencv-python
+requests
+pandas
+scikit-image
+scikit-learn
+seaborn
+streamlit
+dbgpu[fuzz]
+questionary
