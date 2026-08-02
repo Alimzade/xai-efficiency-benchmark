@@ -6,10 +6,10 @@ import os
 import json
 import random
 import streamlit as st
-from gui.core import PROJECT_ROOT
+from config import PROJECT_ROOT
 from datetime import datetime
 
-from gui.backend.benchmark_runner import get_cpu_name
+from backend.benchmark_runner import get_cpu_name
 fragment_api = getattr(st, 'fragment', getattr(st, 'experimental_fragment', None))
 
 

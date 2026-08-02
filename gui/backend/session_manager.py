@@ -8,8 +8,13 @@ import shutil
 from datetime import datetime
 
 class SessionManager:
-    def __init__(self, base_dir="gui/sessions"):
-        self.base_dir = base_dir
+    def __init__(self, base_dir=None):
+        if base_dir is None:
+            this_dir = os.path.dirname(os.path.abspath(__file__))
+            self.base_dir = os.path.abspath(os.path.join(this_dir, "..", "sessions"))
+        else:
+            self.base_dir = base_dir
+            
         if not os.path.exists(self.base_dir):
             os.makedirs(self.base_dir)
 

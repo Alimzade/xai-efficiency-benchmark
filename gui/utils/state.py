@@ -8,9 +8,9 @@ import json
 import streamlit as st
 import pandas as pd
 
-from gui.core import sm, PROJECT_ROOT
-from gui.utils.helpers import get_device_string, build_task_queue, sorted_result_groups, timestamp_now
-from gui.backend.benchmark_runner import collect_environment_metadata
+from config import sm, PROJECT_ROOT
+from utils.helpers import get_device_string, build_task_queue, sorted_result_groups, timestamp_now
+from backend.benchmark_runner import collect_environment_metadata
 
 def get_or_create_result_group(results, img_i, img_sources):
     img_idx = img_i + 1
@@ -116,6 +116,7 @@ def write_current_batch_results_json():
                 "enable_quality_metrics": st.session_state.current_enable_quality_metrics,
                 "selected_quality_metrics": st.session_state.current_selected_quality_metrics,
                 "run_order": st.session_state.current_run_order,
+                "random_seed": st.session_state.get("current_random_seed", 42),
                 "task_count": len(st.session_state.task_queue),
                 "models": st.session_state.current_batch_models,
                 "input_sizes": st.session_state.current_batch_sizes,
@@ -143,6 +144,12 @@ def resume_batch(batch_id):
     st.session_state.current_batch_id = batch_id
     st.session_state.last_run_batch_id = batch_id
     st.session_state.current_run_order = cfg.get("run_order", "Balanced")
+    restored_seed = cfg.get("random_seed", 42)
+    st.session_state.current_random_seed = restored_seed
+    if "random_seed" not in cfg:
+        cfg["random_seed"] = restored_seed
+        sm.save_batch_config(batch_id, cfg)
+
     st.session_state.current_batch_methods = list(cfg.get("methods", []))
     st.session_state.current_batch_methods_info = cfg.get("methods_info", [])
     st.session_state.current_batch_models = list(cfg.get("models", []))
@@ -165,13 +172,14 @@ def resume_batch(batch_id):
     if not expanded_methods:
         expanded_methods = [{"display_name": m, "base_name": m.lower().replace("-", "_"), "params": {}} for m in cfg.get("methods", [])]
         
+    seed_to_use = st.session_state.current_random_seed if st.session_state.current_run_order == "Randomized" else None
     st.session_state.task_queue = build_task_queue(
         len(st.session_state.prepared_img_sources),
         st.session_state.current_batch_models,
         st.session_state.current_batch_sizes,
         expanded_methods,
         st.session_state.current_run_order,
-        seed=batch_id
+        seed=seed_to_use
     )
     
     # Calculate TDP in W for the resumed session

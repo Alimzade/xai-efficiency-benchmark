@@ -28,14 +28,13 @@ from datetime import datetime
 from dbgpu import GPUDatabase
 from skimage.segmentation import slic
 from memory_profiler import memory_usage
-from gui.backend.quality_runner import compute_quality_metrics
+from backend.quality_runner import compute_quality_metrics
 
-# Add the parent directory to sys.path so we can import models and xai_methods
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Remove sys.path hack since models is now local to gui/
 
 from torchvision import transforms
-from models.label_utils import get_label_mapping
-from models.model_loader import load_model, preprocess_image
+from utils.label_utils import get_label_mapping
+from utils.model_loader import load_model, preprocess_image
 from captum.attr import visualization as viz
 from captum.attr import (
     DeepLift,
@@ -200,8 +199,9 @@ def find_cpu_tdp(cpu_name):
     is_amd = "amd" in query or "ryzen" in query or "athlon" in query or "epyc" in query
     
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    intel_path = os.path.join(base_dir, "data", "intel-cpus.csv")
-    amd_path = os.path.join(base_dir, "data", "amd-cpus.csv")
+    assets_dir = os.path.join(os.path.dirname(base_dir), "assets")
+    intel_path = os.path.join(assets_dir, "intel-cpus.csv")
+    amd_path = os.path.join(assets_dir, "amd-cpus.csv")
     
     # Auto-download datasets if they don't exist locally
     if not os.path.exists(intel_path) or not os.path.exists(amd_path):
@@ -303,8 +303,11 @@ def collect_environment_metadata(device=None, custom_cpu_tdp=None, custom_gpu_td
                     pass
 
             if custom_gpu_tdp is not None:
+                if tdp_val is None:
+                    matched_gpu = "User Specified"
+                elif tdp_val != custom_gpu_tdp:
+                    matched_gpu = "User Override"
                 tdp_val = custom_gpu_tdp
-                matched_gpu = "User Override"
 
             cuda_devices.append({
                 "index": idx,
@@ -323,7 +326,7 @@ def collect_environment_metadata(device=None, custom_cpu_tdp=None, custom_gpu_td
                 "total_memory_mb": 0.0,
                 "compute_capability": "N/A",
                 "tdp_w": custom_gpu_tdp,
-                "matched_name": "User Override",
+                "matched_name": "User Specified",
             })
 
     cpu_name = get_cpu_name()
@@ -335,8 +338,11 @@ def collect_environment_metadata(device=None, custom_cpu_tdp=None, custom_gpu_td
         pass
 
     if custom_cpu_tdp is not None:
+        if cpu_tdp is None:
+            matched_cpu = "User Specified"
+        elif cpu_tdp != custom_cpu_tdp:
+            matched_cpu = "User Override"
         cpu_tdp = custom_cpu_tdp
-        matched_cpu = "User Override"
 
     return {
         "app_version": "1.0.0",
@@ -638,7 +644,7 @@ def run_benchmark_task(config, session_dir):
             img_cropped = crop_transform(img)
             img_resized = np.array(img_cropped)
             
-            fig, _ = viz.visualize_image_attr(attr_np, img_resized, method="blended_heat_map", sign="all", show_colorbar=True, alpha_overlay=0.6)
+            fig, _ = viz.visualize_image_attr(attr_np, img_resized, method="blended_heat_map", sign="all", show_colorbar=True, alpha_overlay=0.6, use_pyplot=False)
             fig.savefig(os.path.join(heatmaps_dir, f"{method_name}.png"), bbox_inches='tight', pad_inches=0)
             plt.close(fig)
             
