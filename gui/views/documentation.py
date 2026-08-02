@@ -4,7 +4,7 @@ Renders the in-app documentation and reference guides for the XAI Efficiency Ben
 """
 import streamlit as st
 
-from gui.utils.helpers import load_docs_reference
+from utils.helpers import load_docs_reference
 
 def render_documentation_page():
     st.markdown('<div style="margin-top: 1.0rem;"></div>', unsafe_allow_html=True)
@@ -33,8 +33,8 @@ def render_documentation_page():
                 table_md += f"| **{item.get('name', '')}** | {item.get('params', '')} | {item.get('characteristics', '')} |\n"
             st.markdown(f'<div class="doc-reference-table">\n\n{table_md}\n\n</div>', unsafe_allow_html=True)
 
-    # Section 3: Benchmark Metrics
-    with st.expander("📊 Evaluation Metrics", expanded=False):
+    # Section 3: Benchmark Metrics & Strategies
+    with st.expander("📊 Evaluation Metrics & Strategies", expanded=False):
         metric_groups = docs_data.get("metrics", [])
         for group in metric_groups:
             st.markdown(f"#### {group.get('category', '')}")

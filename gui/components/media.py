@@ -9,7 +9,7 @@ import streamlit as st
 from PIL import Image
 from io import BytesIO
 
-from gui.utils.helpers import rerun_app
+from utils.helpers import rerun_app
 
 def get_base64(img):
     buffered = BytesIO(); img.save(buffered, format="PNG")

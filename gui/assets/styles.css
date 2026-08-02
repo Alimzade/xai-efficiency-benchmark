@@ -182,7 +182,7 @@
     [role="radiogroup"] {
         border-radius: 8px;
         background: var(--xai-sidebar-panel);
-        border-color: rgba(148, 163, 184, 0.2);
+        border: 1px solid rgba(148, 163, 184, 0.25) !important;
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
     }
     [data-baseweb="tag"] {
@@ -234,23 +234,34 @@
         background: rgba(11, 18, 26, 0.36);
         font-size: 0.76rem;
     }
-    [data-testid="stTabs"] [role="tablist"] {
-        justify-content: center;
-        gap: 0.35rem;
-        border-bottom: 1px solid var(--xai-border);
+    [data-testid="stTabs"] [role="tablist"],
+    div[data-baseweb="tab-list"] {
+        justify-content: center !important;
+        gap: 0.35rem !important;
+        border-bottom: 1px solid var(--xai-border) !important;
     }
-    [data-testid="stTabs"] [role="tab"] {
-        border-radius: 8px 8px 0 0;
-        color: var(--xai-muted);
-        padding: 0.6rem 0.9rem;
+    [data-testid="stTabs"] button[role="tab"],
+    [data-testid="stTabs"] div[role="tab"],
+    button[data-baseweb="tab"] {
+        border-radius: 8px 8px 0 0 !important;
+        color: var(--xai-muted) !important;
+        padding: 0.6rem 0.9rem !important;
+        border: none !important;
+        box-shadow: none !important;
+        outline: none !important;
+        margin-bottom: -1px !important;
     }
-    [data-testid="stTabs"] [aria-selected="true"] {
-        background: linear-gradient(180deg, rgba(96, 165, 250, 0.18), rgba(45, 212, 191, 0.08));
-        color: var(--xai-text);
-        border-bottom: 2px solid var(--xai-accent);
+    [data-testid="stTabs"] button[aria-selected="true"],
+    [data-testid="stTabs"] div[aria-selected="true"],
+    button[data-baseweb="tab"][aria-selected="true"] {
+        background: linear-gradient(180deg, rgba(96, 165, 250, 0.18), rgba(45, 212, 191, 0.08)) !important;
+        color: var(--xai-text) !important;
+        border-bottom: 2px solid var(--xai-accent) !important;
     }
-    div[data-baseweb="tab-highlight"] {
-        background-color: transparent !important;
+    div[data-baseweb="tab-highlight"],
+    [data-testid="stTabs"] [data-baseweb="tab-highlight"],
+    [data-testid="stTabs"] [data-baseweb="tab-border"] {
+        display: none !important;
     }
     [data-testid="stMetric"] {
         background: linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.035));
@@ -580,9 +591,14 @@
     }
     /* Style Text Inputs, Number Inputs and Select Dropdowns globally */
     [data-testid="stTextInput"] [data-baseweb="input"],
+    [data-testid="stSelectbox"] [data-baseweb="select"],
+    [data-testid="stSelectbox"] [data-baseweb="select"] > div,
+    [data-testid="stSelectbox"] div[role="combobox"],
+    [data-testid="stMultiSelect"] [data-baseweb="select"],
+    [data-testid="stMultiSelect"] [data-baseweb="select"] > div,
     div[data-testid="stNumberInputContainer"] {
         background-color: rgba(255, 255, 255, 0.045) !important;
-        border: 1px solid rgba(148, 163, 184, 0.2) !important;
+        border: 1px solid rgba(148, 163, 184, 0.35) !important;
         border-radius: 8px !important;
         color: var(--xai-text) !important;
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
@@ -712,15 +728,31 @@
         color: rgba(148, 163, 184, 0.65) !important;
     }
 
-    /* Turned-off toggle switch circle & track */
-    [data-testid="stToggle"] input:not(:checked) + div {
-        background-color: rgba(30, 41, 59, 0.8) !important;
-        border: 1px solid rgba(148, 163, 184, 0.2) !important;
+    /* Active toggle switch track & handle matching design green accent */
+    [data-testid="stToggle"] input:checked + div,
+    [data-testid="stToggle"] [data-baseweb="checkbox"] input:checked ~ div,
+    [data-testid="stCheckbox"] input[type="checkbox"]:checked + div {
+        background-color: rgba(13, 148, 136, 0.4) !important;
+        border-color: rgba(20, 184, 166, 0.7) !important;
+        box-shadow: 0 0 8px rgba(13, 148, 136, 0.3) !important;
     }
-    [data-testid="stToggle"] input:not(:checked) + div > div {
-        background-color: #94a3b8 !important;
-        box-shadow: none !important;
+
+    [data-testid="stToggle"] input:checked + div > div,
+    [data-testid="stToggle"] [aria-checked="true"] div,
+    [data-testid="stToggle"] input:checked ~ div div {
+        background-color: #14b8a6 !important;
+        box-shadow: 0 0 6px rgba(20, 184, 166, 0.7) !important;
     }
+
+    /* Target BaseWeb switch track container when checked */
+    div[data-testid="stToggle"] label > div:first-of-type:has(input:checked),
+    div[data-testid="stToggle"] label:has(input:checked) span {
+        background-color: #0d9488 !important;
+    }
+
+
+
+
 
     /* Align nested columns with their parent's left boundary */
     div[data-testid="column"] div[data-testid="stHorizontalBlock"] {

@@ -8,12 +8,12 @@ import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 
-from gui.core import sm, default_device_mode
-from gui.utils.processing import normalize_metric_columns
-from gui.backend.benchmark_runner import collect_environment_metadata
-from gui.backend.exporter import generate_csv_report, generate_pdf_report
-from gui.utils.helpers import get_device_string, sorted_result_groups, format_time, timestamp_now, format_run_timestamps, format_run_duration, parse_input_sizes, rerun_app
-from gui.components.cards import render_live_elapsed_timer, render_analytics_sections, render_environment_summary, render_parameters_mapping_table, render_configuration_summary, render_detailed_results_header, render_result_group
+from config import sm, default_device_mode
+from utils.processing import normalize_metric_columns
+from backend.benchmark_runner import collect_environment_metadata
+from backend.exporter import generate_csv_report, generate_pdf_report
+from utils.helpers import get_device_string, sorted_result_groups, format_time, timestamp_now, format_run_timestamps, format_run_duration, parse_input_sizes, rerun_app
+from components.cards import render_live_elapsed_timer, render_analytics_sections, render_environment_summary, render_parameters_mapping_table, render_configuration_summary, render_detailed_results_header, render_result_group
 
 
 def render_active_run_page():
@@ -297,6 +297,7 @@ def render_active_run_page():
                             "warmup_runs": st.session_state.current_warmups,
                             "memory_runs": st.session_state.current_memory_runs,
                             "run_order": st.session_state.current_run_order,
+                            "random_seed": st.session_state.get("current_random_seed", 42),
                             "enable_quality_metrics": st.session_state.current_enable_quality_metrics,
                             "selected_quality_metrics": st.session_state.current_selected_quality_metrics,
                             "xai_params": st.session_state.get("sh_xai_params", {})

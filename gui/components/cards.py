@@ -15,13 +15,13 @@ import matplotlib.colors as mcolors
 
 import streamlit.components.v1 as components
 
-from gui.core import sm
-from gui.analysis.pareto import compute_pareto_ranking
-from gui.analysis.metrics import image_size_summary, method_detail_summary
-from gui.utils.processing import ATTR_RUNTIME_COL, LEGACY_RUNTIME_COL, ATTR_MEMORY_COL, LEGACY_MEMORY_COL, metric_col, normalize_metric_columns, presentation_df
-from gui.components.tables import style_dataframe
-from gui.components.media import get_image_thumbnail_base64
-from gui.components.plots import plot_runtime_memory_scatter, plot_pareto_scatter, plot_method_runtime_log, plot_method_memory, plot_model_comparison_grouped, plot_model_memory_comparison_grouped, plot_image_size_runtime_scaling, plot_image_size_memory_scaling
+from config import sm
+from analysis.pareto import compute_pareto_ranking
+from analysis.metrics import image_size_summary, method_detail_summary
+from utils.processing import ATTR_RUNTIME_COL, LEGACY_RUNTIME_COL, ATTR_MEMORY_COL, LEGACY_MEMORY_COL, metric_col, normalize_metric_columns, presentation_df
+from components.tables import style_dataframe
+from components.media import get_image_thumbnail_base64
+from components.plots import plot_runtime_memory_scatter, plot_pareto_scatter, plot_method_runtime_log, plot_method_memory, plot_model_comparison_grouped, plot_model_memory_comparison_grouped, plot_image_size_runtime_scaling, plot_image_size_memory_scaling
 
 def render_live_elapsed_timer(start_time):
     start_ms = int((start_time or time.time()) * 1000)
@@ -395,7 +395,12 @@ def render_environment_summary(environment):
     cpu_display = clean_val(environment.get("processor"))
     cpu_tdp = environment.get("cpu_tdp_w")
     matched_cpu = environment.get("matched_cpu_name")
-    if cpu_tdp:
+        
+    selected_device = str(environment.get("selected_device", "")).lower()
+    is_gpu = "cuda" in selected_device or "mps" in selected_device
+    
+    # Only display CPU TDP if execution device is CPU
+    if cpu_tdp and not is_gpu:
         if matched_cpu and matched_cpu.lower().strip() != cpu_display.lower().strip():
             cpu_display = f"{cpu_display} ({cpu_tdp}W TDP, matched to: {matched_cpu})"
         else:
@@ -414,6 +419,7 @@ def render_environment_summary(environment):
             name = d.get("name", "Unknown GPU")
             tdp = d.get("tdp_w")
             matched = d.get("matched_name")
+                
             if tdp:
                 if matched and matched.lower().strip() != name.lower().strip():
                     gpu_details.append(f"{name} ({tdp}W TDP, matched to: {matched})")
@@ -1067,23 +1073,23 @@ def render_detailed_comparisons_header(key_prefix, title_text="Detailed Comparis
         </script>
     """, height=38)
 
+def resolve_session_dir(s_dir):
+    if os.path.exists(s_dir):
+        return s_dir
+    parts = str(s_dir).replace("\\", "/").split("/")
+    if len(parts) >= 2:
+        return os.path.join(sm.base_dir, parts[-2], parts[-1])
+    return s_dir
+
 def render_result_group(group, selected_methods, expanded=True, key_suffix=""):
     # Find input image path to generate thumbnail
     img_path = None
     for m in group.get("models", []):
-        s_dir = m.get("session_dir", "")
-        # Try absolute path first
+        s_dir = resolve_session_dir(m.get("session_dir", ""))
         p = os.path.join(s_dir, "input_image.jpg")
         if os.path.exists(p):
             img_path = p
             break
-        # Fallback to relative path resolution under base_dir
-        parts = s_dir.replace("\\", "/").split("/")
-        if len(parts) >= 2:
-            p_rel = os.path.join(sm.base_dir, parts[-2], parts[-1], "input_image.jpg")
-            if os.path.exists(p_rel):
-                img_path = p_rel
-                break
                 
     thumb_b64 = get_image_thumbnail_base64(img_path, size=(24, 24))
     
@@ -1120,18 +1126,27 @@ def render_result_group(group, selected_methods, expanded=True, key_suffix=""):
                 key=get_size
             )
             sample_m = arch_models[0]
-            pred_class = sample_m.get("prediction", "Unknown")
-            if pred_class == "Unknown" and sample_m.get("results") and len(sample_m["results"]) > 0:
-                pred_class = sample_m["results"][0].get("Prediction", "Unknown")
+            
+            pred_parts = []
+            for m in arch_models:
+                size = get_size(m)
+                size_str = f"{size}px" if size > 0 else "Unknown"
+                pred = m.get("prediction", "Unknown")
+                if pred == "Unknown" and m.get("results") and len(m["results"]) > 0:
+                    pred = m["results"][0].get("Prediction", "Unknown")
+                pred_parts.append(f"<strong style='color: #e5edf6;'>{pred}</strong> ({size_str})")
+                
+            pred_display = ", ".join(pred_parts) if pred_parts else "Unknown"
             
             st.markdown(f"#### Model: `{arch}`")
-            st.markdown(f"<div style='margin-top: -12px; margin-bottom: 12px; font-size: 0.9rem; color: #94a3b8;'>Prediction: <strong style='color: #e5edf6;'>{pred_class}</strong></div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='margin-top: -12px; margin-bottom: 12px; font-size: 0.9rem; color: #94a3b8;'>Prediction: {pred_display}</div>", unsafe_allow_html=True)
             
             # Layout: Input Image (Left) | Method Collage (Right)
             col_left, col_right = st.columns([1, 3])
             
             # 1. Show Input Image once for this Architecture
-            img_path = os.path.join(sample_m["session_dir"], "input_image.jpg")
+            fixed_s_dir = resolve_session_dir(sample_m.get("session_dir", ""))
+            img_path = os.path.join(fixed_s_dir, "input_image.jpg")
             if os.path.exists(img_path):
                 # Pull original resolution from the model_entry or fallback to the first result entry
                 orig_res = sample_m.get("original_resolution", "Unknown")
@@ -1162,7 +1177,8 @@ def render_result_group(group, selected_methods, expanded=True, key_suffix=""):
                             with grid_cols[i_col]:
                                 st.markdown(f"**{method}**")
                                 if res:
-                                    h_p = os.path.join(m_data["session_dir"], "heatmaps", f"{res['Method']}.png")
+                                    fixed_m_dir = resolve_session_dir(m_data.get("session_dir", ""))
+                                    h_p = os.path.join(fixed_m_dir, "heatmaps", f"{res['Method']}.png")
                                     if os.path.exists(h_p):
                                         st.image(h_p, caption=f"{m_data['input_size']}px", use_container_width=True)
                                 else:
@@ -1179,7 +1195,8 @@ def render_result_group(group, selected_methods, expanded=True, key_suffix=""):
                             res = next((r for r in m_data["results"] if r["Method"].lower() == method.lower()), None)
                             with size_cols[i]:
                                 if res:
-                                    h_p = os.path.join(m_data["session_dir"], "heatmaps", f"{res['Method']}.png")
+                                    fixed_m_dir = resolve_session_dir(m_data.get("session_dir", ""))
+                                    h_p = os.path.join(fixed_m_dir, "heatmaps", f"{res['Method']}.png")
                                     if os.path.exists(h_p):
                                         st.image(h_p, caption=f"{m_data['input_size']}px", use_container_width=True)
                                 else:

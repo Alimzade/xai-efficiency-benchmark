@@ -11,12 +11,12 @@ import streamlit as st
 from dbgpu import GPUDatabase
 from PIL import Image
 
-from gui.core import sm, PROJECT_ROOT, model_opts
-from gui.backend.benchmark_runner import find_cpu_tdp
-from gui.components.media import get_base64, render_image_preview_gallery
-from gui.utils.loader import expand_xai_methods_with_params, assign_numbered_suffixes
-from gui.utils.helpers import build_task_queue, get_cpu_info, parse_input_sizes, rerun_app, keep_local_images_expanded
-from gui.utils.state import current_image_sources, serialize_and_persist_image_sources, check_and_reset_session_after_delete, resume_batch
+from config import sm, PROJECT_ROOT, model_opts
+from backend.benchmark_runner import find_cpu_tdp
+from components.media import get_base64, render_image_preview_gallery
+from utils.loader import expand_xai_methods_with_params, assign_numbered_suffixes
+from utils.helpers import build_task_queue, get_cpu_info, parse_input_sizes, rerun_app, keep_local_images_expanded
+from utils.state import current_image_sources, serialize_and_persist_image_sources, check_and_reset_session_after_delete, resume_batch
 
 def render_configure_page():
     # Callback to handle dynamically adding a custom size without raising StreamlitAPIException
@@ -99,11 +99,11 @@ def render_configure_page():
             with col_b1:
                 st.markdown(f"**Batch:** `{b['id']}` ({b['created']})  \n`{b['info']}`")
             with col_b2:
-                if st.button("Resume 🚀", key=f"resume_{b['id']}", use_container_width=True):
+                if st.button("Resume", key=f"resume_{b['id']}", use_container_width=True):
                     resume_batch(b['id'])
                     rerun_app()
             with col_b3:
-                if st.button("Delete 🗑️", key=f"del_inc_{b['id']}", use_container_width=True):
+                if st.button("Delete", key=f"del_inc_{b['id']}", use_container_width=True):
                     sm.delete_batch(b['id'])
                     check_and_reset_session_after_delete(b['id'])
                     st.success(f"Deleted {b['id']}")
@@ -187,14 +187,44 @@ def render_configure_page():
             st.session_state.input_size_str = ", ".join(st.session_state.selected_input_sizes)
 
     with row2_top_right:
-        st.number_input(
-            "Measured repeats",
-            min_value=1,
-            max_value=1000,
-            key="selected_repeats",
-            step=1,
-            help="Timed attribution repeats per image/model/size/method. Use 30-100 for stronger size studies when methods are fast enough.",
-        )
+        col_r, col_o = st.columns(2)
+        with col_r:
+            st.number_input(
+                "Measured repeats",
+                min_value=1,
+                max_value=1000,
+                key="selected_repeats",
+                step=1,
+                help="Timed attribution repeats per image/model/size/method. Use 30-100 for stronger size studies when methods are fast enough.",
+            )
+        with col_o:
+            if st.session_state.get("selected_run_order") == "Randomized":
+                col_o1, col_o2 = st.columns([1.5, 1])
+                with col_o1:
+                    st.selectbox(
+                        "Task Order",
+                        options=["Balanced", "Sequential", "Randomized"],
+                        key="selected_run_order",
+                        help="Balanced: Rotates XAI methods. Sequential: Groups by model/size. Randomized: fully shuffled."
+                    )
+                with col_o2:
+                    st.number_input(
+                        "Seed",
+                        min_value=0,
+                        max_value=999999,
+                        value=int(st.session_state.get("selected_random_seed", 42)),
+                        key="selected_random_seed",
+                        step=1,
+                        help="Random seed for pseudo-random number generator (random.Random). Guarantees 100% reproducible task shuffling across benchmark runs.",
+                        label_visibility="visible",
+                    )
+            else:
+                st.selectbox(
+                    "Task Order",
+                    options=["Balanced", "Sequential", "Randomized"],
+                    key="selected_run_order",
+                    help="Balanced: Rotates XAI methods. Sequential: Groups by model/size. Randomized: fully shuffled."
+                )
 
     # Row 2 (Inputs Row - Bottom)
     row2_mid_left, row2_mid_right = main_left, main_right
@@ -211,13 +241,13 @@ def render_configure_page():
             "DeepLift_Shap",
             "Grad_CAM",
             "Occlusion",
-            "Lime",
+            "LIME",
         ]
         
         selected_methods = st.session_state.get("selected_methods", ["Saliency", "Integrated_Gradients"])
         
         dynamic_xai_opts = list(base_xai_opts)
-        parameterized_bases = ["Integrated_Gradients", "Gradient_Shap", "Occlusion", "Lime"]
+        parameterized_bases = ["Integrated_Gradients", "Gradient_Shap", "Occlusion", "LIME"]
         for base in base_xai_opts:
             if base not in parameterized_bases:
                 continue
@@ -247,7 +277,7 @@ def render_configure_page():
         modifiable_selected = []
         for m in st.session_state.selected_methods:
             base_name = re.sub(r'_\d+$', '', m)
-            if base_name in ["Integrated_Gradients", "Gradient_Shap", "Occlusion", "Lime"]:
+            if base_name in ["Integrated_Gradients", "Gradient_Shap", "Occlusion", "LIME"]:
                 modifiable_selected.append(m)
         
         if modifiable_selected:
@@ -280,7 +310,7 @@ def render_configure_page():
                     if f"occlusion_window_str_{method}" not in st.session_state: st.session_state[f"occlusion_window_str_{method}"] = st.session_state.get("occlusion_window_str", "15")
                     if f"occlusion_stride_str_{method}" not in st.session_state: st.session_state[f"occlusion_stride_str_{method}"] = st.session_state.get("occlusion_stride_str", "8")
                     if f"occlusion_value_str_{method}" not in st.session_state: st.session_state[f"occlusion_value_str_{method}"] = st.session_state.get("occlusion_value_str", "0")
-                elif base == "Lime":
+                elif base == "LIME":
                     if f"lime_samples_str_{method}" not in st.session_state: st.session_state[f"lime_samples_str_{method}"] = st.session_state.get("lime_samples_str", "500")
                     if f"lime_batch_str_{method}" not in st.session_state: st.session_state[f"lime_batch_str_{method}"] = st.session_state.get("lime_batch_str", "10")
                     if f"lime_segments_str_{method}" not in st.session_state: st.session_state[f"lime_segments_str_{method}"] = st.session_state.get("lime_segments_str", "50")
@@ -409,105 +439,33 @@ def render_configure_page():
                         
                     st.markdown(f"<div style='font-size: 0.85em; font-weight: 600; color: var(--xai-text); margin-top: 0px; margin-bottom: 8px;'>{method.replace('_', ' ')}</div>", unsafe_allow_html=True)
                     
-                    if base_method == "Integrated_Gradients":
-                        col_p1, col_p2, col_p3 = st.columns(3)
-                        with col_p1:
-                            st.text_input(
-                                "Steps",
-                                value=st.session_state.get(f"ig_steps_str_{method}", st.session_state.get("ig_steps_str", "50")),
-                                key=f"ig_steps_str_{method}",
-                                help="Number of steps along the path from baseline to input.\n\n- Default: 50\n- Higher is more mathematically accurate but slower."
-                            )
-                        with col_p2:
-                            st.text_input(
-                                "Internal Batch Size",
-                                value=st.session_state.get(f"ig_internal_batch_str_{method}", st.session_state.get("ig_internal_batch_str", "2")),
-                                key=f"ig_internal_batch_str_{method}",
-                                help="Mini-batch size to chunk the steps.\n\n- Default: 2\n- Set to 2-4 to prevent Out-Of-Memory (OOM) on large models."
-                            )
-                        with col_p3:
-                            ig_opts = ["Zeros (Black)", "Ones (White)", "Input Mean"]
-                            st.selectbox(
-                                "Baseline Mode",
-                                options=ig_opts,
-                                index=ig_opts.index(st.session_state.get(f"ig_baseline_mode_{method}", st.session_state.get("ig_baseline_mode", "Zeros (Black)"))) if st.session_state.get(f"ig_baseline_mode_{method}", st.session_state.get("ig_baseline_mode", "Zeros (Black)")) in ig_opts else 0,
-                                key=f"ig_baseline_mode_{method}",
-                                help="Baseline reference image for attribution.\n\n- Default: Zeros (Black)"
-                            )
-                            
-                    elif base_method == "Gradient_Shap":
-                        col_p1, col_p2, col_p3 = st.columns(3)
-                        with col_p1:
-                            st.text_input(
-                                "Samples",
-                                value=st.session_state.get(f"gs_samples_str_{method}", st.session_state.get("gs_samples_str", "10")),
-                                key=f"gs_samples_str_{method}",
-                                help="Number of baseline samples to average.\n\n- Default: 10\n- Suggest 10-20 for stable results."
-                            )
-                        with col_p2:
-                            st.text_input(
-                                "Stdevs (Noise)",
-                                value=st.session_state.get(f"gs_stdevs_str_{method}", st.session_state.get("gs_stdevs_str", "0.0001")),
-                                key=f"gs_stdevs_str_{method}",
-                                help="Standard deviation of Gaussian noise added to inputs.\n\n- Default: 0.0001"
-                            )
-                        with col_p3:
-                            gs_opts = ["Zeros & Mean", "Zeros Only", "Ones Only"]
-                            st.selectbox(
-                                "Baseline Mode",
-                                options=gs_opts,
-                                index=gs_opts.index(st.session_state.get(f"gs_baseline_mode_{method}", st.session_state.get("gs_baseline_mode", "Zeros & Mean"))) if st.session_state.get(f"gs_baseline_mode_{method}", st.session_state.get("gs_baseline_mode", "Zeros & Mean")) in gs_opts else 0,
-                                key=f"gs_baseline_mode_{method}",
-                                help="Distribution of baselines to sample from.\n\n- Default: Zeros & Mean"
-                            )
-                            
-                    elif base_method == "Occlusion":
-                        col_p1, col_p2, col_p3 = st.columns(3)
-                        with col_p1:
-                            st.text_input(
-                                "Patch Size (px)",
-                                value=st.session_state.get(f"occlusion_window_str_{method}", st.session_state.get("occlusion_window_str", "15")),
-                                key=f"occlusion_window_str_{method}",
-                                help="Size of the square occlusion patch.\n\n- Default: 15\n- Larger is faster but coarser."
-                            )
-                        with col_p2:
-                            st.text_input(
-                                "Stride (px)",
-                                value=st.session_state.get(f"occlusion_stride_str_{method}", st.session_state.get("occlusion_stride_str", "8")),
-                                key=f"occlusion_stride_str_{method}",
-                                help="Step size of the sliding window.\n\n- Default: 8\n- Smaller is more detailed but much slower."
-                            )
-                        with col_p3:
-                            st.text_input(
-                                "Occlude Color",
-                                value=st.session_state.get(f"occlusion_value_str_{method}", st.session_state.get("occlusion_value_str", "0")),
-                                key=f"occlusion_value_str_{method}",
-                                help="Pixel value to fill the occlusion patch.\n\n- Default: 0 (Black)\n- Can be 0, 1 (White), or mean."
-                            )
-                            
-                    elif base_method == "Lime":
-                        col_p1, col_p2, col_p3 = st.columns(3)
-                        with col_p1:
-                            st.text_input(
-                                "Perturbation Samples",
-                                value=st.session_state.get(f"lime_samples_str_{method}", st.session_state.get("lime_samples_str", "500")),
-                                key=f"lime_samples_str_{method}",
-                                help="Number of samples to perturb and fit the surrogate model on.\n\n- Default: 500\n- Warning: High values (>1000) are very slow."
-                            )
-                        with col_p2:
-                            st.text_input(
-                                "Batch Size",
-                                value=st.session_state.get(f"lime_batch_str_{method}", st.session_state.get("lime_batch_str", "10")),
-                                key=f"lime_batch_str_{method}",
-                                help="Internal batch size to run pertubations through the model.\n\n- Default: 10\n- Prevents memory overflow."
-                            )
-                        with col_p3:
-                            st.text_input(
-                                "Superpixels Count",
-                                value=st.session_state.get(f"lime_segments_str_{method}", st.session_state.get("lime_segments_str", "50")),
-                                key=f"lime_segments_str_{method}",
-                                help="Target number of superpixels for SLIC segmentation.\n\n- Default: 50\n- Fewer superpixels speeds up LIME."
-                            )
+                    from config import method_configs
+                    if base_method in method_configs:
+                        params_dict = method_configs[base_method]
+                        cols = st.columns(len(params_dict))
+                        for col, (param_key, param_info) in zip(cols, params_dict.items()):
+                            with col:
+                                if param_info["type"] == "select":
+                                    opts = param_info["choices"]
+                                    default_val = param_info["default"]
+                                    saved_val = st.session_state.get(f"{param_key}_{method}", st.session_state.get(param_key, default_val))
+                                    idx = opts.index(saved_val) if saved_val in opts else 0
+                                    st.selectbox(
+                                        param_info["label"],
+                                        options=opts,
+                                        index=idx,
+                                        key=f"{param_key}_{method}",
+                                        help=param_info.get("help", "")
+                                    )
+                                else:
+                                    default_val = str(param_info["default"])
+                                    saved_val = st.session_state.get(f"{param_key}_{method}", st.session_state.get(param_key, default_val))
+                                    st.text_input(
+                                        param_info["label"],
+                                        value=str(saved_val),
+                                        key=f"{param_key}_{method}",
+                                        help=param_info.get("help", "")
+                                    )
 
         # Measurement Details collapsible below parameters inside left column
         meas_details_html = """
@@ -569,7 +527,7 @@ def render_configure_page():
             <div class="meas-details-content">
                 <ul class="nice-bullets" style="margin-top: 0px; margin-bottom: 0px; padding-left: 20px; list-style-type: disc;">
                     <li style="margin-bottom: 8px;"><b>Warmups & Repeats</b>: Warmups are excluded. Repeats measure device duration and report stats (median, mean, std).</li>
-                    <li style="margin-bottom: 8px;"><b>Task Ordering</b>: Executions run in a <b>Balanced</b> order (rotating XAI methods) to prevent allocator cache bias.</li>
+                    <li style="margin-bottom: 8px;"><b>Task Ordering</b>: Controls execution sequence of configurations to eliminate systematic execution position bias.</li>
                     <li style="margin-bottom: 8px;"><b>Timing & Memory Isolation</b>: Memory profiling runs in a dedicated iteration to keep timing runs clean of overhead.</li>
                     <li style="margin-bottom: 0px;"><b>Energy Estimation</b>: TDP is used as a proxy scaling factor: <code>Energy (kWh) = Runtime (sec) * TDP (W) / (3600 * 1000)</code>.</li>
                 </ul>
@@ -868,6 +826,7 @@ def render_configure_page():
             st.session_state.sh_warmups = st.session_state.selected_warmups
             st.session_state.sh_memory_runs = st.session_state.selected_memory_runs
             st.session_state.sh_run_order = st.session_state.selected_run_order
+            st.session_state.sh_random_seed = st.session_state.selected_random_seed
             st.session_state.sh_device_mode = st.session_state.selected_device_mode
             st.session_state.sh_xai_params = {k: v for k, v in st.session_state.items() if any(prefix in k for prefix in ["ig_", "gs_", "occlusion_", "lime_"]) and any(suffix in k for suffix in ["_str", "_mode"])}
 
@@ -875,6 +834,7 @@ def render_configure_page():
             st.session_state.current_batch_id = batch_id
             st.session_state.last_run_batch_id = batch_id
             st.session_state.current_run_order = st.session_state.selected_run_order
+            st.session_state.current_random_seed = st.session_state.selected_random_seed
             
             # Expand methods with parameter variations
             expanded_methods = expand_xai_methods_with_params(st.session_state.selected_methods)
@@ -897,13 +857,14 @@ def render_configure_page():
             persisted_imgs = serialize_and_persist_image_sources(img_sources, batch_id, sm.base_dir)
             st.session_state.prepared_img_sources = persisted_imgs
             
+            seed_to_use = st.session_state.selected_random_seed if st.session_state.selected_run_order == "Randomized" else None
             st.session_state.task_queue = build_task_queue(
                 len(persisted_imgs),
                 st.session_state.current_batch_models,
                 st.session_state.current_batch_sizes,
                 expanded_methods,
                 st.session_state.selected_run_order,
-                seed=batch_id
+                seed=seed_to_use
             )
             
             # Save batch configuration for recovery
@@ -915,6 +876,7 @@ def render_configure_page():
                 "enable_quality_metrics": st.session_state.current_enable_quality_metrics,
                 "selected_quality_metrics": st.session_state.current_selected_quality_metrics,
                 "run_order": st.session_state.current_run_order,
+                "random_seed": st.session_state.current_random_seed,
                 "models": st.session_state.current_batch_models,
                 "input_sizes": st.session_state.current_batch_sizes,
                 "methods": display_methods,

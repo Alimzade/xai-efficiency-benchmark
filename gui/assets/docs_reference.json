@@ -173,6 +173,26 @@
           "definition": "Captum metric measuring the mean squared difference between predictor output change under perturbation and attribution inner product. Lower is better. Note: Computed in pixel space; for region-based methods (e.g., LIME), the metric scales unpredictably and may not be directly comparable to pixel-based methods."
         }
       ]
+    },
+    {
+      "category": "3. Task Order & Execution Strategies",
+      "metrics": [
+        {
+          "name": "Balanced Strategy",
+          "unit": "Default Order",
+          "definition": "For each (image, model) pair, rotates the XAI method execution order while keeping input sizes sorted small-to-large (32px → 1024px). Method rotation ensures no single algorithm systematically suffers cold-cache or thermal position penalties across images, while small-to-large sizing delivers rapid early UI feedback."
+        },
+        {
+          "name": "Sequential Strategy",
+          "unit": "Nested Order",
+          "definition": "Executes tasks in strict nested order (Image → Model → Method → Size), running all resolution sizes for a method before moving to the next without any rotation."
+        },
+        {
+          "name": "Randomized Strategy",
+          "unit": "Shuffled Order",
+          "definition": "Permutes every configuration tuple (image, model, method, resolution) pseudo-randomly using a deterministic seed (`random.Random(seed)`, default: 42), eliminating thermal and caching state accumulation bias across long evaluation runs."
+        }
+      ]
     }
   ]
 }
