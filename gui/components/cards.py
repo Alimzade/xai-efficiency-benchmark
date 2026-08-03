@@ -596,15 +596,20 @@ def render_configuration_summary(settings, results):
     qm_count = len(quality_metrics) if quality_metrics else 0
     qm_detail = ", ".join(quality_metrics) if quality_metrics else "None (Disabled)"
 
+    run_order = clean_val(settings.get("run_order") or st.session_state.get("current_run_order"))
+    random_seed = settings.get("random_seed") if settings.get("random_seed") is not None else st.session_state.get("current_random_seed")
+    order_detail = f"{run_order} (Seed: {random_seed})" if run_order == "Randomized" and random_seed is not None else run_order
+
     config_rows = [
         ("Images Analyzed", clean_val(img_count), "-"),
         ("Models", clean_val(len(models)), ", ".join(models) if models else "-"),
         ("Methods", clean_val(len(methods)), ", ".join(methods) if methods else "-"),
         ("Input Resolutions", clean_val(len(sizes)), ", ".join([str(s) for s in sizes]) if sizes else "-"),
-        ("Repeats per Config", clean_val(repeats), "-"),
-        ("Warmup Runs", clean_val(warmups), "-"),
-        ("Memory Runs", clean_val(memory_runs), "-"),
         ("Quality Metrics", clean_val(qm_count), qm_detail),
+        ("Warmup Runs", "-", clean_val(warmups)),
+        ("Measured Repeats", "-", clean_val(repeats)),
+        ("Memory Runs", "-", clean_val(memory_runs)),
+        ("Task Order Strategy", "-", order_detail),
     ]
     
     # Build HTML table with controlled column widths

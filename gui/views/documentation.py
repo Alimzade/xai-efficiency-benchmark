@@ -7,14 +7,13 @@ import streamlit as st
 from utils.helpers import load_docs_reference
 
 def render_documentation_page():
-    st.markdown('<div style="margin-top: 1.0rem;"></div>', unsafe_allow_html=True)
-    st.markdown("## XAI Methods, Models & Metrics")
+    st.markdown('<div style="margin-top: 1.5rem;"></div>', unsafe_allow_html=True)
     st.markdown("Technical specifications and mathematical formulations for supported attribution algorithms, model architectures, and evaluation metrics.")
     
     docs_data = load_docs_reference()
     
     # Section 1: XAI Methods
-    with st.expander("🔬 Feature Attribution Methods", expanded=True):
+    with st.expander("🔬 Explainable AI (XAI) Methods", expanded=False):
         xai_groups = docs_data.get("xai_methods", [])
         for group in xai_groups:
             st.markdown(f"#### {group.get('category', '')}")
@@ -34,7 +33,7 @@ def render_documentation_page():
             st.markdown(f'<div class="doc-reference-table">\n\n{table_md}\n\n</div>', unsafe_allow_html=True)
 
     # Section 3: Benchmark Metrics & Strategies
-    with st.expander("📊 Evaluation Metrics & Strategies", expanded=False):
+    with st.expander("📊 Evaluation Metrics & Strategies", expanded=True):
         metric_groups = docs_data.get("metrics", [])
         for group in metric_groups:
             st.markdown(f"#### {group.get('category', '')}")

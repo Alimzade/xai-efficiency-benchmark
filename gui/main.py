@@ -381,7 +381,7 @@ fragment_api = getattr(st, "fragment", getattr(st, "experimental_fragment", None
 # --- TABS WORKSPACE ---
 tab1, tab2, tab3, tab4 = st.tabs([
     "🚀 Benchmark Workspace", 
-    "📜 Results History & Evaluation", 
+    "🗃️ Results History & Evaluation", 
     "📚 Documentation", 
     "📖 Citation"
 ])

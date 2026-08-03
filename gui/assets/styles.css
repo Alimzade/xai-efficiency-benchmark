@@ -51,14 +51,20 @@
     }
     .app-title h1 {
         font-size: 1.75rem;
-        letter-spacing: 0;
+        letter-spacing: -0.01em;
         margin: 0 !important;
-        color: var(--xai-text);
+        background: linear-gradient(90deg, #2dd4bf, #60a5fa);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-weight: 800;
     }
     .app-title p {
-        color: var(--xai-muted);
-        margin: -0.15rem 0 0 0 !important;
-        font-size: 0.95rem;
+        color: #94a3b8;
+        margin: 0.15rem 0 0 0 !important;
+        font-size: 0.88rem;
+        font-weight: 500;
+        letter-spacing: 0.03em;
     }
     .run-card {
         background: linear-gradient(180deg, var(--xai-panel-strong) 0%, var(--xai-panel) 100%);
@@ -182,7 +188,7 @@
     [role="radiogroup"] {
         border-radius: 8px;
         background: var(--xai-sidebar-panel);
-        border: 1px solid rgba(148, 163, 184, 0.25) !important;
+        border: 1px solid rgba(148, 163, 184, 0.2);
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
     }
     [data-baseweb="tag"] {
@@ -591,18 +597,22 @@
     }
     /* Style Text Inputs, Number Inputs and Select Dropdowns globally */
     [data-testid="stTextInput"] [data-baseweb="input"],
-    [data-testid="stSelectbox"] [data-baseweb="select"],
     [data-testid="stSelectbox"] [data-baseweb="select"] > div,
-    [data-testid="stSelectbox"] div[role="combobox"],
-    [data-testid="stMultiSelect"] [data-baseweb="select"],
     [data-testid="stMultiSelect"] [data-baseweb="select"] > div,
     div[data-testid="stNumberInputContainer"] {
         background-color: rgba(255, 255, 255, 0.045) !important;
-        border: 1px solid rgba(148, 163, 184, 0.35) !important;
+        border: 1px solid rgba(148, 163, 184, 0.2) !important;
         border-radius: 8px !important;
         color: var(--xai-text) !important;
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
         transition: all 0.2s ease !important;
+    }
+    
+    /* Remove duplicate outer/inner borders on BaseWeb select containers */
+    [data-testid="stSelectbox"] [data-baseweb="select"],
+    [data-testid="stMultiSelect"] [data-baseweb="select"] {
+        border: none !important;
+        background: transparent !important;
     }
     
     /* Remove duplicate inner border/background on text inputs */

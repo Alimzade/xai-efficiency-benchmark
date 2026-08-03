@@ -199,7 +199,7 @@ def render_configure_page():
             )
         with col_o:
             if st.session_state.get("selected_run_order") == "Randomized":
-                col_o1, col_o2 = st.columns([1.5, 1])
+                col_o1, col_o2 = st.columns([2.2, 1])
                 with col_o1:
                     st.selectbox(
                         "Task Order",

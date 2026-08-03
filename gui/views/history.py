@@ -113,9 +113,8 @@ def render_history_page():
                                 st.download_button("📥 Export CSV", data=f, file_name=f"{bid}.csv", mime="text/csv", key=f"csv_{bid}", use_container_width=True)
                     with hx2:
                         h_pdf = os.path.join(sm.base_dir, bid, f"{bid}.pdf")
-                        if not os.path.exists(h_pdf):
-                            with st.spinner("Generating PDF..."):
-                                generate_pdf_report(bid, meta["results"], meta["methods"], h_pdf, h_total_time, meta.get("environment"))
+                        with st.spinner("Generating PDF..."):
+                            generate_pdf_report(bid, meta["results"], meta["methods"], h_pdf, h_total_time, meta.get("environment"), meta.get("benchmark_settings"))
                         if os.path.exists(h_pdf):
                             with open(h_pdf, "rb") as f:
                                 st.download_button("📄 Export PDF", data=f, file_name=f"{bid}.pdf", mime="application/pdf", key=f"pdf_{bid}", use_container_width=True)
@@ -154,7 +153,7 @@ def render_history_page():
                             st.rerun()
                             
                     st.markdown('<div style="margin-top: 1.0rem;"></div>', unsafe_allow_html=True)
-                    with st.expander("⚙️ Environment & Configuration Details", expanded=False, key=f"env_details_{bid}_history"):
+                    with st.expander("⚙️ Environment & Configuration Details", expanded=True, key=f"env_details_{bid}_history"):
                         meta_col1, meta_col_spacer, meta_col2 = st.columns([1.8, 0.2, 2.0])
                         with meta_col1:
                             st.markdown('<div style="font-weight: 600; margin-bottom: 8px; color: var(--xai-text);">Environment Summary</div>', unsafe_allow_html=True)

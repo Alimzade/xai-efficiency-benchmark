@@ -145,7 +145,7 @@ def render_active_run_page():
             rerun_app()
             
         st.markdown('<div style="margin-top: 1.0rem;"></div>', unsafe_allow_html=True)
-        with st.expander("⚙️ Environment & Configuration Details", expanded=False, key=f"env_details_{st.session_state.current_batch_id}_active"):
+        with st.expander("⚙️ Environment & Configuration Details", expanded=True, key=f"env_details_{st.session_state.current_batch_id}_active"):
             meta_col1, meta_col_spacer, meta_col2 = st.columns([1.8, 0.2, 2.0])
             with meta_col1:
                 st.markdown('<div style="font-weight: 600; margin-bottom: 8px; color: var(--xai-text);">Environment Summary</div>', unsafe_allow_html=True)
@@ -267,20 +267,29 @@ def render_active_run_page():
             with ex2:
                 if st.session_state.current_batch_id and os.path.exists(os.path.join(sm.base_dir, st.session_state.current_batch_id)):
                     pdf_path = os.path.join(sm.base_dir, st.session_state.current_batch_id, f"{st.session_state.current_batch_id}.pdf")
-                    if not os.path.exists(pdf_path):
-                        with st.spinner("Generating PDF..."):
-                            generate_pdf_report(
-                                 st.session_state.current_batch_id,
-                                 st.session_state.last_run_results,
-                                 st.session_state.current_batch_methods,
-                                 pdf_path,
-                                 st.session_state.total_execution_time,
-                                 collect_environment_metadata(
-                                     get_device_string(st.session_state.current_device_mode),
-                                     custom_cpu_tdp=st.session_state.get("current_cpu_tdp"),
-                                     custom_gpu_tdp=st.session_state.get("current_gpu_tdp")
-                                 )
-                            )
+                    active_cfg = {
+                        "models": st.session_state.current_batch_models,
+                        "methods": st.session_state.current_batch_methods,
+                        "input_sizes": st.session_state.current_batch_sizes,
+                        "repeat_count": st.session_state.current_repeats,
+                        "warmup_runs": st.session_state.current_warmups,
+                        "memory_runs": st.session_state.current_memory_runs,
+                        "run_order": st.session_state.current_run_order,
+                        "random_seed": st.session_state.get("current_random_seed", 42),
+                    }
+                    generate_pdf_report(
+                         st.session_state.current_batch_id,
+                         st.session_state.last_run_results,
+                         st.session_state.current_batch_methods,
+                         pdf_path,
+                         st.session_state.total_execution_time,
+                         collect_environment_metadata(
+                             get_device_string(st.session_state.current_device_mode),
+                             custom_cpu_tdp=st.session_state.get("current_cpu_tdp"),
+                             custom_gpu_tdp=st.session_state.get("current_gpu_tdp")
+                         ),
+                         benchmark_settings=active_cfg
+                    )
                     if os.path.exists(pdf_path):
                         with open(pdf_path, "rb") as f:
                             st.download_button("📄 Export PDF", data=f, file_name=f"{st.session_state.current_batch_id}.pdf", mime="application/pdf", use_container_width=True)
