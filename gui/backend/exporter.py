@@ -68,23 +68,70 @@ def presentation_df(df):
 
 # Mapping to abbreviate long table headers in PDF tables so columns never clip
 PDF_COLUMN_HEADER_MAP = {
-    "Input Size (px)": "Size (px)",
+    "Input Size (px)": "Resolution",
+    "Resolution": "Resolution",
     "Attribution Runtime (sec)": "Runtime (s)",
+    "Runtime (sec)": "Runtime (s)",
     "Attribution Runtime Median (sec)": "Runtime (s)",
+    "Attribution Runtime Std (sec)": "Runtime Std (s)",
     "Estimated Energy Consumption (kWh)": "Energy (kWh)",
     "Peak Attribution Memory (MB)": "Memory (MB)",
+    "Peak Memory (MB)": "Memory (MB)",
+    "Attribution Memory Std (MB)": "Memory Std (MB)",
     "Warmup Runs": "Warmups",
     "Memory Runs": "Mem Runs",
     "Measured Runs": "Repeats",
     "Sensitivity (Max)": "Sensitivity",
 }
 
+def _format_table_cell_value(col_name, val):
+    if pd.isna(val) or val is None or str(val).strip() in ["", "nan", "None", "."]:
+        return "-"
+    
+    col_lower = str(col_name).lower()
+    
+    # 1. Resolution / Size / Count / Integer columns
+    if any(k in col_lower for k in ["size", "resolution", "px", "repeat", "warmup", "runs", "count", "img_idx"]):
+        try:
+            return str(int(float(val)))
+        except (ValueError, TypeError):
+            return str(val)
+            
+    # 2. Numeric metric values
+    if isinstance(val, (int, float)):
+        # Energy consumption
+        if "energy" in col_lower or "kwh" in col_lower:
+            return f"{val:.6f}" if abs(val) < 0.001 else f"{val:.4f}"
+            
+        # Memory metrics (1 decimal place)
+        if "memory" in col_lower or "mb" in col_lower:
+            return f"{val:.1f}"
+
+        # Runtime & Quality metrics (Runtime, Std, AUC, Gini, Infidelity, Sensitivity)
+        if any(k in col_lower for k in ["runtime", "sec", "auc", "gini", "infidelity", "sensitivity", "std"]):
+            return f"{val:.4f}"
+
+        # Fallback for floats
+        return f"{val:.4f}" if isinstance(val, float) and not val.is_integer() else str(int(val))
+        
+    return str(val)
+
 def generate_pdf_report(batch_id, results_data, selected_methods, output_path, total_time=0, environment=None, benchmark_settings=None):
     """
-    Generates a comprehensive PDF report:
-    - Page 1: Environment & Benchmark Configuration Metadata + Overall Performance Evaluation
-    - Pages 2+: Per-Image & Architecture Evaluation Pages (Heatmap Collage + Metrics Table)
+    Generates a PDF report.
+    Tries the high-fidelity ReportLab compiler first; falls back gracefully to Matplotlib PdfPages.
     """
+    try:
+        try:
+            from assets.reportlab_exporter import generate_reportlab_pdf
+        except ImportError:
+            from gui.assets.reportlab_exporter import generate_reportlab_pdf
+        return generate_reportlab_pdf(batch_id, results_data, selected_methods, output_path, total_time, environment, benchmark_settings)
+    except Exception as rl_err:
+        import traceback
+        print(f"[PDF Exporter Error] ReportLab failed: {rl_err}")
+        traceback.print_exc()
+
     with PdfPages(output_path) as pdf:
         # =========================================================================
         # --- PAGE 1: ENVIRONMENT, BENCHMARK CONFIGURATION & PERFORMANCE SUMMARY ---
@@ -151,19 +198,63 @@ def generate_pdf_report(batch_id, results_data, selected_methods, output_path, t
             for m in g["models"]: all_r_temp.extend(m["results"])
         fdf_temp = pd.DataFrame(all_r_temp) if all_r_temp else pd.DataFrame()
         
-        models_list = sorted(list(fdf_temp["Model"].unique())) if "Model" in fdf_temp.columns else []
-        methods_list = sorted(list(fdf_temp["Method"].unique())) if "Method" in fdf_temp.columns else []
-        sizes_list = sorted(list(fdf_temp["Input Size (px)"].unique())) if "Input Size (px)" in fdf_temp.columns else []
+        # 1. Models list preserving UI selection order
+        if cfg.get("models"):
+            models_list = [m for m in cfg["models"] if "Model" not in fdf_temp.columns or m in fdf_temp["Model"].values]
+        elif "Model" in fdf_temp.columns:
+            models_list = list(dict.fromkeys(fdf_temp["Model"]))
+        else:
+            models_list = []
+
+        # 2. Methods list preserving UI selection order
+        cfg_methods = selected_methods or cfg.get("methods") or cfg.get("selected_methods")
+        if cfg_methods:
+            methods_list = list(dict.fromkeys(cfg_methods))
+            if "Method" in fdf_temp.columns:
+                methods_list = [m for m in methods_list if any(m.lower() == rm.lower() for rm in fdf_temp["Method"].values)]
+        elif "Method" in fdf_temp.columns:
+            methods_list = list(dict.fromkeys(fdf_temp["Method"]))
+        else:
+            methods_list = []
+
+        # 3. Sizes list preserving UI selection order
+        if cfg.get("input_sizes"):
+            sizes_list = [str(s) for s in cfg["input_sizes"]]
+        elif "Input Size (px)" in fdf_temp.columns:
+            sizes_list = [str(s) for s in dict.fromkeys(fdf_temp["Input Size (px)"])]
+        elif "Resolution" in fdf_temp.columns:
+            sizes_list = [str(s) for s in dict.fromkeys(fdf_temp["Resolution"])]
+        else:
+            sizes_list = []
+
+        # 4. Quality Metrics list and detail formatting
+        quality_metrics = cfg.get("selected_quality_metrics") or cfg.get("quality_metrics") or []
+        if not quality_metrics and cfg.get("enable_quality_metrics") is False:
+            quality_metrics = []
+        elif not quality_metrics and not fdf_temp.empty:
+            scanned_qm = []
+            for qm_name in ["Gini Index", "Deletion AUC", "Insertion AUC", "Infidelity", "Sensitivity (Max)"]:
+                if qm_name in fdf_temp.columns and fdf_temp[qm_name].notna().any():
+                    scanned_qm.append(qm_name)
+            quality_metrics = scanned_qm
+
+        qm_count = len(quality_metrics) if quality_metrics else 0
+        qm_detail = ", ".join(quality_metrics) if quality_metrics else "None (Disabled)"
         
+        run_order = str(cfg.get("run_order", "Balanced"))
+        random_seed = cfg.get("random_seed") if cfg.get("random_seed") is not None else cfg.get("seed")
+        order_detail = f"Randomized (Seed: {random_seed})" if run_order == "Randomized" and random_seed is not None else run_order
+
         cfg_table_data = [
             ["Images Analyzed", str(len(results_data)), "-"],
             ["Models Selected", str(len(models_list)), ", ".join(models_list)],
             ["Methods Selected", str(len(methods_list)), ", ".join(methods_list)],
-            ["Input Resolutions", str(len(sizes_list)), ", ".join([str(s) for s in sizes_list])],
+            ["Input Resolutions", str(len(sizes_list)), ", ".join(sizes_list)],
+            ["Quality Metrics", str(qm_count), qm_detail],
             ["Warmup Runs", "-", str(cfg.get("warmup_runs", "-"))],
             ["Measured Repeats", "-", str(cfg.get("repeat_count", "-"))],
             ["Memory Runs", "-", str(cfg.get("memory_runs", "-"))],
-            ["Task Order Strategy", "-", str(cfg.get("run_order", "Balanced"))],
+            ["Task Order Strategy", "-", order_detail],
         ]
         tbl_cfg = ax_cfg.table(cellText=cfg_table_data, colLabels=["Parameter", "Count", "Details"], loc='upper left', cellLoc='left')
         tbl_cfg.auto_set_font_size(False)
@@ -309,21 +400,13 @@ def generate_pdf_report(batch_id, results_data, selected_methods, output_path, t
                 
                 if arch_results:
                     df = presentation_df(pd.DataFrame(arch_results))
-                    raw_cols = ["Method", "Input Size (px)", "Prediction", "Warmup Runs", "Memory Runs", "Measured Runs", ATTR_RUNTIME_COL, "Estimated Energy Consumption (kWh)", ATTR_MEMORY_COL]
-                    if "Gini Index" in df.columns and any(df["Gini Index"].notna()): raw_cols.append("Gini Index")
-                    if "Deletion AUC" in df.columns and any(df["Deletion AUC"].notna()): raw_cols.append("Deletion AUC")
-                    if "Insertion AUC" in df.columns and any(df["Insertion AUC"].notna()): raw_cols.append("Insertion AUC")
-                    if "Sensitivity (Max)" in df.columns and any(df["Sensitivity (Max)"].notna()): raw_cols.append("Sensitivity (Max)")
-                    if "Infidelity" in df.columns and any(df["Infidelity"].notna()): raw_cols.append("Infidelity")
-                    raw_cols = [c for c in raw_cols if c in df.columns]
-                    if "Status" in df.columns and any(df["Status"].notna()): raw_cols.append("Status")
+                    raw_cols = [c for c in ["Method", "Input Size (px)", ATTR_RUNTIME_COL, "Attribution Runtime Std (sec)", "Estimated Energy Consumption (kWh)", ATTR_MEMORY_COL, "Attribution Memory Std (MB)"] if c in df.columns]
+                    for qm in ["Gini Index", "Deletion AUC", "Insertion AUC", "Sensitivity (Max)", "Infidelity", "Status"]:
+                        if qm in df.columns and any(df[qm].notna()): raw_cols.append(qm)
                     
                     display_df = df[raw_cols].copy()
                     for c in display_df.columns:
-                        if "Runtime" in c or "Energy" in c or "AUC" in c or "Gini" in c or "Sensitivity" in c or "Infidelity" in c:
-                            display_df[c] = display_df[c].apply(lambda v: f"{v:.4f}" if isinstance(v, (int, float)) and pd.notna(v) else ("-" if pd.isna(v) else str(v)))
-                        elif "Memory" in c:
-                            display_df[c] = display_df[c].apply(lambda v: f"{v:.1f}" if isinstance(v, (int, float)) and pd.notna(v) else ("-" if pd.isna(v) else str(v)))
+                        display_df[c] = display_df[c].apply(lambda v: _format_table_cell_value(c, v))
 
                     # Map header titles to compact names so they never overflow table columns
                     abbrev_headers = [PDF_COLUMN_HEADER_MAP.get(c, c) for c in raw_cols]

@@ -23,13 +23,19 @@ def parse_comma_sep_floats(val_str, default_val):
 
 
 def expand_xai_methods_with_params(selected_methods):
+    def safe_get(key, default):
+        try:
+            return st.session_state.get(key, default)
+        except Exception:
+            return default
+
     expanded_methods = []
     for method in selected_methods:
         base_method = re.sub(r'_\d+$', '', method)
         
         if base_method == "Lime":
-            samples_list = parse_comma_sep_ints(st.session_state.get(f"lime_samples_str_{method}", "50"), 50)
-            segments_list = parse_comma_sep_ints(st.session_state.get(f"lime_segments_str_{method}", "50"), 50)
+            samples_list = parse_comma_sep_ints(safe_get(f"lime_samples_str_{method}", "50"), 50)
+            segments_list = parse_comma_sep_ints(safe_get(f"lime_segments_str_{method}", "50"), 50)
             for n_samples in samples_list:
                 for n_segments in segments_list:
                     expanded_methods.append({
@@ -42,8 +48,8 @@ def expand_xai_methods_with_params(selected_methods):
                         }
                     })
         elif base_method == "Occlusion":
-            window_list = parse_comma_sep_ints(st.session_state.get(f"occlusion_window_str_{method}", "15"), 15)
-            stride_list = parse_comma_sep_ints(st.session_state.get(f"occlusion_stride_str_{method}", "8"), 8)
+            window_list = parse_comma_sep_ints(safe_get(f"occlusion_window_str_{method}", "15"), 15)
+            stride_list = parse_comma_sep_ints(safe_get(f"occlusion_stride_str_{method}", "8"), 8)
             for window in window_list:
                 for stride in stride_list:
                     expanded_methods.append({
@@ -55,7 +61,7 @@ def expand_xai_methods_with_params(selected_methods):
                         }
                     })
         elif base_method == "Integrated_Gradients":
-            steps_list = parse_comma_sep_ints(st.session_state.get(f"ig_steps_str_{method}", "50"), 50)
+            steps_list = parse_comma_sep_ints(safe_get(f"ig_steps_str_{method}", "50"), 50)
             for steps in steps_list:
                 expanded_methods.append({
                     "method": method,
@@ -65,8 +71,8 @@ def expand_xai_methods_with_params(selected_methods):
                     }
                 })
         elif base_method == "Gradient_Shap":
-            samples_list = parse_comma_sep_ints(st.session_state.get(f"gs_samples_str_{method}", "5"), 5)
-            stdevs_list = parse_comma_sep_floats(st.session_state.get(f"gs_stdevs_str_{method}", "0.1"), 0.1)
+            samples_list = parse_comma_sep_ints(safe_get(f"gs_samples_str_{method}", "5"), 5)
+            stdevs_list = parse_comma_sep_floats(safe_get(f"gs_stdevs_str_{method}", "0.1"), 0.1)
             for n_samples in samples_list:
                 for stdevs in stdevs_list:
                     expanded_methods.append({

@@ -270,12 +270,15 @@ def render_active_run_page():
                     active_cfg = {
                         "models": st.session_state.current_batch_models,
                         "methods": st.session_state.current_batch_methods,
+                        "parameterized_methods": st.session_state.get("current_batch_methods_info", []),
                         "input_sizes": st.session_state.current_batch_sizes,
                         "repeat_count": st.session_state.current_repeats,
                         "warmup_runs": st.session_state.current_warmups,
                         "memory_runs": st.session_state.current_memory_runs,
                         "run_order": st.session_state.current_run_order,
                         "random_seed": st.session_state.get("current_random_seed", 42),
+                        "enable_quality_metrics": st.session_state.get("current_enable_quality_metrics", False),
+                        "selected_quality_metrics": st.session_state.get("current_selected_quality_metrics", []),
                     }
                     generate_pdf_report(
                          st.session_state.current_batch_id,

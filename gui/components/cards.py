@@ -517,7 +517,7 @@ def render_parameters_mapping_table(methods_info):
                     v_str = str(v)
             else:
                 v_str = str(v)
-            formatted_params.append(f"<b>{k_pretty}</b>: {v_str}")
+            formatted_params.append(f"{k_pretty}: {v_str}")
         
         params_str = ", ".join(formatted_params)
         table_html += (

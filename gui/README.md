@@ -2,7 +2,7 @@
 
 **Motivation:** Explainable AI is crucial for trust and transparency in model decisions. However, many explanation techniques introduce significant computational overhead. For example, perturbation-based methods may require *hundreds or thousands of forward passes* to generate a single explanation ([OpenVINO™ Explainable AI Toolkit User Guide](https://openvinotoolkit.github.io/openvino_xai/stable/user-guide.html#:~:text=%2A%20Flexible%20,Cons)), and model-agnostic methods like SHAP can be *prohibitively slow* on large models ([Explainable artificial intelligence (XAI): from inherent explainability to large language models](https://arxiv.org/html/2501.09967v1#:~:text=Also%2C%20the%20computational%20overhead%20when,In%20addition%2C%20model)). This efficiency gap means some XAI methods are impractical for real-time or resource-constrained deployment. Balancing interpretability with computational efficiency is a known trade-off ([Do All AI Systems Need to Be Explainable?](https://ssir.org/articles/entry/do_ai_systems_need_to_be_explainable#:~:text=5.%20The%20trade,When)).
 
-This toolkit provides the primary interface for balancing that interpretability trade-off. It offers both a rich **Streamlit Web UI** and a headless **Command Line Interface (CLI)** to evaluate multiple model architectures, input sizes, and XAI methods on both local images and remote URLs. It generates **attribution runtimes**, **peak memory usage**, **estimated energy consumption**, and **deep quality metrics**, all neatly packaged into comprehensive **CSV/PDF exports** and heatmap visual summaries.
+This toolkit provides the primary interface for balancing that interpretability trade-off. It offers both a rich **Streamlit Web UI** and a headless **Command Line Interface (CLI)** to evaluate multiple model architectures, input sizes, and XAI methods on both local images and remote URLs. It generates **attribution runtimes**, **peak memory usage**, **estimated energy consumption**, and **quality metrics**, all neatly documented and plotted into **CSV/PDF exports** and heatmap visual summaries.
 
 ---
 
@@ -87,9 +87,9 @@ The benchmark natively supports testing parameterized variations of the same bas
 
 The benchmark extracts the following primary computational metrics for every XAI method evaluated:
 
-*   **Attribution Runtime**: The pure execution time required to generate the explanation mask (in seconds).
-*   **Peak Memory Usage**: The maximum VRAM (GPU) or system RAM (CPU) footprint allocated during the explanation generation (in MiB).
-*   **Estimated Energy**: The power footprint of the run (in kWh), derived from the duration and the hardware's Thermal Design Power (TDP).
+*   **Attribution Runtime**: The isolated execution time (in seconds) required to generate the attribution mask. The benchmark extracts the full statistical profile across measured repeats (median, mean, std dev, min, max) and reports the median in UI summaries to eliminate hardware measurement noise.
+*   **Peak Memory Usage**: The maximum VRAM (GPU) or system RAM (CPU) footprint allocated during attribution generation (in MB). It is measured in dedicated profiling runs to avoid contaminating timing measurements.
+*   **Estimated Energy**: The estimated electrical energy footprint (in kWh), derived from the median attribution runtime and the device's Thermal Design Power (TDP) to compare energy efficiency across hardware.
 
 ---
 
@@ -114,7 +114,7 @@ Every benchmark run generates a structured suite of visual and tabular results, 
 
 *   **Context & Reproducibility Logs**:
     *   **Full Hardware Specification**: Embedded hardware context (CPU/GPU names, TDP ratings, driver/software versions) ensuring the run's environment is fully documented.
-    *   **Configuration Specification**: A dedicated metadata block mapping out the exact test parameters (number of images, warmup runs, repeats, and custom XAI hyperparameters) used during the execution.
+    *   **Configuration Specification**: A dedicated metadata block mapping out the exact test parameters (number of images, vision model architectures, XAI methods, image resolutions, quality metrics, warmup runs, measured repeats, memory runs, task ordering strategy (with random seed if "Randomized"), and custom XAI hyperparameters) used during the execution.
 *   **Per-Image Results (Granular Analysis)**: 
     *   **Heatmap Collage Figures**: For every evaluated image, the system renders side-by-side visual figure comparisons of attribution masks across all selected XAI methods and input resolutions.
     *   **Detailed Metrics Tables**: A granular data table accompanies each image collage, explicitly listing the runtime, peak memory, estimated energy, and quality scores for every method evaluated.
@@ -125,13 +125,13 @@ Every benchmark run generates a structured suite of visual and tabular results, 
         *   **Pareto Analysis Curves**: Scatter plots mapping trade-off frontiers between speed (runtime) and explanation quality (e.g., Deletion AUC, Sensitivity), automatically ranking the Pareto-optimal methods.
         *   **Configuration Averages (Tables)**: High-level summary tables computing the overall means for all recorded metrics.
 
-*(Note: All benchmark results (whether executed via the UI or the CLI) are automatically mirrored into a comprehensive PDF report and raw CSV file stored in the `gui/sessions/` directory for offline analysis.)*
+*(Note: All benchmark results (whether executed via the UI or the CLI) are automatically stored in the `gui/sessions/` directory for offline analysis.)*
 
 ---
 
 ## 8️⃣ Precision Measurement Details
 
-*   **Execution Counts**: Users have full control over the benchmark's rigor, by setting the number of **warm-up runs** (to prime GPU/CPU caches before timing), **timed repeats** (for stable median runtime calculations), and dedicated **memory runs** (isolated executions for tracking peak VRAM/RAM allocations).
+*   **Execution Counts**: Users have full control over the benchmark's rigor, by setting the number of **warm-up runs** (to prime GPU/CPU caches before timing), **measured repeats** (for stable median runtime calculations), and dedicated **memory runs** (isolated executions for tracking peak VRAM/RAM allocations).
 *   **Timing & Memory Isolation**: Memory profiling is performed in dedicated executions (default: 1 run) separate from runtime benchmarks to avoid profiling overhead affecting speed measurements. Disabling memory profiling (setting the number of memory runs to 0) displays `–` instead of an incorrect 0.0 MB value.
 *   **Benchmark Precision & Outliers**: Warm-up runs are excluded from reported statistics. Timed repetitions measure execution time using hardware synchronization (CUDA/MPS where applicable), and the median runtime is reported to reduce the influence of background system activity and transient performance spikes.
 *   **Memory Tracking**: GPU memory (CUDA/MPS) is measured directly using PyTorch's memory allocators. CPU memory is sampled from system RAM every 100 ms, meaning brief allocation spikes during executions shorter than the sampling interval may not be captured.

@@ -497,20 +497,27 @@ def plot_model_memory_comparison_grouped(df, title="Architecture Peak Memory Com
     return fig
 
 def plot_image_size_runtime_scaling(summary_df):
+    res_col = "Resolution" if "Resolution" in summary_df.columns else ("Input Size (px)" if "Input Size (px)" in summary_df.columns else None)
+    if not res_col or summary_df.empty:
+        return None
     fig, ax = plt.subplots(figsize=(10, 6))
-    summary_df = summary_df.sort_values("Resolution")
+    summary_df = summary_df.sort_values(res_col)
+    y_col = "Mean Attribution Runtime (sec)" if "Mean Attribution Runtime (sec)" in summary_df.columns else ATTR_RUNTIME_COL
+    yerr_col = "Attribution Runtime Std (sec)" if "Attribution Runtime Std (sec)" in summary_df.columns else None
+    yerr_val = summary_df[yerr_col] if yerr_col and yerr_col in summary_df.columns else None
+    
     ax.errorbar(
-        summary_df["Resolution"],
-        summary_df["Mean Attribution Runtime (sec)"],
-        yerr=summary_df["Attribution Runtime Std (sec)"],
+        summary_df[res_col],
+        summary_df[y_col],
+        yerr=yerr_val,
         marker="o",
         linestyle="-",
         linewidth=2,
         capsize=4,
         color="#1f77b4"
     )
-    ax.set_xticks(summary_df["Resolution"])
-    ax.set_xticklabels([str(r) for r in summary_df["Resolution"]])
+    ax.set_xticks(summary_df[res_col])
+    ax.set_xticklabels([str(r) for r in summary_df[res_col]])
     
     ax.set_xlabel("Resolution (px)")
     ax.set_ylabel("Mean Attribution Runtime (sec)")
@@ -520,20 +527,27 @@ def plot_image_size_runtime_scaling(summary_df):
     return fig
 
 def plot_image_size_memory_scaling(summary_df):
+    res_col = "Resolution" if "Resolution" in summary_df.columns else ("Input Size (px)" if "Input Size (px)" in summary_df.columns else None)
+    if not res_col or summary_df.empty:
+        return None
     fig, ax = plt.subplots(figsize=(10, 6))
-    summary_df = summary_df.sort_values("Resolution")
+    summary_df = summary_df.sort_values(res_col)
+    y_col = "Mean Peak Attribution Memory (MB)" if "Mean Peak Attribution Memory (MB)" in summary_df.columns else ATTR_MEMORY_COL
+    yerr_col = "Peak Memory Std (MB)" if "Peak Memory Std (MB)" in summary_df.columns else None
+    yerr_val = summary_df[yerr_col] if yerr_col and yerr_col in summary_df.columns else None
+
     ax.errorbar(
-        summary_df["Resolution"],
-        summary_df["Mean Peak Attribution Memory (MB)"],
-        yerr=summary_df["Peak Memory Std (MB)"],
+        summary_df[res_col],
+        summary_df[y_col],
+        yerr=yerr_val,
         marker="o",
         linestyle="-",
         linewidth=2,
         capsize=4,
         color="#d62728"
     )
-    ax.set_xticks(summary_df["Resolution"])
-    ax.set_xticklabels([str(r) for r in summary_df["Resolution"]])
+    ax.set_xticks(summary_df[res_col])
+    ax.set_xticklabels([str(r) for r in summary_df[res_col]])
     
     ax.set_xlabel("Resolution (px)")
     ax.set_ylabel("Mean Peak Attribution Memory (MB)")
@@ -559,11 +573,19 @@ def plot_runtime_memory_scatter(df, figsize=(9, 6)):
     memory_col = metric_col(df, ATTR_MEMORY_COL, LEGACY_MEMORY_COL)
     
     # Group by configuration (Method, Model, Resolution) and average the metrics (across all images)
-    group_cols = ["Method", "Model", "Resolution"]
+    res_col = "Input Size (px)" if "Input Size (px)" in df.columns else ("Resolution" if "Resolution" in df.columns else None)
+    group_cols = ["Method", "Model"]
+    if res_col:
+        group_cols.append(res_col)
+    
     df_config = df.groupby(group_cols).agg({runtime_col: "mean", memory_col: "mean"}).reset_index()
     
     # Combine Model and Resolution into a single column for marker style grouping
-    df_config["Model (Resolution)"] = df_config["Model"] + " (" + df_config["Resolution"] + ")"
+    if res_col:
+        df_config["Model (Resolution)"] = df_config["Model"] + " (" + df_config[res_col].astype(str) + ")"
+        style_col = "Model (Resolution)"
+    else:
+        style_col = "Model"
     
     fig, ax = plt.subplots(figsize=figsize)
     # Style represents Model (Resolution), Hue represents Method. Constant size (s=110)
@@ -572,7 +594,7 @@ def plot_runtime_memory_scatter(df, figsize=(9, 6)):
         x=runtime_col, 
         y=memory_col, 
         hue="Method", 
-        style="Model (Resolution)", 
+        style=style_col, 
         s=110, 
         ax=ax, 
         edgecolor="black"
