@@ -357,7 +357,8 @@ def collect_environment_metadata(device=None, custom_cpu_tdp=None, custom_gpu_td
         "cuda_available": torch.cuda.is_available() or (device == "mps"),
         "cuda_device_count": len(cuda_devices),
         "cuda_devices": cuda_devices,
-        "selected_device": str(device) if device is not None else None,
+        "selected_device": str(device) if device is not None else ("cuda" if torch.cuda.is_available() else "cpu"),
+        "device_selected": str(device) if device is not None else ("cuda" if torch.cuda.is_available() else "cpu"),
     }
 
 def run_benchmark_task(config, session_dir):
@@ -422,6 +423,7 @@ def run_benchmark_task(config, session_dir):
         img = Image.open(img_src).convert('RGB')
     
     original_dims = f"{img.size[0]} x {img.size[1]}"
+    os.makedirs(session_dir, exist_ok=True)
     img.save(os.path.join(session_dir, "input_image.jpg"))
     input_tensor = preprocess_image(img, model_name=norm_model_name, target_size=target_size).unsqueeze(0).to(device)
     img_dims = f"{input_tensor.shape[2]} x {input_tensor.shape[3]}"
@@ -511,16 +513,43 @@ def run_benchmark_task(config, session_dir):
                     attribution = LayerAttribution.interpolate(attribution, inputs_to_use.shape[2:])
                     return attribution.repeat(1, 3, 1, 1)
                 if method_key == 'occlusion':
-                    w_shapes = method_params.get("sliding_window_shapes", (3, 15, 15))
+                    w_shapes = method_params.get("sliding_window_shapes", method_params.get("window_shapes", (3, 15, 15)))
                     strds = method_params.get("strides", (3, 8, 8))
                     
-                    if isinstance(w_shapes, list):
-                        w_shapes = tuple(w_shapes)
-                    if isinstance(strds, list):
-                        strds = tuple(strds)
+                    if isinstance(w_shapes, (int, float)):
+                        w_shapes = (3, int(w_shapes), int(w_shapes))
+                    elif isinstance(w_shapes, (list, tuple)):
+                        if len(w_shapes) == 1:
+                            w_shapes = (3, int(w_shapes[0]), int(w_shapes[0]))
+                        elif len(w_shapes) == 2:
+                            w_shapes = (3, int(w_shapes[0]), int(w_shapes[1]))
+                        else:
+                            w_shapes = tuple(int(x) for x in w_shapes)
+                    elif isinstance(w_shapes, str):
+                        try:
+                            val = int(w_shapes)
+                            w_shapes = (3, val, val)
+                        except Exception:
+                            w_shapes = (3, 15, 15)
+                            
+                    if isinstance(strds, (int, float)):
+                        strds = (3, int(strds), int(strds))
+                    elif isinstance(strds, (list, tuple)):
+                        if len(strds) == 1:
+                            strds = (3, int(strds[0]), int(strds[0]))
+                        elif len(strds) == 2:
+                            strds = (3, int(strds[0]), int(strds[1]))
+                        else:
+                            strds = tuple(int(x) for x in strds)
+                    elif isinstance(strds, str):
+                        try:
+                            val = int(strds)
+                            strds = (3, val, val)
+                        except Exception:
+                            strds = (3, 8, 8)
                     
                     occ_color = method_params.get("occlude_color", "0")
-                    if occ_color == "mean":
+                    if str(occ_color).lower() == "mean":
                         baselines = inputs_to_use.mean().item()
                     else:
                         try:
@@ -662,6 +691,7 @@ def run_benchmark_task(config, session_dir):
                 "Original Resolution": original_dims,
                 "Prediction": predicted_class,
                 "Device": device_info,
+                "Estimated Energy Consumption (kWh)": est_energy,
                 "Estimated Energy Consumption (kW)": est_energy,
                 "Model Cache": "reused" if was_model_cached else "loaded",
                 "Timing Scope": "attribution_only",

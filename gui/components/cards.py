@@ -396,7 +396,8 @@ def render_environment_summary(environment):
     cpu_tdp = environment.get("cpu_tdp_w")
     matched_cpu = environment.get("matched_cpu_name")
         
-    selected_device = str(environment.get("selected_device", "")).lower()
+    dev_raw = environment.get("selected_device") or environment.get("device_selected") or environment.get("device_mode") or environment.get("device") or ("cuda" if environment.get("cuda_devices") else "cpu")
+    selected_device = str(dev_raw).lower()
     is_gpu = "cuda" in selected_device or "mps" in selected_device
     
     # Only display CPU TDP if execution device is CPU
@@ -412,7 +413,6 @@ def render_environment_summary(environment):
     ]
 
     cuda_devices = environment.get("cuda_devices", [])
-    selected_device = str(environment.get("selected_device", "")).lower()
     if cuda_devices:
         gpu_details = []
         for d in cuda_devices:
@@ -432,9 +432,11 @@ def render_environment_summary(environment):
     elif "mps" in selected_device:
         env_rows.append(("GPU Device", "Apple Silicon MPS"))
 
-    exec_dev = clean_val(environment.get("selected_device", "cpu")).upper()
-    if "CUDA" in exec_dev or "MPS" in exec_dev:
-        exec_dev = f"{exec_dev} (GPU)"
+    dev_str = clean_val(dev_raw).upper()
+    if "CUDA" in dev_str or "MPS" in dev_str:
+        exec_dev = f"{dev_str} (GPU)"
+    else:
+        exec_dev = f"{dev_str}"
     env_rows.append(("Execution Device", exec_dev))
 
     python_v = clean_val(environment.get("python_version"))
@@ -501,9 +503,9 @@ def render_parameters_mapping_table(methods_info):
         '<tbody>'
     )
     for m in parameterized:
-        disp_name = m["display_name"]
-        base_name = m["base_name"].replace("_", " ").title()
-        params = m["params"]
+        disp_name = m.get("display_name") or m.get("method") or m.get("name") or "Method"
+        base_name = str(m.get("base_name") or m.get("algorithm") or (disp_name.split("_")[0] if "_" in disp_name else disp_name)).replace("_", " ").title()
+        params = m.get("params", {})
         
         # Format the parameters dictionary into a readable string
         formatted_params = []
@@ -1098,12 +1100,23 @@ def render_result_group(group, selected_methods, expanded=True, key_suffix=""):
                 
     thumb_b64 = get_image_thumbnail_base64(img_path, size=(24, 24))
     
+    # 1-indexed human-readable image number for UI display
+    display_num = None
+    if group.get("image_id") and "Image " in str(group.get("image_id")):
+        try:
+            display_num = int(str(group["image_id"]).split()[1])
+        except Exception:
+            pass
+    if display_num is None:
+        raw_idx = group.get("img_idx", 0)
+        display_num = (raw_idx + 1) if isinstance(raw_idx, int) else 1
+    
     if thumb_b64:
-        label = f"![Thumbnail]({thumb_b64})&nbsp; **Results for Image {group['img_idx']}**"
+        label = f"![Thumbnail]({thumb_b64})&nbsp; **Results for Image {display_num}**"
     else:
-        label = f"🖼️ **Results for Image {group['img_idx']}**"
+        label = f"🖼️ **Results for Image {display_num}**"
         
-    exp_key = f"res_group_exp_{group['img_idx']}_{key_suffix}" if key_suffix else None
+    exp_key = f"res_group_exp_{display_num}_{key_suffix}" if key_suffix else None
     with st.expander(label, expanded=expanded, key=exp_key):
         # Group entries by base model architecture
         architectures = []

@@ -38,6 +38,11 @@ def normalize_metric_columns(df):
     if ATTR_MEMORY_COL not in df.columns and LEGACY_MEMORY_COL in df.columns:
         df[ATTR_MEMORY_COL] = df[LEGACY_MEMORY_COL]
         
+    if "Estimated Energy Consumption (kWh)" not in df.columns and "Estimated Energy Consumption (kW)" in df.columns:
+        df["Estimated Energy Consumption (kWh)"] = df["Estimated Energy Consumption (kW)"]
+    elif "Estimated Energy Consumption (kWh)" in df.columns and "Estimated Energy Consumption (kW)" in df.columns:
+        df["Estimated Energy Consumption (kWh)"] = df["Estimated Energy Consumption (kWh)"].combine_first(df["Estimated Energy Consumption (kW)"])
+        
     # Coerce metric columns to float64 numeric dtypes so historical JSON string nulls ('-', '.', 'None') convert cleanly to np.nan
     non_numeric_text_cols = {
         "Method", "Model", "Resolution", "Original Resolution", "Prediction", 

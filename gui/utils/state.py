@@ -13,10 +13,15 @@ from utils.helpers import get_device_string, build_task_queue, sorted_result_gro
 from backend.benchmark_runner import collect_environment_metadata
 
 def get_or_create_result_group(results, img_i, img_sources):
-    img_idx = img_i + 1
-    group = next((g for g in results if g.get("img_idx") == img_idx), None)
+    img_id = f"Image {img_i + 1}"
+    group = next((g for g in results if g.get("img_idx") == img_i or g.get("image_id") == img_id), None)
     if group is None:
-        group = {"img_idx": img_idx, "models": [], "source": img_sources[img_i]}
+        group = {
+            "img_idx": img_i,
+            "image_id": img_id,
+            "models": [],
+            "source": img_sources[img_i]
+        }
         results.append(group)
         results.sort(key=lambda g: g.get("img_idx", 0))
     return group
@@ -25,9 +30,9 @@ def current_image_sources():
     uploaded_files = st.session_state.get("uploaded_files") or []
     url_list = [u.strip() for u in st.session_state.persisted_urls.split("\n") if u.strip()]
     
-    # Auto-load local images from gui/images/ folder if it exists
+    # Auto-load local images from images/ folder if it exists
     local_images = []
-    images_dir = os.path.join(PROJECT_ROOT, "gui", "images")
+    images_dir = os.path.join(PROJECT_ROOT, "images")
     if os.path.exists(images_dir) and os.path.isdir(images_dir):
         try:
             active_files = st.session_state.get("active_local_filenames")
@@ -40,7 +45,9 @@ def current_image_sources():
             
     return local_images + list(uploaded_files) + url_list
 
-def serialize_and_persist_image_sources(img_sources, batch_id, base_dir="gui/sessions"):
+def serialize_and_persist_image_sources(img_sources, batch_id, base_dir=None):
+    if base_dir is None:
+        base_dir = sm.base_dir
     persisted_sources = []
     uploaded_dir = os.path.join(base_dir, batch_id, "uploaded_images")
     

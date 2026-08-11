@@ -36,7 +36,7 @@ def style_dataframe(df, raw_precision=False):
             
     def make_formatter(col_name):
         def _fmt(val):
-            if pd.isna(val) or val is None:
+            if pd.isna(val) or val is None or val in ["N/A", "-", "None", ""]:
                 return "–"
             try:
                 v = float(val)
@@ -67,8 +67,8 @@ def style_dataframe(df, raw_precision=False):
                     return f"{v:.4f}"
         return _fmt
 
-    numeric_cols = [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c])]
-    formatters = {c: make_formatter(c) for c in numeric_cols}
+    format_cols = [c for c in df.columns if c not in ["Method", "Model", "Prediction", "Status", "Device", "Model_Size", "Model Cache", "Timing Scope", "Memory Scope"]]
+    formatters = {c: make_formatter(c) for c in format_cols}
 
     styler = df.style
     if subset_cols:

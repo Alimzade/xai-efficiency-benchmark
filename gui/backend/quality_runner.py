@@ -181,7 +181,7 @@ def compute_infidelity_score(ctx: QualityContext, n_samples: int = 10, noise_sig
 
         # 1. Compute attribution dot products: (n_samples,)
         # Note: dot product across all channels and spatial dimensions
-        dot_products = (noise * attr_resized).view(n_samples, -1).sum(dim=-1)
+        dot_products = (noise * attr_resized.contiguous()).reshape(n_samples, -1).sum(dim=-1)
 
         # 2. Compute target class logit drop under perturbation: (n_samples,)
         with torch.no_grad():
@@ -212,18 +212,21 @@ def compute_max_sensitivity(ctx: QualityContext, explanation_func, n_samples: in
             
             attrs = []
             for i in range(in_tensor.shape[0]):
-                attr = explanation_func(in_tensor[i:i+1])
+                attr = explanation_func(in_tensor[i:i+1].contiguous())
                 # If explanation_func returns a tuple, extract the tensor.
                 if isinstance(attr, tuple):
                     attr = attr[0]
+                if isinstance(attr, torch.Tensor):
+                    attr = attr.contiguous()
                 attrs.append(attr)
             
-            res = torch.cat(attrs, dim=0)
+            res = torch.cat(attrs, dim=0).contiguous()
             return (res,) if is_tuple else res
             
+        in_tensor = ctx.input_tensor.contiguous() if isinstance(ctx.input_tensor, torch.Tensor) else ctx.input_tensor
         sens = sensitivity_max(
             explanation_func=_wrapper_func,
-            inputs=ctx.input_tensor,
+            inputs=in_tensor,
             n_perturb_samples=n_samples,
             perturb_radius=noise_sigma
         )
