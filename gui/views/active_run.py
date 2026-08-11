@@ -223,8 +223,8 @@ def render_active_run_page():
 
         if live_tdp_w is not None:
             for g in sorted_result_groups(st.session_state.last_run_results):
-                for m in g["models"]:
-                    for r in m["results"]:
+                for m in g.get("models", []):
+                    for r in m.get("results", []):
                         try:
                             rt = r.get("Attribution Runtime (sec)")
                             if rt is None:
@@ -236,9 +236,13 @@ def render_active_run_page():
 
         all_r = []
         for g in sorted_result_groups(st.session_state.last_run_results):
-            img_idx = g["img_idx"]
-            for m in g["models"]:
-                for r in m["results"]:
+            img_idx = g.get("img_idx")
+            if img_idx is None:
+                img_id_str = str(g.get("image_id", "Image 1"))
+                parts = img_id_str.split()
+                img_idx = int(parts[1]) - 1 if len(parts) > 1 and parts[1].isdigit() else 0
+            for m in g.get("models", []):
+                for r in m.get("results", []):
                     r_copy = r.copy()
                     r_copy["Image Index"] = img_idx
                     all_r.append(r_copy)
@@ -267,34 +271,37 @@ def render_active_run_page():
             with ex2:
                 if st.session_state.current_batch_id and os.path.exists(os.path.join(sm.base_dir, st.session_state.current_batch_id)):
                     pdf_path = os.path.join(sm.base_dir, st.session_state.current_batch_id, f"{st.session_state.current_batch_id}.pdf")
-                    active_cfg = {
-                        "models": st.session_state.current_batch_models,
-                        "methods": st.session_state.current_batch_methods,
-                        "parameterized_methods": st.session_state.get("current_batch_methods_info", []),
-                        "input_sizes": st.session_state.current_batch_sizes,
-                        "repeat_count": st.session_state.current_repeats,
-                        "warmup_runs": st.session_state.current_warmups,
-                        "memory_runs": st.session_state.current_memory_runs,
-                        "run_order": st.session_state.current_run_order,
-                        "random_seed": st.session_state.get("current_random_seed", 42),
-                        "enable_quality_metrics": st.session_state.get("current_enable_quality_metrics", False),
-                        "selected_quality_metrics": st.session_state.get("current_selected_quality_metrics", []),
-                    }
-                    generate_pdf_report(
-                         st.session_state.current_batch_id,
-                         st.session_state.last_run_results,
-                         st.session_state.current_batch_methods,
-                         pdf_path,
-                         st.session_state.total_execution_time,
-                         collect_environment_metadata(
-                             get_device_string(st.session_state.current_device_mode),
-                             custom_cpu_tdp=st.session_state.get("current_cpu_tdp"),
-                             custom_gpu_tdp=st.session_state.get("current_gpu_tdp")
-                         ),
-                         benchmark_settings=active_cfg
-                    )
-                    if os.path.exists(pdf_path):
-                        with open(pdf_path, "rb") as f:
+                    alt_pdf = os.path.join(sm.base_dir, st.session_state.current_batch_id, "report.pdf")
+                    target_pdf = pdf_path if os.path.exists(pdf_path) else (alt_pdf if os.path.exists(alt_pdf) else pdf_path)
+                    if not os.path.exists(target_pdf):
+                        active_cfg = {
+                            "models": st.session_state.current_batch_models,
+                            "methods": st.session_state.current_batch_methods,
+                            "parameterized_methods": st.session_state.get("current_batch_methods_info", []),
+                            "input_sizes": st.session_state.current_batch_sizes,
+                            "repeat_count": st.session_state.current_repeats,
+                            "warmup_runs": st.session_state.current_warmups,
+                            "memory_runs": st.session_state.current_memory_runs,
+                            "run_order": st.session_state.current_run_order,
+                            "random_seed": st.session_state.get("current_random_seed", 42),
+                            "enable_quality_metrics": st.session_state.get("current_enable_quality_metrics", False),
+                            "selected_quality_metrics": st.session_state.get("current_selected_quality_metrics", []),
+                        }
+                        generate_pdf_report(
+                             st.session_state.current_batch_id,
+                             st.session_state.last_run_results,
+                             st.session_state.current_batch_methods,
+                             target_pdf,
+                             st.session_state.total_execution_time,
+                             collect_environment_metadata(
+                                 get_device_string(st.session_state.current_device_mode),
+                                 custom_cpu_tdp=st.session_state.get("current_cpu_tdp"),
+                                 custom_gpu_tdp=st.session_state.get("current_gpu_tdp")
+                             ),
+                             benchmark_settings=active_cfg
+                        )
+                    if os.path.exists(target_pdf):
+                        with open(target_pdf, "rb") as f:
                             st.download_button("📄 Export PDF", data=f, file_name=f"{st.session_state.current_batch_id}.pdf", mime="application/pdf", use_container_width=True)
             with ex3:
                 if st.button("Repeat Config", key="repeat_current_active_btn", help="Load this configuration back into your workspace inputs to tweak or run it again.", use_container_width=True):

@@ -24,17 +24,22 @@ def render_history_page():
 
     batch_ids = [b["id"] for b in batches]
     
-    # Ensure the session state key exists and is valid before rendering the selectbox
+    # Ensure the session state key exists and is valid before determining index
     if "selected_history_batch" not in st.session_state or st.session_state.selected_history_batch not in batch_ids:
         st.session_state.selected_history_batch = batch_ids[0] if batch_ids else None
+
+    default_idx = 0
+    if st.session_state.selected_history_batch in batch_ids:
+        default_idx = batch_ids.index(st.session_state.selected_history_batch)
 
     selected_bid = st.selectbox(
         "Select Benchmark Batch to View & Evaluate",
         batch_ids,
-        key="selected_history_batch",
-        format_func=lambda bid: get_batch_display_name(bid, sm.base_dir),
+        index=default_idx,
+        format_func=lambda b_id: get_batch_display_name(b_id, sm.base_dir),
         help="Select a batch to view its results, charts, and exports."
     )
+    st.session_state.selected_history_batch = selected_bid
 
     if not selected_bid:
         st.info("Please select a batch from the list above.")
@@ -77,10 +82,15 @@ def render_history_page():
                                     pass
 
                 all_h_r = []
-                for g in meta["results"]:
-                    img_idx = g["img_idx"]
-                    for m in g["models"]:
-                        for r in m["results"]:
+                for g in meta.get("results", []):
+                    img_idx = g.get("img_idx")
+                    if img_idx is None:
+                        # Fallback parsing from image_id e.g. 'Image 1' -> 0
+                        img_id_str = str(g.get("image_id", "Image 1"))
+                        parts = img_id_str.split()
+                        img_idx = int(parts[1]) - 1 if len(parts) > 1 and parts[1].isdigit() else 0
+                    for m in g.get("models", []):
+                        for r in m.get("results", []):
                             r_copy = r.copy()
                             r_copy["Image Index"] = img_idx
                             all_h_r.append(r_copy)
@@ -106,17 +116,22 @@ def render_history_page():
                     hx1, hx2, hx3, hx4 = st.columns([1, 1, 1.4, 1.6])
                     with hx1:
                         h_csv = os.path.join(sm.base_dir, bid, f"{bid}.csv")
-                        if not os.path.exists(h_csv):
-                            generate_csv_report(meta["results"], h_csv)
-                        if os.path.exists(h_csv):
-                            with open(h_csv, "rb") as f:
+                        alt_csv = os.path.join(sm.base_dir, bid, "batch_summary.csv")
+                        target_csv = h_csv if os.path.exists(h_csv) else (alt_csv if os.path.exists(alt_csv) else h_csv)
+                        if not os.path.exists(target_csv):
+                            generate_csv_report(meta.get("results", []), target_csv)
+                        if os.path.exists(target_csv):
+                            with open(target_csv, "rb") as f:
                                 st.download_button("📥 Export CSV", data=f, file_name=f"{bid}.csv", mime="text/csv", key=f"csv_{bid}", use_container_width=True)
                     with hx2:
                         h_pdf = os.path.join(sm.base_dir, bid, f"{bid}.pdf")
-                        with st.spinner("Generating PDF..."):
-                            generate_pdf_report(bid, meta["results"], meta["methods"], h_pdf, h_total_time, meta.get("environment"), meta.get("benchmark_settings"))
-                        if os.path.exists(h_pdf):
-                            with open(h_pdf, "rb") as f:
+                        alt_pdf = os.path.join(sm.base_dir, bid, "report.pdf")
+                        target_pdf = h_pdf if os.path.exists(h_pdf) else (alt_pdf if os.path.exists(alt_pdf) else h_pdf)
+                        if not os.path.exists(target_pdf):
+                            with st.spinner("Generating PDF..."):
+                                generate_pdf_report(bid, meta.get("results", []), meta.get("methods", []), target_pdf, h_total_time, meta.get("environment"), meta.get("benchmark_settings"))
+                        if os.path.exists(target_pdf):
+                            with open(target_pdf, "rb") as f:
                                 st.download_button("📄 Export PDF", data=f, file_name=f"{bid}.pdf", mime="application/pdf", key=f"pdf_{bid}", use_container_width=True)
                     with hx3:
                         if st.button("Repeat Config", key=f"repeat_{bid}", use_container_width=True):
