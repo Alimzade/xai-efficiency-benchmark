@@ -11,7 +11,7 @@ import streamlit as st
 from dbgpu import GPUDatabase
 from PIL import Image
 
-from config import sm, PROJECT_ROOT, model_opts
+from config import sm, PROJECT_ROOT, model_opts, fixed_size_models, min_input_size, region_based_methods
 from backend.benchmark_runner import find_cpu_tdp
 from components.media import get_base64, render_image_preview_gallery
 from utils.loader import expand_xai_methods_with_params, assign_numbered_suffixes
@@ -25,7 +25,7 @@ def render_configure_page():
         if val:
             if val.isdigit():
                 val_int = int(val)
-                if val_int >= 32:
+                if val_int >= min_input_size:
                     if val not in st.session_state.input_sizes_options:
                         st.session_state.input_sizes_options.append(val)
                     if val not in st.session_state.selected_input_sizes:
@@ -41,14 +41,14 @@ def render_configure_page():
                         key=lambda x: int(x) if x.isdigit() else 0
                     )
                 else:
-                    st.warning("⚠️ Input size must be at least 32px.")
+                    st.warning(f"⚠️ Input size must be at least {min_input_size}px.")
             else:
                 st.warning("⚠️ Please enter a valid number.")
         st.session_state.new_custom_size_input = ""
 
     # Detect and initialize auto-loaded folder images state (Safe from widget lock here!)
     local_all = []
-    images_dir = os.path.join(PROJECT_ROOT, "gui", "images")
+    images_dir = os.path.join(PROJECT_ROOT, "images")
     if os.path.exists(images_dir) and os.path.isdir(images_dir):
         try:
             for f in sorted(os.listdir(images_dir)):
@@ -143,7 +143,7 @@ def render_configure_page():
     # Row 2 (Inputs Row - Top)
     row2_top_left, row2_top_right = main_left, main_right
     with row2_top_left:
-        fixed_models = [m for m in selected_models_widget if m in ["vit-b-16", "swin-t"]]
+        fixed_models = [m for m in selected_models_widget if m in fixed_size_models]
         if fixed_models:
             st.multiselect(
                 "Input Sizes (px)",
@@ -641,7 +641,7 @@ def render_configure_page():
 
     # Row 5: Quality Metrics (Post-Processing)
     st.divider()
-    all_quality_opts = ["Gini Index (Sparsity)", "Deletion AUC", "Insertion AUC", "Sensitivity (Max)", "Infidelity"]
+    all_quality_opts = ["Gini Index (Sparsity)", "Deletion AUC", "Insertion AUC", "Sensitivity (Max)", "Infidelity (Perturbation Faithfulness)"]
     default_quality_opts = ["Gini Index (Sparsity)", "Deletion AUC", "Insertion AUC", "Sensitivity (Max)"]
 
     def on_quality_toggle_change():
@@ -666,8 +666,14 @@ def render_configure_page():
         help="Post-hoc quality metrics evaluated outside the timing clock. Gini Index (sparsity), Deletion AUC (faithfulness upon removal), Insertion AUC (faithfulness upon addition), Sensitivity (Max) (worst-case sensitivity), and Infidelity (perturbation robustness)."
     )
 
-    if is_quality_enabled and "Infidelity" in st.session_state.selected_quality_metrics:
-        st.info("ℹ️ **Note on Infidelity**: Infidelity is computed in pixel space based on local gradient tracking. For region-based explanation methods (e.g., LIME, Occlusion), the metric may scale unpredictably and may not be directly comparable to pixel-based methods because attribution granularity differs significantly.")
+    if is_quality_enabled and any("Infidelity" in m for m in st.session_state.selected_quality_metrics):
+        selected_m = st.session_state.get("selected_methods", [])
+        active_region_methods = [m for m in selected_m if any(rm.lower() in m.lower() for rm in region_based_methods)]
+        if active_region_methods:
+            formatted_rm = ", ".join([f"**{m}**" for m in active_region_methods])
+            st.warning(f"⚠️ **Caution on Infidelity**: Infidelity is computed in pixel space using fine-grained Gaussian perturbations ($\\delta^T A(x)$). For your selected region-based methods ({formatted_rm}), this metric is mathematically ill-suited and will produce distorted, invalid scores because coarse patch attributions cannot accurately track high-frequency pixel noise.")
+        else:
+            st.caption("ℹ️ *Infidelity is active and will evaluate pixel-space perturbation faithfulness for your selected gradient attribution methods.*")
 
     st.divider()
 

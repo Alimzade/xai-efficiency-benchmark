@@ -12,13 +12,18 @@ from backend.session_manager import SessionManager
 logger = logging.getLogger(__name__)
 
 # Core Global Paths and Singletons
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 sm = SessionManager()
 
-from utils.model_loader import MODEL_ZOO
+from utils.model_loader import MODEL_ZOO, FIXED_SIZE_MODELS
 
 # Default Configurations
 model_opts = list(MODEL_ZOO.keys())
+fixed_size_models = FIXED_SIZE_MODELS
+min_input_size = 32
+default_input_size = 224
+region_based_methods = ["Occlusion", "LIME"]
+pixel_based_methods = ["Saliency", "Integrated_Gradients", "Guided_Backprop", "Input_X_Gradient", "Gradient_Shap", "DeepLift", "DeepLift_Shap", "Grad_CAM"]
 xai_opts = ["Saliency", "Integrated_Gradients", "Guided_Backprop", "Input_X_Gradient", "Gradient_Shap", "DeepLift", "DeepLift_Shap", "Grad_CAM", "Occlusion", "LIME"]
 
 # Hardware Device Detection

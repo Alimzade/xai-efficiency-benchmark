@@ -278,7 +278,7 @@ def keep_local_images_expanded():
     st.session_state.local_images_expanded = True
 
 def load_docs_reference():
-    docs_path = os.path.join(PROJECT_ROOT, "gui", "assets", "docs_reference.json")
+    docs_path = os.path.join(PROJECT_ROOT, "assets", "docs_reference.json")
     if os.path.exists(docs_path):
         try:
             with open(docs_path, "r", encoding="utf-8") as f:

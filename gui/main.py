@@ -112,7 +112,7 @@ from views.history import render_history_page
 from views.documentation import render_documentation_page
 
 # CSS
-css_path = os.path.join(PROJECT_ROOT, "gui", "assets", "styles.css")
+css_path = os.path.join(PROJECT_ROOT, "assets", "styles.css")
 if os.path.exists(css_path):
     with open(css_path, "r", encoding="utf-8") as f:
         st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
