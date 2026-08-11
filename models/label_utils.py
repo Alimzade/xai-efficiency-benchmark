@@ -1,10 +1,6 @@
 import torch
-from models.model_loader import MODEL_ZOO
-
-IMAGENET_LABELS = {
-    model_name: weights.meta.get("categories", [])
-    for model_name, (_, weights) in MODEL_ZOO.items()
-}
+import json
+import requests
 
 def get_label_mapping(model_name, predicted_class, label, label_names):
     """
@@ -27,15 +23,18 @@ def get_label_mapping(model_name, predicted_class, label, label_names):
         'densenet121', 'vit-b-16'  
     ]
 
-    # Use local Torchvision weight metadata for supported ImageNet models.
+    # Fetch ImageNet labels for supported models
     if model_name in imagenet_models:
         try:
-            imagenet_label_names = IMAGENET_LABELS.get(model_name, [])
+            labels_url = "https://raw.githubusercontent.com/anishathalye/imagenet-simple-labels/master/imagenet-simple-labels.json"
+            imagenet_label_names = json.loads(requests.get(labels_url).text)
+
+            # Fetch predicted label
             predicted_label = imagenet_label_names[predicted_class.item()]
         except IndexError:
             predicted_label = f"Class Index {predicted_class.item()}"
         except Exception as e:
-            print(f"Error loading local ImageNet labels: {e}")
+            print(f"Error fetching ImageNet labels: {e}")
             predicted_label = f"Class Index {predicted_class.item()}"
     else:
         # Handle unsupported models or custom datasets
