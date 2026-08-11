@@ -1,0 +1,31 @@
+# Python bytecode & cache
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Streamlit internal state & credentials
+.streamlit/credentials.toml
+.streamlit/secrets.toml
+
+# Benchmark session runs & artifacts (data, heatmaps, reports)
+sessions/
+
+# CLI interactive wizard persisted session configs
+*.last_run_config.json
+
+# IDE & OS metadata
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Temporary & agent caches
+.ipynb_checkpoints/
+.agents/
+docs/superpowers/
+superpowers/

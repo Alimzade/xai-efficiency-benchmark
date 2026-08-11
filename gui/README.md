@@ -22,22 +22,30 @@ This toolkit provides the primary interface for balancing that interpretability 
 
 ## 2️⃣ Project Structure & File Roles
 
-The GUI files are structured as follows:
+The GUI files are structured as follows (see [docs/README.md](docs/README.md) for the complete modular technical documentation map):
 
 ```text
-├── gui/
-│   ├── main.py             # Main dashboard entrypoint: handles routing and UI initialization
-│   ├── config.py           # Global state and constants manager
-│   ├── requirements.txt    # GUI-specific Python dependencies
-│   ├── App.bat / app.sh    # Quick-launch executable scripts for the Streamlit dashboard
-│   ├── analysis/           # Data aggregators and trade-off logic (pareto.py, metrics.py)
-│   ├── backend/            # Execution engines and filesystem managers (benchmark_runner, quality_runner, session_manager, exporter)
-│   ├── cli/                # Headless command-line benchmark runner scripts
-│   ├── components/         # Reusable UI elements (cards, plots, media, tables)
-│   ├── assets/             # Static datasets (docs_reference.json, amd/intel-cpus.csv)
-│   ├── views/              # Individual dashboard views (configure, active_run, history, documentation)
-│   ├── utils/              # Helper functions, parsers, and setup tools (setup_env.py, processing.py)
-│   └── sessions/           # Created dynamically: stores task CSVs, PDF reports, and heatmaps
+gui/
+├── main.py                 # Streamlit application entrypoint and route orchestrator
+├── config.py               # Global constants, taxonomy, and application configuration
+├── requirements.txt        # Python dependency specifications
+├── App.bat / app.sh        # One-click desktop launchers (Windows / Linux / macOS)
+│
+├── views/                  # Primary UI screens (Configure, Active Run, History, Docs)
+├── components/             # Reusable UI widgets (cards, plots, media, styled tables)
+│
+├── backend/                # Execution core (benchmark engine, quality suite, exporter)
+├── analysis/               # Statistical processing (metric aggregators, Pareto frontiers)
+├── cli/                    # Headless CLI runner, terminal wizard, and batch scripts
+├── utils/                  # Hardware detection, model loader, and session state helpers
+│
+├── assets/                 # Static datasets (hardware TDP databases, CSS, doc reference)
+├── images/                 # Default test images for automatic startup discovery
+├── docs/                   # Modular technical architecture documentation (01–12)
+├── sessions/               # (Generated) Benchmark batch results, CSV/PDFs, and heatmaps
+│
+├── .gitignore              # Self-contained Git ignore rules for the GUI package
+└── GEMINI.md               # Engineering instructions and agent verification protocol
 ```
 
 ---

@@ -168,9 +168,9 @@
           "definition": "Captum metric measuring the maximum change (worst-case sensitivity) in the explanation when the input is subjected to slight perturbations. Lower is better (more robust)."
         },
         {
-          "name": "Infidelity",
+          "name": "Infidelity (Perturbation Faithfulness)",
           "unit": "Mean Squared Error",
-          "definition": "Captum metric measuring the mean squared difference between predictor output change under perturbation and attribution inner product. Lower is better. Note: Computed in pixel space; for region-based methods (e.g., LIME), the metric scales unpredictably and may not be directly comparable to pixel-based methods."
+          "definition": "Captum metric measuring the mean squared difference between predictor output change under Gaussian noise perturbations and attribution inner product. Lower is better. Warning: Computed in pixel space; for region-based methods (e.g. LIME, Occlusion), the metric is mathematically ill-suited and produces invalid/misleading scores."
         }
       ]
     },

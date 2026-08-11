@@ -1,17 +1,23 @@
-# --- Core Libraries (Managed by smart_setup.py) ---
+# --- Core PyTorch Libraries (Auto-installed by setup_env.py) ---
 # torch
 # torchvision
 # torchaudio
 
-# --- XAI & Analysis ---
-captum
+# --- GUI, CLI & Profiling ---
+streamlit
+questionary
 memory_profiler
+dbgpu[fuzz]
+
+# --- XAI & Image Processing ---
+captum
 opencv-python
-requests
-pandas
 scikit-image
 scikit-learn
+requests
+pandas
 seaborn
-streamlit
-dbgpu[fuzz]
-questionary
+matplotlib
+
+# --- Document & Report Generation ---
+reportlab
